@@ -53,8 +53,8 @@
           # expose flake-self inside modules
           ({ ... }: { _module.args.self = self; })
 
-          ./modules/configuration.nix
-          ./modules/homebrew.nix
+          ./hosts/darwin/configuration.nix
+          ./hosts/darwin/homebrew.nix
 
           # upstream modules
           nix-homebrew.darwinModules.nix-homebrew
@@ -82,13 +82,12 @@
       nixosConfigurations.chopper = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
         modules = [
-          ./configuration.nix
-          ./hardware-configuration.nix
-          ./disko-config.nix
+          ./hosts/chopper/configuration.nix
+          ./hosts/chopper/hardware-configuration.nix
+          ./hosts/chopper/disko-config.nix
           sops-nix.nixosModules.sops
           disko.nixosModules.disko
         ];
       };
     };
 }
-
