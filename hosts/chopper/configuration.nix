@@ -2,14 +2,15 @@
 
 {
   imports = [
-    ./hardware-configuration.nix # auto-generated swap, root, home, nix, var
-    ./disko-config.nix # pure Disko spec (no function wrapper) :contentReference[oaicite:1]{index=1}
-    ../../modules/zfs.nix # ZFS in initrd & filesystem support
-    ../../modules/nextcloud.nix # ZFS in initrd & filesystem support
-    ../../modules/conduit.nix # ZFS in initrd & filesystem support
+    ./hardware-configuration.nix
+    ./disko-config.nix
+    ../../modules/zfs.nix
+    ../../modules/nextcloud.nix
+    ../../modules/conduit.nix
     ../../modules/arr.nix
-    ../../modules/esp.nix # installer-time ESP & swap mounts
-    ./default.nix # bootloader, networking, users, ZFS overrides
+    ../../modules/esp.nix
+    ./default.nix
+    ../../packages/chopper
   ];
 
   # Core system settings
