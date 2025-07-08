@@ -128,7 +128,11 @@ in
       };
       enableCompletion = true;
       syntaxHighlighting.enable = true;
-      ohMyZsh.enable = true;
+      ohMyZsh = {
+          enable = true;
+          plugins = [ "git" "python" "man" "zsh-autosuggestions" "zsh-syntax-highlighting" "zsh-completions" "direnv" "systemd" "docker-compose" "docker" "nix" "nixpkgs-fmt" "nix-direnv" ];
+          theme = "jonathan";
+      };
       enableLsColors = true;
       enableGlobalCompInit = true;
     };
