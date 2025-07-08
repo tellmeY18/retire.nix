@@ -4,6 +4,7 @@ with pkgs; [
   zfs
   gemini-cli
   profanity
+  acpitool
   zfstools
   vim
   kitty

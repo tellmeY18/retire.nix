@@ -130,7 +130,7 @@ in
       syntaxHighlighting.enable = true;
       ohMyZsh = {
           enable = true;
-          plugins = [ "git" "python" "man"  "direnv" "systemd" "docker-compose" "docker" "extract" "history" "battery" "timer" "thefuck" ];
+          plugins = [ "git" "python" "man"  "direnv" "systemd" "docker-compose" "docker" "extract" "history" "battery" "timer" ];
           theme = "jonathan";
       };
       enableLsColors = true;
