@@ -169,7 +169,7 @@ in
   # Maintenance      #
   ####################
   environment.systemPackages = with pkgs; [
-    zfs gemini-cli zfstools vim kitty aria2 go bun comma git riseup-vpn cockpit
+    zfs gemini-cli zfstools vim kitty aria2 go bun comma git riseup-vpn 
   ];
   services.zfs.trim.enable = true;
   services.zfs.autoScrub.enable = true;
