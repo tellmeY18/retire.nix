@@ -30,7 +30,7 @@
     };
     extraApps = lib.mkOption {
       type = lib.types.attrsOf lib.types.package;
-      default = {};
+      default = { };
       description = "Extra Nextcloud apps to enable.";
     };
     https = lib.mkOption {

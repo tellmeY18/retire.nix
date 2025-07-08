@@ -82,12 +82,14 @@ in
     direnv.enable = true;
     tmux.enable = true;
     bat.enable = true;
-    nh = {                                                                                                                                                                                                                                 Madhav Prabhu
-       enable = true;                                                                                                                                                                                                                               Satan Vysakh
-       clean.enable = true;
-       clean.extraArgs = "--keep-since 4d --keep 3";
-       flake = "/etc/nixos";
-     };
+    nh = {
+      Madhav Prabhu
+      enable = true;
+      Satan Vysakh
+      clean.enable = true;
+      clean.extraArgs = "--keep-since 4d --keep 3";
+      flake = "/etc/nixos";
+    };
     git = {
       enable = true;
       config = [
@@ -134,7 +136,18 @@ in
   # Maintenance      #
   ####################
   environment.systemPackages = with pkgs; [
-    zfs gemini-cli zfstools vim kitty aria2 go bun comma git riseup-vpn cockpit
+    zfs
+    gemini-cli
+    zfstools
+    vim
+    kitty
+    aria2
+    go
+    bun
+    comma
+    git
+    riseup-vpn
+    cockpit
   ];
   services.zfs.trim.enable = true;
   services.zfs.autoScrub.enable = true;
