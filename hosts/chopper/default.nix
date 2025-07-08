@@ -39,7 +39,7 @@ in
   # Display Manager  #
   ####################
   services.displayManager.ly.enable = true;
-  
+
   ####################
   # Tailscale VPN    #
   ####################
@@ -120,7 +120,18 @@ in
   programs = {
     lazygit.enable = true;
     sway.enable = true;
-    fish.enable = true;
+    zsh = {
+      enable = true;
+      autosuggestions = {
+          enable = true;
+          async = true;
+      };
+      enableCompletion = true;
+      syntaxHighlighting.enable = true;
+      ohMyZsh.enable = true;
+      enableLsColors = true;
+      enableGlobalCompInit = true;
+    };
     direnv.enable = true;
     tmux.enable = true;
     bat.enable = true;
@@ -143,7 +154,7 @@ in
   # User Accounts    #
   ####################
   users.users.vysakh = {
-    shell = pkgs.fish;
+    shell = pkgs.zsh;
     isNormalUser = true;
     extraGroups = [ "wheel" "networkmanager" ];
     openssh.authorizedKeys.keys = [
