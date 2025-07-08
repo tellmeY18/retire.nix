@@ -54,7 +54,6 @@
           ({ ... }: { _module.args.self = self; })
 
           ./hosts/darwin/configuration.nix
-          ./hosts/darwin/homebrew.nix
 
           # upstream modules
           nix-homebrew.darwinModules.nix-homebrew
