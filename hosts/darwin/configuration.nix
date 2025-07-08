@@ -2,7 +2,7 @@
   nixpkgs.config.allowUnfree = true;
 
   # Import system packages
-  imports = [ ./packages.nix ./services.nix ./programs.nix ];
+  imports = [ ../../packages/darwin ];
   system.defaults = {
     loginwindow.LoginwindowText = "Declare Nix ! Not War";
   };
