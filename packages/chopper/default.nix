@@ -2,28 +2,23 @@
 
 let
   statePrivate = "/var/lib/private/technitium-dns-server";
+  systemPackages = import ./system-packages.nix { inherit pkgs; };
 in
 
 {
-  # Set the system state version for NixOS upgrades
+  # System state version
   system.stateVersion = "24.11";
 
-  ####################
-  # Bootloader Setup #
-  ####################
+  # Bootloader Setup
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
   boot.loader.efi.efiSysMountPoint = "/boot/efi";
 
-  ####################
-  # ZFS Overrides    #
-  ####################
+  # ZFS Overrides
   boot.zfs.package = lib.mkForce pkgs.zfs_unstable;
   boot.zfs.forceImportAll = lib.mkForce true;
 
-  ####################
-  # Users & SSH      #
-  ####################
+  # SSH Configuration
   services.openssh = {
     enable = true;
     settings = {
@@ -35,14 +30,10 @@ in
     };
   };
 
-  ####################
-  # Display Manager  #
-  ####################
+  # Display Manager
   services.displayManager.ly.enable = true;
 
-  ####################
-  # Tailscale VPN    #
-  ####################
+  # Tailscale VPN
   services.tailscale = {
     enable = true;
     authKeyFile = "/etc/tailscale/auth.key"; # path to your pre-auth key
@@ -64,17 +55,13 @@ in
     allowedTCPPorts = [ 22 80 443 ]; # SSH, HTTP, HTTPS
   };
 
-  ####################
-  # Power Management  #
-  ####################
+  # Power Management
   services.logind = {
     lidSwitch = "ignore";
     lidSwitchExternalPower = "ignore";
   };
 
-  ####################
-  # User Programs    #
-  ####################
+  # User Programs
   programs = {
     lazygit.enable = true;
     sway.enable = true;
@@ -83,9 +70,7 @@ in
     tmux.enable = true;
     bat.enable = true;
     nh = {
-      Madhav Prabhu
       enable = true;
-      Satan Vysakh
       clean.enable = true;
       clean.extraArgs = "--keep-since 4d --keep 3";
       flake = "/etc/nixos";
@@ -99,9 +84,7 @@ in
     };
   };
 
-  ####################
-  # User Accounts    #
-  ####################
+  # User Accounts
   users.users.vysakh = {
     shell = pkgs.fish;
     isNormalUser = true;
@@ -112,9 +95,7 @@ in
     packages = with pkgs; [ opentofu ];
   };
 
-  ####################
-  # Cloudflare Tunnel#
-  ####################
+  # Cloudflare Tunnel
   services.cloudflared = {
     enable = true;
     tunnels = {
@@ -131,24 +112,10 @@ in
   };
 
 
+  # System Packages
+  environment.systemPackages = systemPackages;
 
-  ####################
-  # Maintenance      #
-  ####################
-  environment.systemPackages = with pkgs; [
-    zfs
-    gemini-cli
-    zfstools
-    vim
-    kitty
-    aria2
-    go
-    bun
-    comma
-    git
-    riseup-vpn
-    cockpit
-  ];
+  # ZFS Maintenance
   services.zfs.trim.enable = true;
   services.zfs.autoScrub.enable = true;
 }
