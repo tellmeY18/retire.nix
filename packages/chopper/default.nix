@@ -82,6 +82,12 @@ in
     direnv.enable = true;
     tmux.enable = true;
     bat.enable = true;
+    nh = {                                                                                                                                                                                                                                 Madhav Prabhu
+       enable = true;                                                                                                                                                                                                                               Satan Vysakh
+       clean.enable = true;
+       clean.extraArgs = "--keep-since 4d --keep 3";
+       flake = "/etc/nixos";
+     };
     git = {
       enable = true;
       config = [
