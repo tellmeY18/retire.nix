@@ -6,7 +6,6 @@
     ./disko-config.nix # pure Disko spec (no function wrapper) :contentReference[oaicite:1]{index=1}
     ../../modules/zfs.nix # ZFS in initrd & filesystem support
     ../../modules/nextcloud.nix # ZFS in initrd & filesystem support
-    ../../modules/cockpit.nix # ZFS in initrd & filesystem support
     ../../modules/conduit.nix # ZFS in initrd & filesystem support
     ../../modules/arr.nix
     ../../modules/esp.nix # installer-time ESP & swap mounts
