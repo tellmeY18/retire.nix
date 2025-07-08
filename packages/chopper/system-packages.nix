@@ -3,6 +3,7 @@
 with pkgs; [
   zfs
   gemini-cli
+  profanity
   zfstools
   vim
   kitty
