@@ -9,7 +9,6 @@
     ../../modules/cockpit.nix # ZFS in initrd & filesystem support
     ../../modules/conduit.nix # ZFS in initrd & filesystem support
     ../../modules/arr.nix
-    ../../modules/sephamoreui.nix
     ../../modules/esp.nix # installer-time ESP & swap mounts
     ./default.nix # bootloader, networking, users, ZFS overrides
   ];
