@@ -1,6 +1,6 @@
-{ pkgs, lib, stdenv, ... }:
+{ pkgs, lib, ... }:
 {
-  environment.systemPackages = lib.optionals stdenv.isDarwin [
+  environment.systemPackages = lib.optionals pkgs.stdenv.isDarwin [
     # Editors & Development
     pkgs.vim
 
