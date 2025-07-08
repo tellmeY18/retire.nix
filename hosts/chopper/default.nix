@@ -122,15 +122,7 @@ in
     };
   };
 
-  ####################
-  # SemaphoreUI      #
-  ####################
-  services.semaphoreui = {
-    enable = true;
-    port = 3000;
-    webHost = "http://chopper:3000";
-    openFirewall = true;
-  };
+
 
   ####################
   # Maintenance      #
