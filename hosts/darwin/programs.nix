@@ -12,6 +12,10 @@
     direnv = {
       enable = true;
     };
+    vim = {
+      enable = true;
+      enableSensible = true;
+    };
     nix-index = {
       enable = true;
     };

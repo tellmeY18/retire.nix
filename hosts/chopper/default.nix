@@ -123,15 +123,15 @@ in
     zsh = {
       enable = true;
       autosuggestions = {
-          enable = true;
-          async = true;
+        enable = true;
+        async = true;
       };
       enableCompletion = true;
       syntaxHighlighting.enable = true;
       ohMyZsh = {
-          enable = true;
-          plugins = [ "git" "python" "man"  "direnv" "systemd" "docker-compose" "docker" "extract" "history" "battery" "timer" ];
-          theme = "jonathan";
+        enable = true;
+        plugins = [ "git" "python" "man" "direnv" "systemd" "docker-compose" "docker" "extract" "history" "battery" "timer" ];
+        theme = "jonathan";
       };
       enableLsColors = true;
       enableGlobalCompInit = true;
