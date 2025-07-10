@@ -17,6 +17,9 @@
     nix-index-database.url = "github:nix-community/nix-index-database";
     nix-index-database.inputs.nixpkgs.follows = "nixpkgs";
 
+    # My custom cook.nix 
+    cook.url = "github:tellmeY18/cook.nix";
+
     # NixOS extras
     disko.url = "github:nix-community/disko";
     disko.inputs.nixpkgs.follows = "nixpkgs";
@@ -31,6 +34,7 @@
     inputs@{ self
     , nixpkgs
     , nix-darwin
+    , cook
     , nix-homebrew
     , nix-index-database
     , disko
@@ -84,6 +88,7 @@
           ./hosts/chopper/configuration.nix
           ./hosts/chopper/hardware-configuration.nix
           ./hosts/chopper/disko-config.nix
+          cook.nixosModules.default
           sops-nix.nixosModules.sops
           disko.nixosModules.disko
         ];
