@@ -35,11 +35,10 @@ in
     };
   };
 
-####################
-  services.care = {
-    enable = true;
-  };
-
+  ####################
+#  services.care = {
+#    enable = false;
+#  };
 
 
   ####################

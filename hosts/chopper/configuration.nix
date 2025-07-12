@@ -6,6 +6,7 @@
     ./disko-config.nix
     ../../modules/zfs.nix
     ../../modules/nextcloud.nix
+    ../../modules/garage.nix
     ../../modules/conduit.nix
     ../../modules/arr.nix
     ../../modules/esp.nix
