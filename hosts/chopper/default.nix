@@ -36,10 +36,16 @@ in
   };
 
   ####################
-#  services.care = {
-#    enable = false;
-#  };
+  services.care = {
+    enable = true;
 
+    django.allowedHosts = [ "localhost" ];
+    cors.allowedOrigins = [ "https://example.com" ];
+
+    database = {
+      createLocally = true; # Use external DB
+    };
+  };
 
   ####################
   # Display Manager  #
@@ -67,7 +73,7 @@ in
     allowedUDPPorts = [ config.services.tailscale.port ];
     trustedInterfaces = [ "tailscale0" ];
     enable = true;
-    allowedTCPPorts = [ 22 80 443 ]; # SSH, HTTP, HTTPS
+    allowedTCPPorts = [ 22 4000 80 443 ]; # SSH, HTTP, HTTPS
   };
 
   ####################
@@ -185,6 +191,7 @@ in
         ingress = {
           "next.tellmey.tech" = { service = "http://localhost:80"; };
           "chat.tellmey.tech" = { service = "http://localhost:6167"; };
+          "cal.tellmey.tech" = { service = "http://localhost:4000"; };
           "school.tellmey.tech" = { service = "http://localhost:7000"; };
         };
       };

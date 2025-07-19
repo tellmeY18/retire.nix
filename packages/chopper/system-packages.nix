@@ -3,6 +3,8 @@
 with pkgs; [
   zfs
   gemini-cli
+  beamMinimal28Packages.elixir
+  nodejs
   profanity
   acpitool
   zfstools
