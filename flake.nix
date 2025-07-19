@@ -34,7 +34,7 @@
     inputs@{ self
     , nixpkgs
     , nix-darwin
-#    , cook
+      #    , cook
     , nix-homebrew
     , nix-index-database
     , disko
