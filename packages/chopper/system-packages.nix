@@ -5,6 +5,7 @@ with pkgs; [
   gemini-cli
   beamMinimal28Packages.elixir
   nodejs
+  texliveFull
   profanity
   acpitool
   zfstools
