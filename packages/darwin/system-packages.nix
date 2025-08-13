@@ -9,7 +9,6 @@
     pkgs.ffmpeg_6-full
     pkgs.imagemagick
     pkgs.sox
-    pkgs.audacity
 
     # Communication
     pkgs.profanity
@@ -101,5 +100,6 @@
     pkgs.grex
     pkgs.rPackages.saws
     pkgs.papers
+    pkgs.sshuttle
   ];
 }
