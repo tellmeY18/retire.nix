@@ -36,8 +36,12 @@ in
   };
 
   ####################
+  virtualisation.podman = {
+   enable = true;
+   dockerCompat = true;
+};
   services.care = {
-    enable = true;
+    enable = false;
 
     django.allowedHosts = [ "localhost" ];
     cors.allowedOrigins = [ "https://example.com" ];
