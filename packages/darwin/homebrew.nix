@@ -32,6 +32,7 @@
     casks = [
       "cyberduck"
       "gimp"
+      "obs"
       "jami"
       "thebrowsercompany-dia"
       "cursor"
