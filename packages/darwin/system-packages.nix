@@ -3,6 +3,7 @@
   environment.systemPackages = lib.optionals pkgs.stdenv.isDarwin [
     # Editors & Development
     pkgs.vim
+    #pkgs.neovim
 
     # Media & Graphics
     pkgs.mpv
@@ -26,6 +27,8 @@
     pkgs.minio-client
     pkgs.nh
     pkgs.podman
+    pkgs.docker
+    pkgs.kubectl
     pkgs.podman-tui
 
     # Runtime & Languages
