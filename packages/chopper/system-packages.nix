@@ -6,7 +6,9 @@ with pkgs; [
   beamMinimal28Packages.elixir
   nodejs
   texliveFull
+  dive
   profanity
+  firefox
   acpitool
   zfstools
   vim

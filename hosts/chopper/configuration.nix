@@ -30,6 +30,7 @@
   nix = {
     # (optional) use the nix-with-flakes package on NixOS 22.05+
     # package = pkgs.nixFlakes;
+    settings.trusted-users = [ "root" "vysakh" ];
 
     extraOptions = ''
       experimental-features = nix-command flakes

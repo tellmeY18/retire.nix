@@ -36,10 +36,25 @@ in
   };
 
   ####################
+  virtualisation.docker = {
+    enable = true;
+    enableBuildkit = true;
+    extraPackages = with pkgs; [
+      docker-buildx  # Explicitly include buildx
+    ];
+    daemon.settings = {
+      dns = [
+        "8.8.8.8" # Google (works well in India)
+        "1.1.1.1" # Cloudflare (fast in India)
+        "208.67.222.222" # OpenDNS
+        "9.9.9.9" # Quad9
+      ];
+    };
+  };
   virtualisation.podman = {
-   enable = true;
-   dockerCompat = true;
-};
+    enable = false;
+    dockerCompat = true;
+  };
   services.care = {
     enable = false;
 
@@ -65,12 +80,23 @@ in
     extraUpFlags = [
       "--accept-routes"
       "--advertise-exit-node"
+      "--accept-dns=false"
     ];
     openFirewall = true;
   };
 
   # Provide Tailscale auth key from user home (ensure this file exists and is secured)
   environment.etc."tailscale/auth.key".source = "/home/vysakh/tail.key";
+
+networking = {
+  nameservers = [ "8.8.8.8" "1.1.1.1" ];
+  resolvconf.enable = true;
+  
+  # Override Tailscale DNS management
+  resolvconf.extraConfig = ''
+    name_servers="8.8.8.8 1.1.1.1"
+  '';
+};
 
   # Trust the Tailscale interface (optional if openFirewall=true)
   networking.firewall = {
@@ -176,9 +202,10 @@ in
   users.users.vysakh = {
     shell = pkgs.zsh;
     isNormalUser = true;
-    extraGroups = [ "wheel" "networkmanager" ];
+    extraGroups = [ "wheel" "docker" "networkmanager" ];
     openssh.authorizedKeys.keys = [
       "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOoUJulOP9ZLy8Ny2LgS6HT7WSg93a4eHwbA412LbOR5"
+      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEAAcrvQNZlE5PT9OhS6s7SH+gHCJB2sqIRo2mITwnER"
     ];
     packages = with pkgs; [ opentofu ];
   };
