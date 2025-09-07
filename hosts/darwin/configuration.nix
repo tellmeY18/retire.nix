@@ -5,17 +5,14 @@
     };
     hostPlatform = "aarch64-darwin";
   };
-
   # Import system packages
-  imports = [ ../../packages/darwin ./programs.nix ./services.nix ];
-
+  imports = [  ../../packages/darwin ./programs.nix ./services.nix ];
   system = {
     defaults = {
       loginwindow = {
         LoginwindowText = "Declare Nix ! Not War";
       };
     };
-
     activationScripts = {
       applications = {
         text =
@@ -42,28 +39,37 @@
           '';
       };
     };
-
     # Set Git commit hash for darwin-version.
     configurationRevision = self.rev or self.dirtyRev or null;
-
     # Set primary user for Homebrew and other user-specific options
     primaryUser = "mathewalex";
-
     # Used for backwards compatibility
     stateVersion = 5;
   };
-
   nix = {
-      linux-builder = {
-          enable = true;
-      };
+    distributedBuilds = true;
+    buildMachines = [
+      {
+        hostName = "100.107.213.17";
+        sshUser = "vysakh";  # Changed from 'user' to 'sshUser'
+        systems = [ "x86_64-linux" ];
+        # Optional additional settings you might want to add:
+        # maxJobs = 4;
+        # speedFactor = 2;
+        # supportedFeatures = [ "nixos-test" "benchmark" "big-parallel" "kvm" ];
+        # mandatoryFeatures = [ ];
+        # sshKey = "/path/to/ssh/key"; # if needed
+        # protocol = "ssh-ng"; # for better performance
+      }
+    ];
+    linux-builder = {
+      enable = true;
+    };
     # These are the global Nix settings
     settings = {
       experimental-features = "nix-command flakes ca-derivations";
     };
-
   };
-
   # Enable Touch ID for sudo authentication.
   security = {
     pam = {

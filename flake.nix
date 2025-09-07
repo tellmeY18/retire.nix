@@ -92,6 +92,7 @@
 
           # upstream modules
           nix-homebrew.darwinModules.nix-homebrew
+          nixvim.nixDarwinModules.nixvim
           nix-index-database.darwinModules.nix-index
 
           # local tweaks
