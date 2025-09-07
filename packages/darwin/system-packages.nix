@@ -60,7 +60,6 @@
     pkgs.yazi
     pkgs.tealdeer
     pkgs.rclone
-    pkgs.neofetch
     pkgs.tmux
     pkgs.bat
     pkgs.comma
@@ -94,7 +93,6 @@
     pkgs.k9s
 
     # Fun & Games
-    pkgs.ytui-music
     pkgs.cmatrix
     pkgs.sssnake
     pkgs.gtypist

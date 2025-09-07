@@ -10,15 +10,12 @@
 
     ];
     brews = [
-      "mas"
       "mactop"
       "gtk+3"
       "dbus"
       "bash"
       "adwaita-icon-theme"
-      "evince"
       "hapi-fhir-cli"
-      "rockymadden/rockymadden/slack-cli"
     ];
 
     masApps = {
@@ -33,18 +30,14 @@
       "cyberduck"
       "gimp"
       "obs"
-      "jami"
-      "thebrowsercompany-dia"
-      "cursor"
-      "raycast"
+      "unetbootin"
+      "balenaetcher"
       "lens"
       "macfuse"
       "brave-browser@beta"
       "maccy"
       "inkscape"
       "pika"
-      "monal@beta"
-      "claude"
       "warp"
       "beekeeper-studio"
       "aldente"
@@ -53,7 +46,6 @@
       "firefox@developer-edition"
       "zen"
       "zed@preview"
-      "windsurf"
       "notion"
       "1password"
       "whatsapp@beta"
@@ -68,14 +60,11 @@
       "monofocus"
       "mindmac"
       "localsend"
-      "element"
       "onlyoffice"
       "vlc"
       "libreoffice"
       "pika"
       "thunderbird"
-      "obsidian"
-      "bruno"
       "blender"
     ];
 
