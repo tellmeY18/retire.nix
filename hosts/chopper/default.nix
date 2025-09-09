@@ -36,9 +36,9 @@ in
     ####################
     # Users & SSH      #
     ####################
-    tpm = {
+    tlp = {
       enable = true;
-    }
+    };
     openssh = {
       enable = true;
       settings = {
@@ -178,7 +178,6 @@ in
   virtualisation = {
     docker = {
       enable = true;
-      enableBuildkit = true;
       extraPackages = with pkgs; [
         docker-buildx  # Explicitly include buildx
       ];
