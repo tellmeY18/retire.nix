@@ -1,8 +1,6 @@
 { config, pkgs, lib, ... }:
 
-let
-  statePrivate = "/var/lib/private/technitium-dns-server";
-in
+
 
 {
   # Set the system state version for NixOS upgrades
@@ -36,6 +34,12 @@ in
     ####################
     # Users & SSH      #
     ####################
+    neondb = {
+      enable = true;
+      package = pkgs.neondb;
+      tenant = "default";
+      dataDir = "/var/lib/neondb";
+    };
     tlp = {
       enable = true;
       # See https://linrunner.de/tlp/settings/ for all available options.
@@ -142,8 +146,12 @@ in
     # Power Management  #
     ####################
     logind = {
-      lidSwitch = "ignore";
-      lidSwitchExternalPower = "ignore";
+      settings = {
+        Login = {
+          HandleLidSwitch = "ignore";
+          HandleLidSwitchExternalPower = "ignore";
+        };
+      };
     };
 
     nextcloud = {

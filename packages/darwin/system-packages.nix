@@ -40,6 +40,7 @@
     pkgs.postgresql_16
     pkgs.php
     pkgs.pipenv
+    pkgs.nixd
 
     # Network Tools
     pkgs.wget
