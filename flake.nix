@@ -61,7 +61,7 @@
   ##  Outputs
   ####################
   outputs =
-    inputs@{ self
+    { self
     , nixpkgs
     , nix-darwin
       #    , cook
@@ -117,6 +117,18 @@
       nixosConfigurations.chopper = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
         modules = [
+          {
+            nixpkgs.overlays = [
+              (final: prev: {
+                postgresql_16_neon = final.callPackage ./packages/neondb/postgresql-neon.nix {};
+                neondb = final.callPackage ./packages/neondb/default.nix {
+                  postgresql_14 = final.postgresql_14;
+                  postgresql_15 = final.postgresql_15;
+                  postgresql_16 = final.postgresql_16_neon;
+                };
+              })
+            ];
+          }
           ./hosts/chopper/configuration.nix
           ./hosts/chopper/hardware-configuration.nix
           ./hosts/chopper/disko-config.nix
