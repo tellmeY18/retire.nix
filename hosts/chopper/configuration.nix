@@ -51,4 +51,5 @@
       wheelNeedsPassword = false;
     };
   };
+  # services.neondb.enable = true;
 }
