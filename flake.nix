@@ -61,7 +61,7 @@
   ##  Outputs
   ####################
   outputs =
-    inputs@{ self
+    { self
     , nixpkgs
     , nix-darwin
       #    , cook

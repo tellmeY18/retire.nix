@@ -1,8 +1,6 @@
 { config, pkgs, lib, ... }:
 
-let
-  statePrivate = "/var/lib/private/technitium-dns-server";
-in
+
 
 {
   # Set the system state version for NixOS upgrades
