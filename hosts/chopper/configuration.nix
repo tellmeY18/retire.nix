@@ -15,21 +15,28 @@
   ];
 
   # Core system settings
-  networking.networkmanager.enable = true;
-  networking.hostName = "chopper";
-  networking.hostId = "91d4eb37";
+  networking = {
+    networkmanager = {
+      enable = true;
+    };
+    hostName = "chopper";
+    hostId = "91d4eb37";
+  };
 
 
-  time.timeZone = "Asia/Kolkata";
-  i18n.defaultLocale = "en_US.UTF-8";
-  nixpkgs.config.allowUnfree = true;
-  nixpkgs.config.permittedInsecurePackages = [
-    "conduwuit-0.4.6"
-  ];
-  # Enable Flakes for future rebuilds (via /etc/nix/nix.conf)
+  time = {
+    timeZone = "Asia/Kolkata";
+  };
+  i18n = {
+    defaultLocale = "en_US.UTF-8";
+  };
+  nixpkgs.config = {
+    allowUnfree = true;
+    permittedInsecurePackages = [
+      "conduwuit-0.4.6"
+    ];
+  };
   nix = {
-    # (optional) use the nix-with-flakes package on NixOS 22.05+
-    # package = pkgs.nixFlakes;
     settings.trusted-users = [ "root" "vysakh" ];
 
     extraOptions = ''
@@ -38,7 +45,10 @@
   };
 
 
-  # Grant wheel group passwordless sudo
-  security.sudo.enable = true;
-  security.sudo.wheelNeedsPassword = false;
+  security = {
+    sudo = {
+      enable = true;
+      wheelNeedsPassword = false;
+    };
+  };
 }

@@ -6,153 +6,224 @@ in
 
 {
   # Set the system state version for NixOS upgrades
-  system.stateVersion = "24.11";
+  system = {
+    stateVersion = "24.11";
+  };
 
   ####################
   # Bootloader Setup #
   ####################
-  boot.loader.systemd-boot.enable = true;
-  boot.loader.efi.canTouchEfiVariables = true;
-  boot.loader.efi.efiSysMountPoint = "/boot/efi";
-
-  ####################
-  # ZFS Overrides    #
-  ####################
-  boot.zfs.package = lib.mkForce pkgs.zfs_unstable;
-  boot.zfs.forceImportAll = lib.mkForce true;
-
-  ####################
-  # Users & SSH      #
-  ####################
-  services.openssh = {
-    enable = true;
-    settings = {
-      PermitRootLogin = "no";
-      PasswordAuthentication = false;
-      X11Forwarding = true;
-      X11UseLocalhost = false; # Allows remote X connections
-      PubkeyAuthentication = true;
+  boot = {
+    loader = {
+      systemd-boot = {
+        enable = true;
+      };
+      efi = {
+        canTouchEfiVariables = true;
+        efiSysMountPoint = "/boot/efi";
+      };
+    };
+    ####################
+    # ZFS Overrides    #
+    ####################
+    zfs = {
+      package = lib.mkForce pkgs.zfs_unstable;
+      forceImportAll = lib.mkForce true;
     };
   };
 
-  ####################
-  virtualisation.docker = {
-    enable = true;
-    enableBuildkit = true;
-    extraPackages = with pkgs; [
-      docker-buildx  # Explicitly include buildx
-    ];
-    daemon.settings = {
-      dns = [
-        "8.8.8.8" # Google (works well in India)
-        "1.1.1.1" # Cloudflare (fast in India)
-        "208.67.222.222" # OpenDNS
-        "9.9.9.9" # Quad9
+  services = {
+    ####################
+    # Users & SSH      #
+    ####################
+    tpm = {
+      enable = true;
+    }
+    openssh = {
+      enable = true;
+      settings = {
+        PermitRootLogin = "no";
+        PasswordAuthentication = false;
+        X11Forwarding = true;
+        X11UseLocalhost = false; # Allows remote X connections
+        PubkeyAuthentication = true;
+      };
+    };
+
+    care = {
+      enable = false;
+
+      django = {
+        allowedHosts = [ "localhost" ];
+      };
+      cors = {
+        allowedOrigins = [ "https://example.com" ];
+      };
+
+      database = {
+        createLocally = true; # Use external DB
+      };
+    };
+
+    ####################
+    # Display Manager  #
+    ####################
+    displayManager = {
+      ly = {
+        enable = true;
+      };
+    };
+
+    ####################
+    # Tailscale VPN    #
+    ####################
+    tailscale = {
+      enable = true;
+      authKeyFile = "/etc/tailscale/auth.key"; # path to your pre-auth key
+      extraUpFlags = [
+        "--accept-routes"
+        "--advertise-exit-node"
+        "--accept-dns=false"
       ];
+      openFirewall = true;
+    };
+
+    ####################
+    # Power Management  #
+    ####################
+    logind = {
+      lidSwitch = "ignore";
+      lidSwitchExternalPower = "ignore";
+    };
+
+    nextcloud = {
+      enable = true;
+      hostName = "next.tellmey.tech";
+
+      # Manually increment with every major upgrade.
+      package = pkgs.nextcloud31;
+
+      # Let NixOS install and configure the database automatically.
+      database = {
+        createLocally = true;
+      };
+
+      # Let NixOS install and configure Redis caching automatically.
+      configureRedis = true;
+
+      # Increase the maximum file upload size to avoid problems uploading videos.
+      maxUploadSize = "16G";
+
+      https = true;
+
+      autoUpdateApps = {
+        enable = true;
+      };
+
+      extraAppsEnable = true;
+
+      extraApps = with config.services.nextcloud.package.packages.apps; {
+        tasks = tasks;
+        contacts = contacts;
+        memories = memories;
+      };
+
+      settings = {
+        overwriteprotocol = "https";
+        default_phone_region = "IN";
+        port = "8789";
+      };
+
+      # Additional Nextcloud configuration
+      config = {
+        dbtype = "pgsql";
+        adminuser = "admin";
+        adminpassFile = "/home/vysakh/entepass";
+      };
+    };
+
+    ####################
+    # Cloudflare Tunnel#
+    ####################
+    cloudflared = {
+      enable = true;
+      tunnels = {
+        "b0ca1206-1d09-4892-9d69-d3a196877013" = {
+          credentialsFile = "/home/vysakh/.cloudflared/b0ca1206-1d09-4892-9d69-d3a196877013.json";
+          default = "http_status:404";
+          ingress = {
+            "next.tellmey.tech" = { service = "http://localhost:80"; };
+            "chat.tellmey.tech" = { service = "http://localhost:6167"; };
+            "cal.tellmey.tech" = { service = "http://localhost:4000"; };
+            "school.tellmey.tech" = { service = "http://localhost:7000"; };
+          };
+        };
+      };
+    };
+
+    ####################
+    # Maintenance      #
+    ####################
+    zfs = {
+      trim = {
+        enable = true;
+      };
+      autoScrub = {
+        enable = true;
+      };
     };
   };
-  virtualisation.podman = {
-    enable = false;
-    dockerCompat = true;
-  };
-  services.care = {
-    enable = false;
 
-    django.allowedHosts = [ "localhost" ];
-    cors.allowedOrigins = [ "https://example.com" ];
-
-    database = {
-      createLocally = true; # Use external DB
+  ####################
+  virtualisation = {
+    docker = {
+      enable = true;
+      enableBuildkit = true;
+      extraPackages = with pkgs; [
+        docker-buildx  # Explicitly include buildx
+      ];
+      daemon = {
+        settings = {
+          dns = [
+            "8.8.8.8" # Google (works well in India)
+            "1.1.1.1" # Cloudflare (fast in India)
+            "208.67.222.222" # OpenDNS
+            "9.9.9.9" # Quad9
+          ];
+        };
+      };
     };
-  };
-
-  ####################
-  # Display Manager  #
-  ####################
-  services.displayManager.ly.enable = true;
-
-  ####################
-  # Tailscale VPN    #
-  ####################
-  services.tailscale = {
-    enable = true;
-    authKeyFile = "/etc/tailscale/auth.key"; # path to your pre-auth key
-    extraUpFlags = [
-      "--accept-routes"
-      "--advertise-exit-node"
-      "--accept-dns=false"
-    ];
-    openFirewall = true;
+    podman = {
+      enable = false;
+      dockerCompat = true;
+    };
   };
 
   # Provide Tailscale auth key from user home (ensure this file exists and is secured)
-  environment.etc."tailscale/auth.key".source = "/home/vysakh/tail.key";
-
-networking = {
-  nameservers = [ "8.8.8.8" "1.1.1.1" ];
-  resolvconf.enable = true;
-  
-  # Override Tailscale DNS management
-  resolvconf.extraConfig = ''
-    name_servers="8.8.8.8 1.1.1.1"
-  '';
-};
-
-  # Trust the Tailscale interface (optional if openFirewall=true)
-  networking.firewall = {
-    allowedUDPPorts = [ config.services.tailscale.port ];
-    trustedInterfaces = [ "tailscale0" ];
-    enable = true;
-    allowedTCPPorts = [ 22 4000 80 443 ]; # SSH, HTTP, HTTPS
+  environment = {
+    etc = {
+      "tailscale/auth.key" = {
+        source = "/home/vysakh/tail.key";
+      };
+    };
   };
 
-  ####################
-  # Power Management  #
-  ####################
-  services.logind = {
-    lidSwitch = "ignore";
-    lidSwitchExternalPower = "ignore";
-  };
-
-  services.nextcloud = {
-    enable = true;
-    hostName = "next.tellmey.tech";
-
-    # Manually increment with every major upgrade.
-    package = pkgs.nextcloud31;
-
-    # Let NixOS install and configure the database automatically.
-    database.createLocally = true;
-
-    # Let NixOS install and configure Redis caching automatically.
-    configureRedis = true;
-
-    # Increase the maximum file upload size to avoid problems uploading videos.
-    maxUploadSize = "16G";
-
-    https = true;
-
-    autoUpdateApps.enable = true;
-
-    extraAppsEnable = true;
-
-    extraApps = with config.services.nextcloud.package.packages.apps; {
-      tasks = tasks;
-      contacts = contacts;
-      memories = memories;
+  networking = {
+    nameservers = [ "8.8.8.8" "1.1.1.1" ];
+    resolvconf = {
+      enable = true;
+      # Override Tailscale DNS management
+      extraConfig = ''
+        name_servers="8.8.8.8 1.1.1.1"
+      '';
     };
 
-    settings = {
-      overwriteprotocol = "https";
-      default_phone_region = "IN";
-      port = "8789";
-    };
-
-    # Additional Nextcloud configuration
-    config = {
-      dbtype = "pgsql";
-      adminuser = "admin";
-      adminpassFile = "/home/vysakh/entepass";
+    # Trust the Tailscale interface (optional if openFirewall=true)
+    firewall = {
+      allowedUDPPorts = [ config.services.tailscale.port ];
+      trustedInterfaces = [ "tailscale0" ];
+      enable = true;
+      allowedTCPPorts = [ 22 4000 80 443 ]; # SSH, HTTP, HTTPS
     };
   };
 
@@ -160,8 +231,12 @@ networking = {
   # User Programs    #
   ####################
   programs = {
-    lazygit.enable = true;
-    sway.enable = true;
+    lazygit = {
+      enable = true;
+    };
+    sway = {
+      enable = true;
+    };
     zsh = {
       enable = true;
       autosuggestions = {
@@ -169,7 +244,9 @@ networking = {
         async = true;
       };
       enableCompletion = true;
-      syntaxHighlighting.enable = true;
+      syntaxHighlighting = {
+        enable = true;
+      };
       ohMyZsh = {
         enable = true;
         plugins = [ "git" "python" "man" "direnv" "systemd" "docker-compose" "docker" "extract" "history" "battery" "timer" ];
@@ -178,13 +255,21 @@ networking = {
       enableLsColors = true;
       enableGlobalCompInit = true;
     };
-    direnv.enable = true;
-    tmux.enable = true;
-    bat.enable = true;
+    direnv = {
+      enable = true;
+    };
+    tmux = {
+      enable = true;
+    };
+    bat = {
+      enable = true;
+    };
     nh = {
       enable = true;
-      clean.enable = true;
-      clean.extraArgs = "--keep-since 4d --keep 3";
+      clean = {
+        enable = true;
+        extraArgs = "--keep-since 4d --keep 3";
+      };
       flake = "/etc/nixos";
     };
     git = {
@@ -199,44 +284,24 @@ networking = {
   ####################
   # User Accounts    #
   ####################
-  users.users.vysakh = {
-    shell = pkgs.zsh;
-    isNormalUser = true;
-    extraGroups = [ "wheel" "docker" "networkmanager" ];
-    openssh.authorizedKeys.keys = [
-      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOoUJulOP9ZLy8Ny2LgS6HT7WSg93a4eHwbA412LbOR5"
-      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEAAcrvQNZlE5PT9OhS6s7SH+gHCJB2sqIRo2mITwnER"
-    ];
-    packages = with pkgs; [ opentofu ];
-  };
-
-  ####################
-  # Cloudflare Tunnel#
-  ####################
-  services.cloudflared = {
-    enable = true;
-    tunnels = {
-      "b0ca1206-1d09-4892-9d69-d3a196877013" = {
-        credentialsFile = "/home/vysakh/.cloudflared/b0ca1206-1d09-4892-9d69-d3a196877013.json";
-        default = "http_status:404";
-        ingress = {
-          "next.tellmey.tech" = { service = "http://localhost:80"; };
-          "chat.tellmey.tech" = { service = "http://localhost:6167"; };
-          "cal.tellmey.tech" = { service = "http://localhost:4000"; };
-          "school.tellmey.tech" = { service = "http://localhost:7000"; };
+  users = {
+    users = {
+      vysakh = {
+        shell = pkgs.zsh;
+        isNormalUser = true;
+        extraGroups = [ "wheel" "docker" "networkmanager" ];
+        openssh = {
+          authorizedKeys = {
+            keys = [
+              "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOoUJulOP9ZLy8Ny2LgS6HT7WSg93a4eHwbA412LbOR5"
+              "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEAAcrvQNZlE5PT9OhS6s7SH+gHCJB2sqIRo2mITwnER"
+            ];
+          };
         };
+        packages = with pkgs; [ opentofu ];
       };
     };
   };
 
-
-
-
-  ####################
-  # Maintenance      #
-  ####################
   # System packages are now defined in packages/chopper/system-packages.nix
-
-  services.zfs.trim.enable = true;
-  services.zfs.autoScrub.enable = true;
 }
