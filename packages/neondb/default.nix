@@ -1,81 +1,103 @@
-{
-  lib,
-  rustPlatform,
-  fetchFromGitHub,
-  stdenv,
-
-  pkg-config, protobuf,
-  postgresql_14, postgresql_15, postgresql_16,
-
-  openssl,
+{ lib
+, stdenv
+, fetchurl
+, makeWrapper
+, autoPatchelfHook
+, glibc
+, gcc-unwrapped
+, zlib
+, openssl
+, postgresql
+,
 }:
-rustPlatform.buildRustPackage rec {
-  pname = "neondb";
-  version = "4459";
+stdenv.mkDerivation rec {
+  pname = "neondb-bin";
+  version = "1.0.0";
 
-  src = fetchFromGitHub {
-    owner = "neondatabase";
-    repo = "neon";
-    rev = "release-${version}";
-    hash = "sha256-TDinQACJkaE0xoVP+xYOYD41z6/FyG5s8t3pvj9+Y1U=";
-  };
-
-  # walproposer wants only postgresql_16, and generates some platform-dependent
-  # code, based on platforms ABI. I have no idea how to make it work with crosscompilation.
-  #
-  # postgres-ffi generates code for v14, v15 and v16, I think we don't need all of them,
-  # but in the time being we have dependency on 3 of them. Upstream changes are needed.
-  # Generated code should be platform-independent, bindgen emits isize for size_t etc,
-  # and postgres functions are the same between platforms.
-  #
-  # walproposer also wants to see libpgport.a at build/walproposer-lib path for some reason.
-  postPatch = ''
-    mkdir pg_install
-    ln -s ${postgresql_14}/ pg_install/v14
-    ln -s ${postgresql_15}/ pg_install/v15
-    ln -s ${postgresql_16}/ pg_install/v16
-    mkdir -p pg_install/build/walproposer-lib
-    ln -s ${postgresql_16}/lib/lib{walproposer,pg{common,port}}.a pg_install/build/walproposer-lib/
-  '';
-
-  cargoLock = {
-    lockFile = ./Cargo.lock;
-    outputHashes = {
-      "heapless-0.8.0" = "sha256-phCls7RQZV0uYhDEp0GIphTBw0cXcurpqvzQCAionhs=";
-      "postgres-0.19.4" = "sha256-rybhKZ5I6lsyiHdMlYZEaYawH6L4C8CcTH4/7vax8os=";
-    };
+  src = fetchurl {
+    url = "https://github.com/Percona-Lab/neon/releases/download/v${version}/neondatabase-neon-PG15-${version}-Linux-x86_64.glibc2.35.tar.gz";
+    sha256 = "1a6lsdbq5kmwdap8yqskwj12cfg82ji44i3zfh7m536s0hxjglgg";
   };
 
   nativeBuildInputs = [
-    pkg-config
-    protobuf
-    rustPlatform.bindgenHook
+    makeWrapper
+    autoPatchelfHook
   ];
 
   buildInputs = [
+    glibc
+    gcc-unwrapped.lib
+    zlib
     openssl
-  ];
-  cargoBuildFlags = [
-    "--bin" "pg_sni_router"
-    "--bin" "pageserver"
-    "--bin" "pagectl"
-    "--bin" "safekeeper"
-    "--bin" "storage_broker"
-    "--bin" "proxy"
-    "--bin" "neon_local"
-    "--bin" "compute_ctl"
+    postgresql.lib
   ];
 
-  # Required setup is too complicated.
-  doCheck = false;
+  sourceRoot = ".";
 
-  meta = {
+  unpackPhase = ''
+    runHook preUnpack
+    tar -xzf $src
+    sourceRoot=$(tar -tzf $src | head -1 | cut -f1 -d/)
+    runHook postUnpack
+  '';
+
+  installPhase = ''
+    runHook preInstall
+    
+    mkdir -p $out/bin
+    mkdir -p $out/lib
+    mkdir -p $out/share
+    
+    # Copy all files preserving structure
+    cp -r * $out/
+    
+    # Find and make executables in bin directories
+    find $out -type f -executable -exec chmod +x {} \;
+    
+    # Look for the actual neon binaries and create symlinks/wrappers
+    if [ -d "$out/target/release" ]; then
+      for binary in $out/target/release/*; do
+        if [ -x "$binary" ] && [ -f "$binary" ]; then
+          ln -sf "$binary" "$out/bin/$(basename $binary)"
+        fi
+      done
+    fi
+    
+    # Check for neon_local specifically
+    find $out -name "neon_local" -type f -executable | head -1 | while read binary; do
+      if [ -n "$binary" ]; then
+        ln -sf "$binary" "$out/bin/neon_local"
+      fi
+    done
+    
+    # Check for other neon binaries
+    for name in neon neon_local pageserver safekeeper proxy compute_ctl; do
+      find $out -name "$name" -type f -executable | head -1 | while read binary; do
+        if [ -n "$binary" ]; then
+          ln -sf "$binary" "$out/bin/$name"
+        fi
+      done
+    done
+    
+    # List what we have
+    echo "=== Contents of $out ==="
+    find $out -type f -executable | sort
+    echo "=== Binaries in $out/bin ==="
+    ls -la $out/bin/ || true
+    
+    runHook postInstall
+  '';
+
+  # Skip phases that might cause issues
+  dontBuild = true;
+  dontConfigure = true;
+
+  meta = with lib; {
     homepage = "https://neon.tech/";
-    description = "Neon is a serverless open-source alternative to AWS Aurora Postgres. It separates storage and compute and substitutes the PostgreSQL storage layer by redistributing data across a cluster of nodes.";
-    license = lib.licenses.asl20;
-    maintainers = with lib.maintainers; [ lach ];
-    platforms = lib.platforms.unix;
-
-    broken = stdenv.buildPlatform != stdenv.hostPlatform;
+    description = "Neon is a serverless open-source alternative to AWS Aurora Postgres";
+    license = licenses.asl20;
+    maintainers = with maintainers; [ ];
+    platforms = [ "x86_64-linux" ];
+    sourceProvenance = [ sourceTypes.binaryNativeCode ];
   };
 }

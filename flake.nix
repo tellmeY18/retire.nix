@@ -120,12 +120,7 @@
           {
             nixpkgs.overlays = [
               (final: prev: {
-                postgresql_16_neon = final.callPackage ./packages/neondb/postgresql-neon.nix {};
-                neondb = final.callPackage ./packages/neondb/default.nix {
-                  postgresql_14 = final.postgresql_14;
-                  postgresql_15 = final.postgresql_15;
-                  postgresql_16 = final.postgresql_16_neon;
-                };
+                neondb = final.callPackage ./packages/neondb/default.nix { };
               })
             ];
           }
