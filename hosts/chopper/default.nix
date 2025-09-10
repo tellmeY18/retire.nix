@@ -37,21 +37,8 @@
     neondb = {
       enable = true;
       package = pkgs.neondb;
-      defaultPostgresPackage = pkgs.neondb.postgresql_16;
-      users = {
-        nextcloud = {
-          passwordFile = "/home/vysakh/entepass";
-          superuser = false;
-          createdb = true;
-          login = true;
-        };
-        care = {
-          passwordFile = "/home/vysakh/carepass";
-          superuser = false;
-          createdb = true;
-          login = true;
-        };
-      };
+      tenant = "default";
+      dataDir = "/var/lib/neondb";
     };
     tlp = {
       enable = true;

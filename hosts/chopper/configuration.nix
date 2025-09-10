@@ -10,6 +10,7 @@
     ../../modules/conduit.nix
     ../../modules/arr.nix
     ../../modules/esp.nix
+    ../../modules/neondb.nix
     ./default.nix
     ../../packages/chopper
   ];
@@ -51,5 +52,4 @@
       wheelNeedsPassword = false;
     };
   };
-  # services.neondb.enable = true;
 }
