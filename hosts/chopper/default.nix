@@ -140,8 +140,12 @@
     # Power Management  #
     ####################
     logind = {
-      lidSwitch = "ignore";
-      lidSwitchExternalPower = "ignore";
+      settings = {
+        Login = {
+          HandleLidSwitch = "ignore";
+          HandleLidSwitchExternalPower = "ignore";
+        };
+      };
     };
 
     nextcloud = {

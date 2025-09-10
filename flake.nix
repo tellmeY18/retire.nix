@@ -119,18 +119,14 @@
         modules = [
           {
             nixpkgs.overlays = [
-              (final: prev:
-                let
-                  neon-postgres-packages = prev.callPackage ./packages/neondb/postgresql-neon.nix {};
-                in
-                {
-                  neondb = prev.callPackage ./packages/neondb/default.nix {
-                    postgresql_14 = neon-postgres-packages.postgresql_14;
-                    postgresql_15 = neon-postgres-packages.postgresql_15;
-                    postgresql_16 = neon-postgres-packages.postgresql_16_neon;
-                  };
-                } // neon-postgres-packages
-              )
+              (final: prev: {
+                postgresql_16_neon = final.callPackage ./packages/neondb/postgresql-neon.nix {};
+                neondb = final.callPackage ./packages/neondb/default.nix {
+                  postgresql_14 = final.postgresql_14;
+                  postgresql_15 = final.postgresql_15;
+                  postgresql_16 = final.postgresql_16_neon;
+                };
+              })
             ];
           }
           ./hosts/chopper/configuration.nix
