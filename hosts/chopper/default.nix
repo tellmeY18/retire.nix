@@ -34,6 +34,25 @@
     ####################
     # Users & SSH      #
     ####################
+    neondb = {
+      enable = true;
+      package = pkgs.neondb;
+      defaultPostgresPackage = pkgs.neondb.postgresql_16;
+      users = {
+        nextcloud = {
+          passwordFile = "/home/vysakh/entepass";
+          superuser = false;
+          createdb = true;
+          login = true;
+        };
+        care = {
+          passwordFile = "/home/vysakh/carepass";
+          superuser = false;
+          createdb = true;
+          login = true;
+        };
+      };
+    };
     tlp = {
       enable = true;
       # See https://linrunner.de/tlp/settings/ for all available options.
