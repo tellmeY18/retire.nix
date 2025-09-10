@@ -6,7 +6,7 @@
     hostPlatform = "aarch64-darwin";
   };
   # Import system packages
-  imports = [  ../../packages/darwin ./programs.nix ./services.nix ];
+  imports = [ ../../packages/darwin ./programs.nix ./services.nix ];
   system = {
     defaults = {
       loginwindow = {
@@ -51,7 +51,7 @@
     buildMachines = [
       {
         hostName = "100.107.213.17";
-        sshUser = "vysakh";  # Changed from 'user' to 'sshUser'
+        sshUser = "vysakh"; # Changed from 'user' to 'sshUser'
         systems = [ "x86_64-linux" ];
         # Optional additional settings you might want to add:
         # maxJobs = 4;

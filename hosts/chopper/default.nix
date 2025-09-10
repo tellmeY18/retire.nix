@@ -1,8 +1,4 @@
-{ config, pkgs, lib, ... }:
-
-
-
-{
+{ config, pkgs, lib, ... }: {
   # Set the system state version for NixOS upgrades
   system = {
     stateVersion = "24.11";
@@ -35,11 +31,39 @@
     # Users & SSH      #
     ####################
     neondb = {
-      enable = true;
-      package = pkgs.neondb;
+      enable = false;
+      package = pkgs.neondb-bin; # Uses your fixed package
       tenant = "default";
       dataDir = "/var/lib/neondb";
     };
+
+    # Elegant group-based permissions approach
+    mopidy = {
+      enable = true;
+
+      extensionPackages = with pkgs; [
+        mopidy-iris
+        mopidy-local
+      ];
+
+      configuration = ''
+        [core]
+        cache_dir = $XDG_CACHE_DIR/mopidy
+        config_dir = $XDG_CONFIG_DIR/mopidy
+        data_dir = $XDG_DATA_DIR/mopidy
+        max_tracklist_length = 10000
+        restore_state = false
+
+        [http]
+        enabled = true
+        hostname = 0.0.0.0
+
+        [local]
+        enabled = true
+        media_dir = /home/vysakh/Moosik
+      '';
+    };
+
     tlp = {
       enable = true;
       # See https://linrunner.de/tlp/settings/ for all available options.
@@ -237,7 +261,7 @@
     docker = {
       enable = true;
       extraPackages = with pkgs; [
-        docker-buildx  # Explicitly include buildx
+        docker-buildx # Explicitly include buildx
       ];
       daemon = {
         settings = {
@@ -359,6 +383,11 @@
       };
     };
   };
+  # Add mopidy user to the users group for file access.
+  # This, in conjunction with the user 'vysakh' creating the directory
+  # '/home/vysakh/Moosik' with group-read permissions (e.g., 0755),
+  # grants mopidy read access to the music directory.
+  users.users.mopidy.extraGroups = [ "users" "audio" ];
 
   # System packages are now defined in packages/chopper/system-packages.nix
 }

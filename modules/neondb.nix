@@ -7,7 +7,7 @@ let
     mkIf
     mkOption
     types
-  ;
+    ;
 in
 {
   options.services.neondb = {
@@ -53,6 +53,7 @@ in
       group = "neondb";
       home = cfg.dataDir;
     };
-    users.groups.neondb = {};
+    users.groups.neondb = { };
   };
 }
+
