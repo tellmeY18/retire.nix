@@ -1,8 +1,4 @@
-{ config, pkgs, lib, ... }:
-
-
-
-{
+{ config, pkgs, lib, ... }: {
   # Set the system state version for NixOS upgrades
   system = {
     stateVersion = "24.11";
@@ -40,7 +36,7 @@
       tenant = "default";
       dataDir = "/var/lib/neondb";
     };
-    {
+
     # Elegant group-based permissions approach
     mopidy = {
       enable = true;
@@ -70,6 +66,7 @@
           media_dir = "/home/vysakh/Moosik";
         };
       };
+    };
 
     tlp = {
       enable = true;
@@ -390,16 +387,13 @@
       };
     };
   };
-    # Add mopidy user to the users group for file access
-    users.users.mopidy.extraGroups = [ "users" "audio" ];
+  # Add mopidy user to the users group for file access
+  users.users.mopidy.extraGroups = [ "users" "audio" ];
 
-    # Ensure music directory exists with proper group permissions
-    systemd.tmpfiles.rules = [
-      "d /home/vysakh/Moosik 0755 vysakh users -"
-    ];
-
-
+  # Ensure music directory exists with proper group permissions
+  systemd.tmpfiles.rules = [
+    "d /home/vysakh/Moosik 0755 vysakh users -"
+  ];
 
   # System packages are now defined in packages/chopper/system-packages.nix
 }
-
