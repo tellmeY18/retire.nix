@@ -46,26 +46,22 @@
         mopidy-local
       ];
 
-      # Use settings for type-safe configuration
-      settings = {
-        core = {
-          cache_dir = "$XDG_CACHE_DIR/mopidy";
-          config_dir = "$XDG_CONFIG_DIR/mopidy";
-          data_dir = "$XDG_DATA_DIR/mopidy";
-          max_tracklist_length = 10000;
-          restore_state = false;
-        };
+      configuration = ''
+        [core]
+        cache_dir = $XDG_CACHE_DIR/mopidy
+        config_dir = $XDG_CONFIG_DIR/mopidy
+        data_dir = $XDG_DATA_DIR/mopidy
+        max_tracklist_length = 10000
+        restore_state = false
 
-        http = {
-          enabled = true;
-          hostname = "0.0.0.0";
-        };
+        [http]
+        enabled = true
+        hostname = 0.0.0.0
 
-        local = {
-          enabled = true;
-          media_dir = "/home/vysakh/Moosik";
-        };
-      };
+        [local]
+        enabled = true
+        media_dir = /home/vysakh/Moosik
+      '';
     };
 
     tlp = {
