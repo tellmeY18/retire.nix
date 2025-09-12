@@ -120,7 +120,7 @@
           {
             nixpkgs.overlays = [
               (final: prev: {
-                neondb = final.callPackage ./packages/neondb/default.nix {};
+                neondb = final.callPackage ./packages/neondb/default.nix { };
               })
             ];
           }

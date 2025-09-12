@@ -35,11 +35,42 @@
     # Users & SSH      #
     ####################
     neondb = {
-      enable = true;
-      package = pkgs.neondb;
+      enable = false;
+      package = pkgs.neondb-bin; # Uses your fixed package
       tenant = "default";
       dataDir = "/var/lib/neondb";
     };
+    {
+    # Elegant group-based permissions approach
+    mopidy = {
+      enable = true;
+
+      extensionPackages = with pkgs; [
+        mopidy-iris
+        mopidy-local
+      ];
+
+      # Use settings for type-safe configuration
+      settings = {
+        core = {
+          cache_dir = "$XDG_CACHE_DIR/mopidy";
+          config_dir = "$XDG_CONFIG_DIR/mopidy";
+          data_dir = "$XDG_DATA_DIR/mopidy";
+          max_tracklist_length = 10000;
+          restore_state = false;
+        };
+
+        http = {
+          enabled = true;
+          hostname = "0.0.0.0";
+        };
+
+        local = {
+          enabled = true;
+          media_dir = "/home/vysakh/Moosik";
+        };
+      };
+
     tlp = {
       enable = true;
       # See https://linrunner.de/tlp/settings/ for all available options.
@@ -237,7 +268,7 @@
     docker = {
       enable = true;
       extraPackages = with pkgs; [
-        docker-buildx  # Explicitly include buildx
+        docker-buildx # Explicitly include buildx
       ];
       daemon = {
         settings = {
@@ -359,6 +390,16 @@
       };
     };
   };
+    # Add mopidy user to the users group for file access
+    users.users.mopidy.extraGroups = [ "users" "audio" ];
+
+    # Ensure music directory exists with proper group permissions
+    systemd.tmpfiles.rules = [
+      "d /home/vysakh/Moosik 0755 vysakh users -"
+    ];
+
+
 
   # System packages are now defined in packages/chopper/system-packages.nix
 }
+
