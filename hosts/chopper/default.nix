@@ -383,11 +383,8 @@
       };
     };
   };
-  # Add mopidy user to the users group for file access.
-  # This, in conjunction with the user 'vysakh' creating the directory
   # '/home/vysakh/Moosik' with group-read permissions (e.g., 0755),
   # grants mopidy read access to the music directory.
   users.users.mopidy.extraGroups = [ "users" "audio" ];
 
-  # System packages are now defined in packages/chopper/system-packages.nix
 }
