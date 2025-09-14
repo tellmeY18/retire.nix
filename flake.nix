@@ -11,6 +11,13 @@
       # No extra inputs for nixpkgs
     };
 
+    home-manager = {
+      url = "github:nix-community/home-manager";
+      inputs = {
+        nixpkgs.follows = "nixpkgs";
+      };
+    };
+
     # macOS / Homebrew bits
     nix-darwin = {
       url = "github:LnL7/nix-darwin";
@@ -63,6 +70,7 @@
   outputs =
     { self
     , nixpkgs
+    , home-manager
     , nix-darwin
       #    , cook
     , nix-homebrew
@@ -129,6 +137,7 @@
           ./hosts/chopper/disko-config.nix
           #cook.nixosModules.default
           sops-nix.nixosModules.sops
+          home-manager.nixosModules.home-manager
           disko.nixosModules.disko
         ];
       };

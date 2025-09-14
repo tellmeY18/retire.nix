@@ -178,6 +178,12 @@
       enable = true;
       enableSensible = true;
     };
+		tmux = {
+		 enable = true;
+		 enableFzf = true;
+		 enableMouse = true;
+		 enableSensible = true;
+		};
     nix-index = {
       enable = true;
     };
