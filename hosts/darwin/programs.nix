@@ -8,17 +8,17 @@
       # Move all configuration options to the top level instead of using a config block
       # Basic options
       opts = {
-        number = true;         # Show line numbers
+        number = true; # Show line numbers
         relativenumber = true; # Show relative line numbers
-        shiftwidth = 2;        # Number of spaces per indentation
-        tabstop = 2;           # Number of spaces a TAB counts for
+        shiftwidth = 2; # Number of spaces per indentation
+        tabstop = 2; # Number of spaces a TAB counts for
       };
 
       # Colorscheme configuration :cite[1]:cite[7]
-      colorschemes.base16= {
+      colorschemes.base16 = {
         enable = true;
-#        settings = {
-#        };
+        #        settings = {
+        #        };
       };
 
       # Plugin configuration
@@ -88,7 +88,7 @@
         treesitter = {
           enable = true;
           settings = {
-            ensure_installed = ["nix" "rust" "python" "javascript" "lua"];
+            ensure_installed = [ "nix" "rust" "python" "javascript" "lua" ];
           };
         };
 

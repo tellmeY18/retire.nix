@@ -1,4 +1,4 @@
-{ config, pkgs, lib, ... }:
+{ ... }:
 
 {
   imports = [
@@ -10,6 +10,7 @@
     ../../modules/conduit.nix
     ../../modules/arr.nix
     ../../modules/esp.nix
+    ../../modules/neondb.nix
     ./default.nix
     ../../packages/chopper
   ];
