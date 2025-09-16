@@ -89,7 +89,7 @@
       };
 
       ############################################
-      ##  macOS – Vysakh’s MacBook Pro
+      ##  macOS – Vysakh's MacBook Pro
       ############################################
       darwinConfigurations."Vysakhs-MacBook-Pro" = nix-darwin.lib.darwinSystem {
         modules = [
@@ -137,9 +137,25 @@
           ./hosts/chopper/disko-config.nix
           #cook.nixosModules.default
           sops-nix.nixosModules.sops
-          home-manager.nixosModules.home-manager
           disko.nixosModules.disko
         ];
+      };
+
+      ############################################
+      ##  Home Manager Standalone Configurations
+      ############################################
+      homeConfigurations = {
+        # Standalone Home Manager for Darwin
+        "mathewalex@Vysakhs-MacBook-Pro" = home-manager.lib.homeManagerConfiguration {
+          pkgs = nixpkgs.legacyPackages.aarch64-darwin;
+          modules = [ ./home/darwin.nix ];
+        };
+
+        # Standalone Home Manager for NixOS
+        "mathew@chopper" = home-manager.lib.homeManagerConfiguration {
+          pkgs = nixpkgs.legacyPackages.x86_64-linux;
+          modules = [ ./home/chopper.nix ];
+        };
       };
     };
 }
