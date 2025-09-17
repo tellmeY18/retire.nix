@@ -2,6 +2,10 @@
 
 {
   programs.zsh = lib.mkIf pkgs.stdenv.isLinux {
+    oh-my-zsh = {
+      theme = "jonathan";
+    };
+
     # Inherit common zsh config
     profileExtra = ''
       # Linux-specific configuration
