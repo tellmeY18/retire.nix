@@ -5,7 +5,6 @@
   home.packages = lib.optionals pkgs.stdenv.isLinux (with pkgs; [
     # GUI applications
     firefox
-    chromium
 
     # System monitoring
     iotop
@@ -20,15 +19,6 @@
     tcpdump
     wireshark-cli
 
-    # Additional development tools for Linux
-    docker
-    docker-compose
-    sqlite
-    postgresql
-    redis
-
-    # Linux-specific utilities
-    xclip
     tree
   ]);
 }
