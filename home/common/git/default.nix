@@ -24,7 +24,6 @@
         editor = "vim";
         autocrlf = false;
         safecrlf = false;
-        pager = "bat";
       };
 
       push = {

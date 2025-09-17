@@ -1,7 +1,6 @@
 { config, pkgs, ... }:
 
 {
-  # Shell configurations
   programs.zsh = {
     enable = true;
     package = pkgs.zsh;

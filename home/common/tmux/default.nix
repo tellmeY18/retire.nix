@@ -1,9 +1,11 @@
-{ config, pkgs, ... }:
+{ config, lib, pkgs, ... }:
+
 
 {
   programs.tmux = {
     enable = true;
     package = pkgs.tmux;
+    shell = "${pkgs.zsh}/bin/zsh";
 
     # Core settings
     terminal = "screen-256color";
@@ -31,8 +33,6 @@
     # Prefix key
     prefix = "C-a";
 
-    # Shell
-    shell = "${pkgs.zsh}/bin/zsh";
 
     # Sensible plugin at top
     sensibleOnTop = true;
@@ -119,6 +119,14 @@
 
     # Additional configuration
     extraConfig = ''
+      # =====================================
+      # ===           Shell               ===
+      # =====================================
+
+      # Ensure zsh is used as default shell
+      set -g default-shell "${pkgs.zsh}/bin/zsh"
+      set -g default-command "${pkgs.zsh}/bin/zsh"
+
       # =====================================
       # ===           Theme               ===
       # =====================================

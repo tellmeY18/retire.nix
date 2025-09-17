@@ -1,8 +1,8 @@
-{ pkgs, ... }:
+{ lib, pkgs, ... }:
 
 {
-  # NixOS-specific packages
-  home.packages = with pkgs; [
+  # NixOS-specific packages - only install on Linux
+  home.packages = lib.optionals pkgs.stdenv.isLinux (with pkgs; [
     # GUI applications
     firefox
     chromium
@@ -30,5 +30,5 @@
     # Linux-specific utilities
     xclip
     tree
-  ];
+  ]);
 }

@@ -148,13 +148,13 @@
         # Standalone Home Manager for Darwin
         "mathewalex@Vysakhs-MacBook-Pro" = home-manager.lib.homeManagerConfiguration {
           pkgs = nixpkgs.legacyPackages.aarch64-darwin;
-          modules = [ ./home/darwin.nix ];
+          modules = [ ./home/default.nix ];
         };
 
         # Standalone Home Manager for NixOS
         "mathew@chopper" = home-manager.lib.homeManagerConfiguration {
           pkgs = nixpkgs.legacyPackages.x86_64-linux;
-          modules = [ ./home/chopper.nix ];
+          modules = [ ./home/default.nix ];
         };
       };
     };

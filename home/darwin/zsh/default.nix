@@ -1,7 +1,7 @@
-{ pkgs, ... }:
+{ lib, pkgs, ... }:
 
 {
-  programs.zsh = {
+  programs.zsh = lib.mkIf pkgs.stdenv.isDarwin {
     # Inherit common zsh config
     profileExtra = ''
       # Add Homebrew to PATH

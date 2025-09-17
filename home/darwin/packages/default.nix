@@ -1,14 +1,10 @@
-{ pkgs, ... }:
+{ lib, pkgs, ... }:
 
 {
-  # Darwin-specific packages
-  home.packages = with pkgs; [
+  # Darwin-specific packages - only install on macOS
+  home.packages = lib.optionals pkgs.stdenv.isDarwin (with pkgs; [
     # macOS-specific tools
     mas  # Mac App Store CLI
     zoxide
-
-    # Additional development tools for macOS
-    docker
-    docker-compose
-  ];
+  ]);
 }

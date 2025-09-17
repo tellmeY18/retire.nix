@@ -1,4 +1,6 @@
-{ pkgs }: {
+{  pkgs, lib, ... }:
+{
+
   programs.fzf = {
     enable = true;
     enableZshIntegration = true;
@@ -14,7 +16,7 @@
       "--border"
       "--info=inline"
       "--multi"
-      "--preview=\"${pkgs.bat}/bin/bat --color=always {}\""
+      "--preview='${pkgs.bat}/bin/bat --color=always {}'"
     ];
 
     historyWidgetOptions = [
@@ -26,15 +28,8 @@
   };
 
   home.sessionVariables = {
-    FZF_DEFAULT_OPTS = "--height 40% --layout=reverse --border";
     FZF_DEFAULT_COMMAND = "${pkgs.fd}/bin/fd --type f --hidden --follow --exclude .git";
     FZF_CTRL_T_COMMAND = "${pkgs.fd}/bin/fd --type f --hidden --follow --exclude .git";
     FZF_ALT_C_COMMAND = "${pkgs.fd}/bin/fd --type d --hidden --follow --exclude .git";
   };
-  programs.zsh.initExtra = ''
-    export FZF_DEFAULT_OPTS="--height 40% --layout=reverse --border"
-    export FZF_DEFAULT_COMMAND="${pkgs.fd}/bin/fd --type f --hidden --follow --exclude .git"
-    export FZF_CTRL_T_COMMAND="${pkgs.fd}/bin/fd --type f --hidden --follow --exclude .git"
-    export FZF_ALT_C_COMMAND="${pkgs.fd}/bin/fd --type d --hidden --follow --exclude .git"
-  '';
 }

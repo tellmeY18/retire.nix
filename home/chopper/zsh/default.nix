@@ -1,7 +1,7 @@
-{ pkgs, ... }:
+{ lib, pkgs, ... }:
 
 {
-  programs.zsh = {
+  programs.zsh = lib.mkIf pkgs.stdenv.isLinux {
     # Inherit common zsh config
     profileExtra = ''
       # Linux-specific configuration
