@@ -152,7 +152,7 @@
         };
 
         # Standalone Home Manager for NixOS
-        "mathew@chopper" = home-manager.lib.homeManagerConfiguration {
+        "vysakh@chopper" = home-manager.lib.homeManagerConfiguration {
           pkgs = nixpkgs.legacyPackages.x86_64-linux;
           modules = [ ./home/default.nix ];
         };
