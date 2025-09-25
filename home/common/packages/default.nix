@@ -29,6 +29,6 @@
     nano
 
     # Additional development tools
-    nix-index  # Locate packages providing a file
+    nix-index # Locate packages providing a file
   ];
 }

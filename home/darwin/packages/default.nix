@@ -1,10 +1,11 @@
-{ lib, pkgs, ... }:
+{ pkgs, ... }:
 
 {
-  # Darwin-specific packages - only install on macOS
-  home.packages = lib.optionals pkgs.stdenv.isDarwin (with pkgs; [
-    # macOS-specific tools
-    mas  # Mac App Store CLI
+  home.packages = with pkgs; [
+    mas
     zoxide
-  ]);
+    (google-cloud-sdk.withExtraComponents [
+      google-cloud-sdk.components.gke-gcloud-auth-plugin
+    ])
+  ];
 }

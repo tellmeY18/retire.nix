@@ -36,25 +36,25 @@
 
     # ZSH options
     setOptions = [
-      "EXTENDED_HISTORY"        # Write timestamps to history
-      "HIST_EXPIRE_DUPS_FIRST"  # Expire duplicates first
-      "HIST_FIND_NO_DUPS"       # Don't display duplicates during searches
-      "HIST_IGNORE_DUPS"        # Don't record duplicate commands
-      "HIST_IGNORE_SPACE"       # Don't record commands starting with space
-      "HIST_REDUCE_BLANKS"      # Remove superfluous blanks
-      "HIST_SAVE_NO_DUPS"       # Don't save duplicates
-      "HIST_VERIFY"             # Show command with history expansion
-      "INC_APPEND_HISTORY"      # Append to history immediately
-      "SHARE_HISTORY"           # Share history between sessions
-      "AUTO_CD"                 # Auto cd to directory
-      "AUTO_PUSHD"              # Automatically push directories onto stack
-      "PUSHD_IGNORE_DUPS"       # Don't push duplicates onto stack
-      "PUSHD_SILENT"            # Don't print directory stack
-      "CORRECT"                 # Spelling correction for commands
-      "EXTENDED_GLOB"           # Extended globbing
-      "GLOB_DOTS"               # Match dotfiles without explicit dot
-      "NO_BEEP"                 # No beeping
-      "INTERACTIVE_COMMENTS"    # Allow comments in interactive shells
+      "EXTENDED_HISTORY" # Write timestamps to history
+      "HIST_EXPIRE_DUPS_FIRST" # Expire duplicates first
+      "HIST_FIND_NO_DUPS" # Don't display duplicates during searches
+      "HIST_IGNORE_DUPS" # Don't record duplicate commands
+      "HIST_IGNORE_SPACE" # Don't record commands starting with space
+      "HIST_REDUCE_BLANKS" # Remove superfluous blanks
+      "HIST_SAVE_NO_DUPS" # Don't save duplicates
+      "HIST_VERIFY" # Show command with history expansion
+      "INC_APPEND_HISTORY" # Append to history immediately
+      "SHARE_HISTORY" # Share history between sessions
+      "AUTO_CD" # Auto cd to directory
+      "AUTO_PUSHD" # Automatically push directories onto stack
+      "PUSHD_IGNORE_DUPS" # Don't push duplicates onto stack
+      "PUSHD_SILENT" # Don't print directory stack
+      "CORRECT" # Spelling correction for commands
+      "EXTENDED_GLOB" # Extended globbing
+      "GLOB_DOTS" # Match dotfiles without explicit dot
+      "NO_BEEP" # No beeping
+      "INTERACTIVE_COMMENTS" # Allow comments in interactive shells
     ];
 
     # Enhanced history configuration
