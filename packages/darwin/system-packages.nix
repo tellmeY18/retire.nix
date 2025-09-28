@@ -61,7 +61,6 @@
     pkgs.yazi
     pkgs.tealdeer
     pkgs.rclone
-    pkgs.tmux
     pkgs.bat
     pkgs.comma
     pkgs.glow
