@@ -11,6 +11,13 @@
       # No extra inputs for nixpkgs
     };
 
+    home-manager = {
+      url = "github:nix-community/home-manager";
+      inputs = {
+        nixpkgs.follows = "nixpkgs";
+      };
+    };
+
     # macOS / Homebrew bits
     nix-darwin = {
       url = "github:LnL7/nix-darwin";
@@ -63,6 +70,7 @@
   outputs =
     { self
     , nixpkgs
+    , home-manager
     , nix-darwin
       #    , cook
     , nix-homebrew
@@ -81,7 +89,7 @@
       };
 
       ############################################
-      ##  macOS – Vysakh’s MacBook Pro
+      ##  macOS – Vysakh's MacBook Pro
       ############################################
       darwinConfigurations."Vysakhs-MacBook-Pro" = nix-darwin.lib.darwinSystem {
         modules = [
@@ -131,6 +139,23 @@
           sops-nix.nixosModules.sops
           disko.nixosModules.disko
         ];
+      };
+
+      ############################################
+      ##  Home Manager Standalone Configurations
+      ############################################
+      homeConfigurations = {
+        # Standalone Home Manager for Darwin
+        "mathewalex@Vysakhs-MacBook-Pro" = home-manager.lib.homeManagerConfiguration {
+          pkgs = nixpkgs.legacyPackages.aarch64-darwin;
+          modules = [ ./home/default.nix ];
+        };
+
+        # Standalone Home Manager for NixOS
+        "vysakh@chopper" = home-manager.lib.homeManagerConfiguration {
+          pkgs = nixpkgs.legacyPackages.x86_64-linux;
+          modules = [ ./home/default.nix ];
+        };
       };
     };
 }

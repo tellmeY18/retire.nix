@@ -1,5 +1,9 @@
 { pkgs, ... }: {
   services = {
+    tailscale = {
+      enable = true;
+      package = pkgs.tailscale;
+    };
     aerospace = {
       enable = true;
       settings = {
@@ -68,7 +72,7 @@
         mode = {
           main = {
             binding = {
-              alt-enter = "exec-and-forget kitty --directory ~";
+              alt-enter = "exec-and-forget /Users/mathew/.nix-profile/bin/kitty --directory ~";
               alt-shift-f = "fullscreen";
               alt-shift-space = "layout floating tiling";
               alt-shift-left = "join-with left";
