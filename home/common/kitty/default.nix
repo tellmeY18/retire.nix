@@ -4,15 +4,20 @@
 
     # Font configuration
     font = {
-      name = "JetBrains Mono";
-      size = 12;
+      name = "FontAwesome";
+      size = 12.0;
     };
 
     # Theme and colors
-    theme = "Tokyo Night";
+    themeFile = "FunForrest";
 
     # Settings
     settings = {
+      # Font configuration
+      bold_font = "auto";
+      italic_font = "auto";
+      bold_italic_font = "auto";
+
       # Performance
       repaint_delay = 10;
       input_delay = 3;
@@ -22,8 +27,13 @@
       remember_window_size = false;
       initial_window_width = 1200;
       initial_window_height = 800;
-      window_padding_width = 8;
+      window_padding_width = 30;
       window_margin_width = 0;
+      background_opacity = "0.70";
+      hide_window_decorations = false;
+      confirm_os_window_close = 0;
+      background_blur = 24;
+      macos_hide_titlebar = true;
 
       # Tab bar
       tab_bar_edge = "bottom";
@@ -35,6 +45,7 @@
       cursor_shape = "beam";
       cursor_beam_thickness = "1.5";
       cursor_blink_interval = 0;
+      cursor_trail = 1;
 
       # Mouse
       copy_on_select = true;

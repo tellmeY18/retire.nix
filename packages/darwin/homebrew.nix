@@ -46,7 +46,6 @@
       "whatsapp@beta"
       "slack"
       "arc"
-      "kitty"
       "github"
       "kdenlive"
       "signal@beta"

@@ -13,7 +13,7 @@
 
   # Common environment variables
   home.sessionVariables = {
-    EDITOR = "vim";
+    EDITOR = "nvim";
   };
 
   # Let Home Manager install and manage itself

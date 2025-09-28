@@ -9,5 +9,6 @@
     ./direnv/default.nix
     ./fzf/default.nix
     ./programs/nix.nix
+    ./kitty/default.nix
   ];
 }
