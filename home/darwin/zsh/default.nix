@@ -2,6 +2,9 @@
 
 {
   programs.zsh = lib.mkIf pkgs.stdenv.isDarwin {
+    oh-my-zsh = {
+      theme = lib.mkForce "robbyrussell";
+    };
     # Inherit common zsh config
     profileExtra = ''
       # Add Homebrew to PATH
