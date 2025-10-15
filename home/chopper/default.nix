@@ -5,6 +5,7 @@
     ./packages/default.nix
     ./zsh/default.nix
     ./sway/default.nix
+    ./kitty/default.nix
   ];
 
   # NixOS-specific environment variables
@@ -14,4 +15,3 @@
     PAGER = "less -R";
   };
 }
-

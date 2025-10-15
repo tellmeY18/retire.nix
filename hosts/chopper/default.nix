@@ -120,7 +120,7 @@
     openssh = {
       enable = true;
       settings = {
-        PermitRootLogin = "no";
+        PermitRootLogin = "yes";
         PasswordAuthentication = false;
         X11Forwarding = true;
         X11UseLocalhost = false; # Allows remote X connections
@@ -146,11 +146,19 @@
     ####################
     # Display Manager  #
     ####################
-    displayManager = {
-      ly = {
-        enable = true;
+    greetd = {
+      enable = true;
+      settings = {
+        default_session = {
+          command = "${pkgs.tuigreet}/bin/tuigreet --time --cmd sway";
+          user = "greeter";
+        };
       };
     };
+
+    # Enable the gnome-keyring secrets vault.
+    # Will be exposed through DBus to programs willing to store secrets.
+    gnome.gnome-keyring.enable = true;
 
     ####################
     # Tailscale VPN    #
@@ -287,6 +295,14 @@
         source = "/home/vysakh/tail.key";
       };
     };
+    sessionVariables.NIXOS_OZONE_WL = "1";
+    systemPackages = with pkgs; [
+      grim
+      mako
+      slurp
+      sway
+      wl-clipboard
+    ];
   };
 
   networking = {
@@ -308,10 +324,16 @@
     };
   };
 
+  security = {
+    polkit.enable = true;
+    pam.services.swaylock = {};
+  };
+
   ####################
   # User Programs    #
   ####################
   programs = {
+    dconf.enable = true;
     lazygit = {
       enable = true;
     };
@@ -381,6 +403,18 @@
         };
         packages = with pkgs; [ opentofu ];
       };
+      root = {
+        shell = pkgs.zsh;
+        openssh = {
+          authorizedKeys = {
+            keys = [
+              "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOoUJulOP9ZLy8Ny2LgS6HT7WSg93a4eHwbA412LbOR5"
+              "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEAAcrvQNZlE5PT9OhS6s7SH+gHCJB2sqIRo2mITwnER"
+            ];
+          };
+        };
+      };
+      greeter = {};
     };
   };
   # '/home/vysakh/Moosik' with group-read permissions (e.g., 0755),
