@@ -14,7 +14,7 @@
     userSettings = {
       # UI Configuration
       theme = {
-        mode = "system";
+        mode = "dark";
         light = "One Light";
         dark = "Ayu Dark";
       };
