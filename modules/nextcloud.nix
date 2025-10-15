@@ -25,7 +25,7 @@
     };
     package = lib.mkOption {
       type = lib.types.package;
-      default = pkgs.nextcloud31;
+      default = pkgs.nextcloud32;
       description = "Nextcloud package to use.";
     };
     extraApps = lib.mkOption {
