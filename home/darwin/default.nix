@@ -4,6 +4,7 @@
   imports = [
     ./packages/default.nix
     ./zsh/default.nix
+    ./emacs/default.nix
   ];
 
   # Darwin-specific environment variables

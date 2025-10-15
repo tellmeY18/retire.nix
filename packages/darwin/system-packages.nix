@@ -85,7 +85,7 @@
     pkgs.ghostscript
 
     # Applications
-    pkgs.thunderbird
+    #pkgs.thunderbird-esr
 
     # Development Tools
     pkgs.lazygit

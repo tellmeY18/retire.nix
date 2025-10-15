@@ -30,7 +30,7 @@
       # No extra inputs for nix-homebrew
     };
 
-    # index database for nix-locate
+   # index database for nix-locate
     nix-index-database = {
       url = "github:nix-community/nix-index-database";
       inputs = {
@@ -148,7 +148,9 @@
         # Standalone Home Manager for Darwin
         "mathewalex@Vysakhs-MacBook-Pro" = home-manager.lib.homeManagerConfiguration {
           pkgs = nixpkgs.legacyPackages.aarch64-darwin;
-          modules = [ ./home/default.nix ];
+          modules = [
+            ./home/default.nix
+          ];
         };
 
         # Standalone Home Manager for NixOS
