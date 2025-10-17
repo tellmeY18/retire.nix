@@ -40,7 +40,6 @@
       "qbittorrent"
       "firefox@developer-edition"
       "zen"
-      "zed@preview"
       "notion"
       "1password"
       "whatsapp@beta"
