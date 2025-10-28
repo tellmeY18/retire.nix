@@ -11,6 +11,10 @@
       # No extra inputs for nixpkgs
     };
 
+    flake-utils = {
+      url = "github:numtide/flake-utils";
+    };
+
     home-manager = {
       url = "github:nix-community/home-manager";
       inputs = {
@@ -64,12 +68,14 @@
       };
     };
   };
+
   ####################
   ##  Outputs
   ####################
   outputs =
     { self
     , nixpkgs
+    , flake-utils
     , home-manager
     , nix-darwin
       #    , cook
@@ -79,15 +85,20 @@
     , disko
     , sops-nix
     , ...
-    }: {
-      ############################################
-      ##  Formatters (keep per-arch convenience)
-      ############################################
-      formatter = {
-        aarch64-darwin = nixpkgs.legacyPackages.aarch64-darwin.nixpkgs-fmt;
-        x86_64-linux = nixpkgs.legacyPackages.x86_64-linux.nixpkgs-fmt;
-      };
+    }:
+    flake-utils.lib.eachSystem [ "aarch64-darwin" "x86_64-linux" ] (system:
+      let
+        pkgs = nixpkgs.legacyPackages.${system};
+      in
+      {
+        ############################################
+        ##  Formatters
+        ############################################
+        formatter = pkgs.nixpkgs-fmt;
 
+
+      }
+    ) // {
       ############################################
       ##  macOS – Vysakh's MacBook Pro
       ############################################
@@ -120,7 +131,7 @@
         self.darwinConfigurations."Vysakhs-MacBook-Pro".pkgs;
 
       ############################################
-      ##  NixOS – “chopper” host on ZFS + Disko
+      ##  NixOS – "chopper" host on ZFS + Disko
       ############################################
       nixosConfigurations.chopper = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
@@ -148,15 +159,13 @@
         # Standalone Home Manager for Darwin
         "mathewalex@Vysakhs-MacBook-Pro" = home-manager.lib.homeManagerConfiguration {
           pkgs = nixpkgs.legacyPackages.aarch64-darwin;
-          modules = [
-            ./home/default.nix
-          ];
+          modules = [ ./home/darwin-home.nix ];
         };
 
         # Standalone Home Manager for NixOS
         "vysakh@chopper" = home-manager.lib.homeManagerConfiguration {
           pkgs = nixpkgs.legacyPackages.x86_64-linux;
-          modules = [ ./home/default.nix ];
+          modules = [ ./home/linux-home.nix ];
         };
       };
     };

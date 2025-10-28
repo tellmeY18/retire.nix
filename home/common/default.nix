@@ -9,6 +9,7 @@
     ./jujutsu/default.nix
     ./tmux/default.nix
     ./direnv/default.nix
+    ./firefox/default.nix
     ./fzf/default.nix
     ./programs/nix.nix
     ./kitty/default.nix

@@ -1,29 +1,43 @@
-{ config, lib, pkgs, ... }:
-
 {
+  pkgs,
+  ...
+}:
+
+let
+  jupytextPkg = pkgs.python3Packages.jupytext;
+  # You don't need a separate moltenPythonDeps variable anymore
+  # NixVim handles this through the plugin's python3Dependencies option
+in
+{
+  environment.systemPackages = [
+    jupytextPkg
+  ];
+
+  # Set environment variable for Jupyter runtime directory
+  environment.variables = {
+    JUPYTER_RUNTIME_DIR = "$HOME/.cache/jupyter/runtime";
+  };
+
   programs = {
     nixvim = {
       enable = true;
 
-      # Move all configuration options to the top level instead of using a config block
       # Basic options
       opts = {
-        number = true; # Show line numbers
-        relativenumber = true; # Show relative line numbers
-        shiftwidth = 2; # Number of spaces per indentation
-        tabstop = 2; # Number of spaces a TAB counts for
+        number = true;
+        relativenumber = true;
+        shiftwidth = 2;
+        tabstop = 2;
       };
 
-      # Colorscheme configuration :cite[1]:cite[7]
+      # Colorscheme configuration
       colorschemes.base16 = {
         enable = true;
-        #        settings = {
-        #        };
       };
 
       # Plugin configuration
       plugins = {
-        # Web devicons :cite[2]:cite[10]
+        # Web devicons
         web-devicons = {
           enable = true;
           settings = {
@@ -33,7 +47,7 @@
           };
         };
 
-        # GitHub Copilot :cite[5]
+        # GitHub Copilot
         copilot-chat = {
           enable = true;
           settings = {
@@ -56,7 +70,7 @@
           };
         };
 
-        # LSP configuration :cite[4]:cite[6]
+        # LSP configuration
         lsp = {
           enable = true;
           servers = {
@@ -67,14 +81,24 @@
             pyright.enable = true;
           };
         };
-        # Completion framework :cite[5]
+
+        # Completion framework
         cmp = {
           enable = true;
           settings = {
             sources = [
-              { name = "nvim_lsp"; priority = 100; }
-              { name = "copilot"; priority = 50; } # Copilot as completion source
-              { name = "buffer"; priority = 25; }
+              {
+                name = "nvim_lsp";
+                priority = 100;
+              }
+              {
+                name = "copilot";
+                priority = 50;
+              }
+              {
+                name = "buffer";
+                priority = 25;
+              }
             ];
             mapping = {
               "<Tab>" = "cmp.mapping.select_next_item()";
@@ -84,25 +108,78 @@
           };
         };
 
-        # Tree-sitter for better syntax highlighting :cite[6]
+        # Tree-sitter for better syntax highlighting
         treesitter = {
           enable = true;
           settings = {
-            ensure_installed = [ "nix" "rust" "python" "javascript" "lua" ];
+            ensure_installed = [
+              "nix"
+              "rust"
+              "python"
+              "javascript"
+              "lua"
+            ];
           };
         };
 
-        # Telescope for fuzzy finding :cite[6]
+        # Molten - The proper NixVim way
+        molten = {
+          enable = true;
+
+          # This is the correct way to add Python dependencies in NixVim
+          python3Dependencies =
+            p: with p; [
+              pynvim
+              jupyter-client
+              cairosvg
+              ipython
+              nbformat
+              ipykernel
+            ];
+
+          # Molten settings
+          settings = {
+            auto_open_output = false;
+            image_provider = "none";
+            output_win_max_height = 20;
+            wrap_output = true;
+            virt_text_output = true;
+            output_win_cover_gutter = true;
+            output_win_hide_on_leave = true;
+            output_crop_border = true;
+          };
+        };
+
+        # Telescope for fuzzy finding
         telescope.enable = true;
 
-        # Which-key for keybinding hints :cite[6]
+        # Which-key for keybinding hints
         which-key.enable = true;
 
-        # Automatically close pairs of brackets, quotes, etc. :cite[6]
+        # Automatically close pairs of brackets, quotes, etc.
         nvim-autopairs.enable = true;
+
+        # Jupytext for Jupyter notebook support
+        jupytext = {
+          enable = true;
+          settings = {
+            output_extension = "py";
+            style = "hydrogen";
+            custom_language_formatting = {
+              python = {
+                extension = "py";
+                style = "hydrogen";
+              };
+            };
+          };
+          python3Dependencies =
+            p: with p; [
+              jupytext
+            ];
+        };
       };
 
-      # Key mappings :cite[5]:cite[6]
+      # Key mappings
       keymaps = [
         {
           key = "<leader>G";
@@ -120,9 +197,56 @@
             silent = true;
           };
         }
+        # Molten keybindings
+        {
+          key = "<leader>mi";
+          action = ":MoltenInit<CR>";
+          options = {
+            noremap = true;
+            silent = true;
+            desc = "Initialize Molten";
+          };
+        }
+        {
+          key = "<leader>me";
+          action = ":MoltenEvaluateOperator<CR>";
+          options = {
+            noremap = true;
+            silent = true;
+            desc = "Evaluate operator";
+          };
+        }
+        {
+          key = "<leader>ml";
+          action = ":MoltenEvaluateLine<CR>";
+          options = {
+            noremap = true;
+            silent = true;
+            desc = "Evaluate line";
+          };
+        }
+        {
+          key = "<leader>mr";
+          action = ":MoltenReevaluateCell<CR>";
+          options = {
+            noremap = true;
+            silent = true;
+            desc = "Re-evaluate cell";
+          };
+        }
+        {
+          key = "<leader>mv";
+          mode = "v";
+          action = ":<C-u>MoltenEvaluateVisual<CR>gv";
+          options = {
+            noremap = true;
+            silent = true;
+            desc = "Evaluate visual selection";
+          };
+        }
       ];
 
-      # Extra configuration for Copilot integration :cite[5]
+      # Extra configuration
       extraConfigLua = ''
         -- Copilot toggle function
         _G.cmp_source_toggle = false
@@ -159,16 +283,17 @@
 
         -- Initial setup
         _G.setup_cmp()
+
+        -- Set Jupyter runtime directory and create it
+        local jupyter_runtime = vim.fn.expand("$HOME/.cache/jupyter/runtime")
+        vim.fn.mkdir(jupyter_runtime, "p")
+        vim.env.JUPYTER_RUNTIME_DIR = jupyter_runtime
       '';
     };
-
 
     vim = {
       enable = true;
       enableSensible = true;
     };
-
-
-
   };
 }
