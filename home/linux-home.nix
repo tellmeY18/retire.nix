@@ -3,13 +3,12 @@
 {
   imports = [
     ./common/default.nix
-    ./darwin/default.nix
     ./chopper/default.nix
   ];
 
-  # Set user and home directory based on the system
-  home.username = if pkgs.stdenv.isDarwin then "mathewalex" else "vysakh";
-  home.homeDirectory = if pkgs.stdenv.isDarwin then "/Users/mathew" else "/home/vysakh";
+  # Linux-specific user configuration
+  home.username = "vysakh";
+  home.homeDirectory = "/home/vysakh";
 
   # Common environment variables
   home.sessionVariables = {

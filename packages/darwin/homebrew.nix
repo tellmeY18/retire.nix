@@ -46,7 +46,6 @@
       "slack"
       "arc"
       "github"
-      "kdenlive"
       "signal@beta"
       "hoppscotch"
       "drawio"
