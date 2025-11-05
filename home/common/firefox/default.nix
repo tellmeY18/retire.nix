@@ -1,12 +1,13 @@
-{ pkgs, ... }:
+{ pkgs, lib, ... }:
 let
-  # Helper function for forced extension installation
+  #  isDarwin = pkgs.stdenv.isDarwin;
+  #  # Helper function for forced extension installation
   install = install_url: {
     inherit install_url;
     installation_mode = "force_installed";
   };
-
-  # Policies configuration
+  #
+  #  # Policies configuration
   policies = {
     DisableAppUpdate = true;
     DisableFirefoxAccounts = true;
@@ -16,7 +17,7 @@ let
     DisableTelemetry = true;
     DisplayBookmarksToolbar = "newtab";
     DontCheckDefaultBrowser = true;
-    
+
     EnableTrackingProtection = {
       Value = true;
       Locked = true;
@@ -24,7 +25,7 @@ let
       EmailTracking = true;
       Fingerprinting = true;
     };
-    
+
     ExtensionSettings = {
       "*" = {
         installation_mode = "blocked";
@@ -46,7 +47,7 @@ let
       "{d634138d-c276-4fc8-924b-40a0ea21d284}" =
         install "https://addons.mozilla.org/firefox/downloads/latest/1password-x-password-manager/latest.xpi";
     };
-    
+
     FirefoxHome = {
       Search = true;
       TopSites = false;
@@ -57,19 +58,19 @@ let
       Snippets = false;
       Locked = true;
     };
-    
+
     FirefoxSuggest = {
       WebSuggestions = false;
       SponsoredSuggestions = false;
       ImproveSuggest = false;
       Locked = true;
     };
-    
+
     Homepage = {
       StartPage = "previous-session";
       Locked = true;
     };
-    
+
     NetworkPrediction = false;
     NewTabPage = false;
     NoDefaultBookmarks = true;
@@ -79,7 +80,7 @@ let
     PasswordManagerEnabled = false;
     PrimaryPassword = false;
     SearchSuggestEnabled = false;
-    
+
     UserMessaging = {
       WhatsNew = false;
       ExtensionRecommendations = false;
@@ -90,92 +91,102 @@ let
       Locked = true;
     };
   };
-
-  # Advanced preferences
-  extraPrefs = ''
-    lockPref("accessibility.force_disabled", 1);
-    lockPref("app.shield.optoutstudies.enabled", false);
-    lockPref("browser.aboutConfig.showWarning", false);
-    lockPref("browser.aboutHomeSnippets.updateUrl", "");
-    lockPref("browser.crashReports.unsubmittedCheck.autoSubmit2", false);
-    lockPref("browser.ml.chat.enabled", false);
-    lockPref("browser.ml.chat.shortcuts", false);
-    lockPref("browser.ml.chat.sidebar", false);
-    lockPref("browser.selfsupport.url", "");
-    lockPref("browser.startup.homepage", "https://start.duckduckgo.com");
-    lockPref("browser.startup.homepage_override.buildID", "");
-    lockPref("browser.startup.homepage_override.mstone", "ignore");
-    lockPref("browser.tabs.firefox-view", false);
-    lockPref("browser.tabs.firefox-view-next", false);
-    lockPref("browser.urlbar.suggest.history", false);
-    lockPref("browser.urlbar.suggest.topsites", false);
-    lockPref("content.notify.interval", 100000);
-    lockPref("dom.events.asyncClipboard.clipboardItem", true);
-    lockPref("dom.security.https_only_mode", true);
-    lockPref("extensions.htmlaboutaddons.recommendations.enabled", false);
-    lockPref("extensions.recommendations.themeRecommendationUrl", "");
-    lockPref("gfx.canvas.accelerated.cache-items", 4096);
-    lockPref("gfx.canvas.accelerated.cache-size", 512);
-    lockPref("gfx.content.skia-font-cache-size", 20);
-    lockPref("gfx.webrender.all", true);
-    lockPref("gfx.webrender.compositor", true);
-    lockPref("network.dns.disablePrefetch", false);
-    lockPref("network.dns.disablePrefetchFromHTTPS", false);
-    lockPref("network.http.max-connections", 1800);
-    lockPref("network.http.max-persistent-connections-per-server", 10);
-    lockPref("network.http.max-urgent-start-excessive-connections-per-host", 5);
-    lockPref("network.http.pacing.requests.enabled", false);
-    lockPref("network.IDN_show_punycode", true);
-    lockPref("network.predictor.enabled", false);
-    lockPref("network.prefetch-next", false);
-    lockPref("network.trr.mode", 5);
-    lockPref("privacy.donottrackheader.enabled", true);
-    lockPref("privacy.firstparty.isolate", true);
-    lockPref("privacy.globalprivacycontrol.enabled", true);
-    lockPref("sidebar.main.tools", "history,bookmarks");
-    lockPref("sidebar.verticalTabs", true);
-    lockPref("signon.management.page.breach-alerts.enabled", false);
-    lockPref("startup.homepage_override_url", "");
-    lockPref("startup.homepage_welcome_url", "");
-    lockPref("startup.homepage_welcome_url.additional", "");
-    lockPref("toolkit.legacyUserProfileCustomizations.stylesheets", true);
-    lockPref("widget.disable-swipe-tracker", true);
-    lockPref("widget.gtk.global-menu.wayland.enabled", true);
-    lockPref("widget.wayland.fractional-scale.enabled", true);
-  '';
-
+  #
+  #  # Advanced preferences (common to all platforms)
+  #  commonPrefs = ''
+  #    lockPref("accessibility.force_disabled", 1);
+  #    lockPref("app.shield.optoutstudies.enabled", false);
+  #    lockPref("browser.aboutConfig.showWarning", false);
+  #    lockPref("browser.aboutHomeSnippets.updateUrl", "");
+  #    lockPref("browser.crashReports.unsubmittedCheck.autoSubmit2", false);
+  #    lockPref("browser.ml.chat.enabled", false);
+  #    lockPref("browser.ml.chat.shortcuts", false);
+  #    lockPref("browser.ml.chat.sidebar", false);
+  #    lockPref("browser.selfsupport.url", "");
+  #    lockPref("browser.startup.homepage", "https://start.duckduckgo.com");
+  #    lockPref("browser.startup.homepage_override.buildID", "");
+  #    lockPref("browser.startup.homepage_override.mstone", "ignore");
+  #    lockPref("browser.tabs.firefox-view", false);
+  #    lockPref("browser.tabs.firefox-view-next", false);
+  #    lockPref("browser.urlbar.suggest.history", false);
+  #    lockPref("browser.urlbar.suggest.topsites", false);
+  #    lockPref("content.notify.interval", 100000);
+  #    lockPref("dom.events.asyncClipboard.clipboardItem", true);
+  #    lockPref("dom.security.https_only_mode", true);
+  #    lockPref("extensions.htmlaboutaddons.recommendations.enabled", false);
+  #    lockPref("extensions.recommendations.themeRecommendationUrl", "");
+  #    lockPref("gfx.canvas.accelerated.cache-items", 4096);
+  #    lockPref("gfx.canvas.accelerated.cache-size", 512);
+  #    lockPref("gfx.content.skia-font-cache-size", 20);
+  #    lockPref("gfx.webrender.all", true);
+  #    lockPref("gfx.webrender.compositor", true);
+  #    lockPref("network.dns.disablePrefetch", false);
+  #    lockPref("network.dns.disablePrefetchFromHTTPS", false);
+  #    lockPref("network.http.max-connections", 1800);
+  #    lockPref("network.http.max-persistent-connections-per-server", 10);
+  #    lockPref("network.http.max-urgent-start-excessive-connections-per-host", 5);
+  #    lockPref("network.http.pacing.requests.enabled", false);
+  #    lockPref("network.IDN_show_punycode", true);
+  #    lockPref("network.predictor.enabled", false);
+  #    lockPref("network.prefetch-next", false);
+  #    lockPref("network.trr.mode", 5);
+  #    lockPref("privacy.donottrackheader.enabled", true);
+  #    lockPref("privacy.firstparty.isolate", true);
+  #    lockPref("privacy.globalprivacycontrol.enabled", true);
+  #    lockPref("sidebar.main.tools", "history,bookmarks");
+  #    lockPref("sidebar.verticalTabs", true);
+  #    lockPref("signon.management.page.breach-alerts.enabled", false);
+  #    lockPref("startup.homepage_override_url", "");
+  #    lockPref("startup.homepage_welcome_url", "");
+  #    lockPref("startup.homepage_welcome_url.additional", "");
+  #    lockPref("toolkit.legacyUserProfileCustomizations.stylesheets", true);
+  #  '';
+  #
+  #  # Linux/Wayland-specific preferences
+  #  linuxPrefs = ''
+  #    lockPref("widget.disable-swipe-tracker", true);
+  #    lockPref("widget.gtk.global-menu.wayland.enabled", true);
+  #    lockPref("widget.wayland.fractional-scale.enabled", true);
+  #  '';
+  #
+  #  # Combine preferences based on platform
+  #  extraPrefs = commonPrefs + lib.optionalString (!isDarwin) linuxPrefs;
+  #
 in
 {
   programs.firefox = {
     enable = true;
-    
-    package = pkgs.firefox.override {
+
+    # Use cached binary without any overrides
+
+    #    # OR use override for policies/prefs (slight wrapper rebuild)
+    package = pkgs.firefox-beta.override {
       extraPolicies = policies;
-      inherit extraPrefs;
+      #      inherit extraPrefs;
     };
-    
+    #    
     profiles.default = {
       id = 0;
       name = "Default";
       isDefault = true;
-      
-      # Custom CSS for Hyprland minimum window width fix
-      userChrome = ''
-        /* Reduce minimum window width for firefox */
-        :root:not([chromehidden~="toolbar"]){
-          min-width: 20px !important;
-        }
-      '';
-      
+      #      
+      #      # Custom CSS for Hyprland minimum window width fix
+      #      userChrome = ''
+      #        /* Reduce minimum window width for firefox */
+      #        :root:not([chromehidden~="toolbar"]){
+      #          min-width: 20px !important;
+      #        }
+      #      '';
+      #      
       search = {
-        default = "DuckDuckGo";
+        default = "ddg";
         force = true;
-        
+
         engines = {
           # Hide default search engines
           "Bing".metaData.hidden = true;
           "Google".metaData.hidden = true;
-          
+
           # ProtonDB - Game compatibility
           "ProtonDB" = {
             urls = [{
@@ -188,7 +199,7 @@ in
             icon = "https://www.protondb.com/favicon.ico";
             definedAliases = [ "@game" ];
           };
-          
+
           # Nix Packages search
           "Nix Packages" = {
             urls = [{
@@ -211,7 +222,7 @@ in
             icon = "${pkgs.nixos-icons}/share/icons/hicolor/scalable/apps/nix-snowflake.svg";
             definedAliases = [ "@np" ];
           };
-          
+
           # NixOS Options search
           "NixOS Options" = {
             urls = [{
@@ -234,7 +245,7 @@ in
             icon = "${pkgs.nixos-icons}/share/icons/hicolor/scalable/apps/nix-snowflake.svg";
             definedAliases = [ "@no" ];
           };
-          
+
           # GitHub repository search
           "GitHub" = {
             urls = [{
@@ -253,7 +264,7 @@ in
             icon = "https://github.com/favicon.ico";
             definedAliases = [ "@gh" ];
           };
-          
+
           # Docker Hub search
           "Docker Hub" = {
             urls = [{
@@ -266,7 +277,7 @@ in
             icon = "https://hub.docker.com/favicon.ico";
             definedAliases = [ "@docker" ];
           };
-          
+
           # YouTube search
           "YouTube" = {
             urls = [{

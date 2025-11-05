@@ -6,7 +6,7 @@
     ./git/default.nix
     ./zsh/default.nix
     ./zed-editor/default.nix
-    ./jujutsu/default.nix
+    #./jujutsu/default.nix
     ./tmux/default.nix
     ./direnv/default.nix
     ./firefox/default.nix

@@ -1,11 +1,11 @@
 { pkgs, ... }:
 
 {
-  home.packages= [
-    pkgs.lazyjj 
+  home.packages = [
+    pkgs.lazyjj
   ];
   programs.jujutsu = {
-    enable = true;
+    enable = false;
     settings = {
       user = {
         name = "Vysakh Premkumar";

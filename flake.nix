@@ -34,7 +34,7 @@
       # No extra inputs for nix-homebrew
     };
 
-   # index database for nix-locate
+    # index database for nix-locate
     nix-index-database = {
       url = "github:nix-community/nix-index-database";
       inputs = {
@@ -86,7 +86,8 @@
     , sops-nix
     , ...
     }:
-    flake-utils.lib.eachSystem [ "aarch64-darwin" "x86_64-linux" ] (system:
+    flake-utils.lib.eachSystem [ "aarch64-darwin" "x86_64-linux" ]
+      (system:
       let
         pkgs = nixpkgs.legacyPackages.${system};
       in
@@ -98,7 +99,7 @@
 
 
       }
-    ) // {
+      ) // {
       ############################################
       ##  macOS – Vysakh's MacBook Pro
       ############################################
