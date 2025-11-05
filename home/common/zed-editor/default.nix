@@ -22,13 +22,13 @@
       ui_font_size = 16;
       buffer_font_family = "JetBrains Mono";
       base_keymap = "VSCode";
-      
+
       # Editor Behavior
       vim_mode = true;
       tab_size = 2;
       soft_wrap = "editor_width";
       show_whitespaces = "selection";
-      
+
       # Language Models
       language_models = {
         copilot_chat = {
@@ -37,7 +37,7 @@
           models_url = "https://api.githubcopilot.com/models";
         };
       };
-      
+
       # Context Servers
       context_servers = {
         nixx = {
@@ -48,7 +48,7 @@
           settings = { };
         };
       };
-      
+
       # Agent Configuration
       agent = {
         default_profile = "write";
@@ -62,18 +62,18 @@
           model = "claude-sonnet-4";
         };
       };
-      
+
       # Features
       features = {
         edit_prediction_provider = "copilot";
       };
-      
+
       # Telemetry
       telemetry = {
         diagnostics = false;
         metrics = false;
       };
-      
+
       # LSP Configuration
       lsp = {
         nixd = {
@@ -82,7 +82,7 @@
           };
         };
       };
-      
+
       # File Settings
       file_scan_exclusions = [
         "**/.git"
@@ -91,7 +91,7 @@
         "**/target"
         "**/node_modules"
       ];
-      
+
       # Terminal
       terminal = {
         shell = {

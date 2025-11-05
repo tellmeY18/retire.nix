@@ -1,9 +1,9 @@
-{
-  pkgs,
-  lib,
-  config,
-  ...
-}: let
+{ pkgs
+, lib
+, config
+, ...
+}:
+let
   mod = "Mod4";
   wallpaperDir = "${config.home.homeDirectory}/.wallpaper";
   wallpaperInterval = 30; # seconds
@@ -11,7 +11,7 @@
   # Nix-standard wallpaper slideshow service
   wallpaperSlideshow = pkgs.writeShellApplication {
     name = "wallpaper-slideshow";
-    runtimeInputs = with pkgs; [swaybg findutils coreutils];
+    runtimeInputs = with pkgs; [ swaybg findutils coreutils ];
     text = ''
       WALLPAPER_DIR="${wallpaperDir}"
 
@@ -51,12 +51,13 @@
 
   screenshot = pkgs.writeShellApplication {
     name = "sway-screenshot";
-    runtimeInputs = with pkgs; [grim slurp wl-clipboard];
+    runtimeInputs = with pkgs; [ grim slurp wl-clipboard ];
     text = ''
       grim -g "$(slurp)" - | wl-copy
     '';
   };
-in {
+in
+{
   fonts.fontconfig.enable = true;
 
   programs.wofi = {
@@ -75,7 +76,7 @@ in {
     config = {
       modifier = mod;
 
-      bars = [];
+      bars = [ ];
 
       gaps = {
         inner = 3;
@@ -123,9 +124,9 @@ in {
       floating = {
         border = 2;
         criteria = [
-          {app_id = "pavucontrol";}
-          {app_id = "blueman-manager";}
-          {title = "Picture-in-Picture";}
+          { app_id = "pavucontrol"; }
+          { app_id = "blueman-manager"; }
+          { title = "Picture-in-Picture"; }
         ];
       };
 
@@ -135,11 +136,11 @@ in {
         commands = [
           {
             command = "opacity 0.95";
-            criteria = {app_id = "kitty";};
+            criteria = { app_id = "kitty"; };
           }
           {
             command = "opacity 0.9";
-            criteria = {class = "firefox";};
+            criteria = { class = "firefox"; };
           }
         ];
       };
@@ -153,66 +154,77 @@ in {
         };
       };
 
-      keybindings = let
-        # Workspace bindings
-        workspaceBindings = lib.listToAttrs (map (num: let
-          ws = toString num;
-        in {
-          name = "${mod}+${ws}";
-          value = "workspace ${ws}";
-        }) (lib.range 1 9) ++ [{
-          name = "${mod}+0";
-          value = "workspace 10";
-        }]);
+      keybindings =
+        let
+          # Workspace bindings
+          workspaceBindings = lib.listToAttrs (map
+            (num:
+              let
+                ws = toString num;
+              in
+              {
+                name = "${mod}+${ws}";
+                value = "workspace ${ws}";
+              })
+            (lib.range 1 9) ++ [{
+            name = "${mod}+0";
+            value = "workspace 10";
+          }]);
 
-        workspaceMoveBindings = lib.listToAttrs (map (num: let
-          ws = toString num;
-        in {
-          name = "${mod}+Ctrl+${ws}";
-          value = "move container to workspace ${ws}";
-        }) (lib.range 1 9) ++ [{
-          name = "${mod}+Ctrl+0";
-          value = "move container to workspace 10";
-        }]);
+          workspaceMoveBindings = lib.listToAttrs (map
+            (num:
+              let
+                ws = toString num;
+              in
+              {
+                name = "${mod}+Ctrl+${ws}";
+                value = "move container to workspace ${ws}";
+              })
+            (lib.range 1 9) ++ [{
+            name = "${mod}+Ctrl+0";
+            value = "move container to workspace 10";
+          }]);
 
-        # Directional bindings (using Shift instead of Ctrl for moves to avoid conflicts)
-        directionBindings = lib.concatMapAttrs (key: direction: {
-          "${mod}+${key}" = "focus ${direction}";
-          "${mod}+Shift+${key}" = "move ${direction}";
-        }) {
-          h = "left";
-          j = "down";
-          k = "up";
-          l = "right";
-        };
+          # Directional bindings (using Shift instead of Ctrl for moves to avoid conflicts)
+          directionBindings = lib.concatMapAttrs
+            (key: direction: {
+              "${mod}+${key}" = "focus ${direction}";
+              "${mod}+Shift+${key}" = "move ${direction}";
+            })
+            {
+              h = "left";
+              j = "down";
+              k = "up";
+              l = "right";
+            };
 
-        # General bindings
-        generalBindings = {
-          "${mod}+Return" = "exec ${pkgs.kitty}/bin/kitty";
-          "${mod}+space" = "exec ${pkgs.wofi}/bin/wofi --show drun,run";
-          "${mod}+x" = "kill";
+          # General bindings
+          generalBindings = {
+            "${mod}+Return" = "exec ${pkgs.kitty}/bin/kitty";
+            "${mod}+space" = "exec ${pkgs.wofi}/bin/wofi --show drun,run";
+            "${mod}+x" = "kill";
 
-          # Layout
-          "${mod}+a" = "focus parent";
-          "${mod}+e" = "layout toggle split";
-          "${mod}+f" = "fullscreen toggle";
-          "${mod}+g" = "split h";
-          "${mod}+s" = "layout stacking";
-          "${mod}+v" = "split v";
-          "${mod}+w" = "layout tabbed";
+            # Layout
+            "${mod}+a" = "focus parent";
+            "${mod}+e" = "layout toggle split";
+            "${mod}+f" = "fullscreen toggle";
+            "${mod}+g" = "split h";
+            "${mod}+s" = "layout stacking";
+            "${mod}+v" = "split v";
+            "${mod}+w" = "layout tabbed";
 
-          # System
-          "${mod}+Shift+r" = "reload";
-          "${mod}+Ctrl+q" = "exit";
-          "${mod}+Ctrl+l" = "exec ${pkgs.swaylock-fancy}/bin/swaylock-fancy";
+            # System
+            "${mod}+Shift+r" = "reload";
+            "${mod}+Ctrl+q" = "exit";
+            "${mod}+Ctrl+l" = "exec ${pkgs.swaylock-fancy}/bin/swaylock-fancy";
 
-          # Screenshot
-          "--release Print" = "exec ${screenshot}/bin/sway-screenshot";
+            # Screenshot
+            "--release Print" = "exec ${screenshot}/bin/sway-screenshot";
 
-          # Wallpaper
-          "${mod}+Shift+w" = "exec ${wallpaperSlideshow}/bin/wallpaper-slideshow";
-        };
-      in
+            # Wallpaper
+            "${mod}+Shift+w" = "exec ${wallpaperSlideshow}/bin/wallpaper-slideshow";
+          };
+        in
         lib.mkMerge [
           workspaceBindings
           workspaceMoveBindings
@@ -224,7 +236,7 @@ in {
       workspaceAutoBackAndForth = true;
 
       startup = [
-        {command = "${wallpaperSlideshow}/bin/wallpaper-slideshow";}
+        { command = "${wallpaperSlideshow}/bin/wallpaper-slideshow"; }
       ];
     };
 
