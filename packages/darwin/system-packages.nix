@@ -69,7 +69,6 @@
     pkgs.testdisk
     pkgs.mkalias
     pkgs.inetutils
-    pkgs.mysql-client
     pkgs.yt-dlp
     pkgs.ripgrep
 
@@ -81,7 +80,7 @@
 
     # Documentation & Text Processing
     pkgs.pandoc
-    pkgs.poppler_utils
+    pkgs.poppler-utils
     pkgs.ghostscript
 
     # Applications

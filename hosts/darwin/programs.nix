@@ -8,10 +8,6 @@ let
   # NixVim handles this through the plugin's python3Dependencies option
 in
 {
-  environment.systemPackages = [
-    jupytextPkg
-  ];
-
   # Set environment variable for Jupyter runtime directory
   environment.variables = {
     JUPYTER_RUNTIME_DIR = "$HOME/.cache/jupyter/runtime";
@@ -45,7 +41,9 @@ in
             strict = true;
           };
         };
-
+        markdown-preview = {
+          enable = true;
+        };
         # GitHub Copilot
         copilot-chat = {
           enable = true;
@@ -121,61 +119,61 @@ in
           };
         };
 
-        # Molten - The proper NixVim way
-        molten = {
-          enable = true;
+        ## Molten - The proper NixVim way
+        #molten = {
+        #  enable = false;
 
-          # This is the correct way to add Python dependencies in NixVim
-          python3Dependencies =
-            p: with p; [
-              pynvim
-              jupyter-client
-              cairosvg
-              ipython
-              nbformat
-              ipykernel
-            ];
+        #  # This is the correct way to add Python dependencies in NixVim
+        #  python3Dependencies =
+        #    p: with p; [
+        #      pynvim
+        #      jupyter-client
+        #      cairosvg
+        #      ipython
+        #      nbformat
+        #      ipykernel
+        #    ];
 
-          # Molten settings
-          settings = {
-            auto_open_output = false;
-            image_provider = "none";
-            output_win_max_height = 20;
-            wrap_output = true;
-            virt_text_output = true;
-            output_win_cover_gutter = true;
-            output_win_hide_on_leave = true;
-            output_crop_border = true;
-          };
-        };
+        #  # Molten settings
+        #  settings = {
+        #    auto_open_output = false;
+        #    image_provider = "none";
+        #    output_win_max_height = 20;
+        #    wrap_output = true;
+        #    virt_text_output = true;
+        #    output_win_cover_gutter = true;
+        #    output_win_hide_on_leave = true;
+        #    output_crop_border = true;
+        #  };
+        #};
 
-        # Telescope for fuzzy finding
-        telescope.enable = true;
+        ## Telescope for fuzzy finding
+        #telescope.enable = true;
 
-        # Which-key for keybinding hints
-        which-key.enable = true;
+        ## Which-key for keybinding hints
+        #which-key.enable = true;
 
-        # Automatically close pairs of brackets, quotes, etc.
-        nvim-autopairs.enable = true;
+        ## Automatically close pairs of brackets, quotes, etc.
+        #nvim-autopairs.enable = true;
 
-        # Jupytext for Jupyter notebook support
-        jupytext = {
-          enable = true;
-          settings = {
-            output_extension = "py";
-            style = "hydrogen";
-            custom_language_formatting = {
-              python = {
-                extension = "py";
-                style = "hydrogen";
-              };
-            };
-          };
-          python3Dependencies =
-            p: with p; [
-              jupytext
-            ];
-        };
+        ## Jupytext for Jupyter notebook support
+        #jupytext = {
+        #  enable = false;
+        #  settings = {
+        #    output_extension = "py";
+        #    style = "hydrogen";
+        #    custom_language_formatting = {
+        #      python = {
+        #        extension = "py";
+        #        style = "hydrogen";
+        #      };
+        #    };
+        #  };
+        #  python3Dependencies =
+        #    p: with p; [
+        #      jupytext
+        #    ];
+        #};
       };
 
       # Key mappings

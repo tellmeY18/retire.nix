@@ -28,6 +28,8 @@
 
     casks = [
       "cyberduck"
+      "openmtp"
+      "caffeine"
       "gimp"
       "obs"
       "lens"
