@@ -5,6 +5,7 @@
     ./packages/default.nix
     ./zsh/default.nix
     ./emacs/default.nix
+    ./pulse/default.nix
   ];
 
   # Darwin-specific environment variables
