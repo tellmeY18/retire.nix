@@ -1,4 +1,10 @@
-{ pkgs, config, self, ... }: {
+{
+  pkgs,
+  config,
+  self,
+  ...
+}:
+{
   nixpkgs = {
     config = {
       allowUnfree = true;
@@ -6,7 +12,11 @@
     hostPlatform = "aarch64-darwin";
   };
   # Import system packages
-  imports = [ ../../packages/darwin ./programs.nix ./services.nix ];
+  imports = [
+    ../../packages/darwin
+    ./programs.nix
+    ./services.nix
+  ];
   system = {
     defaults = {
       loginwindow = {
@@ -20,7 +30,7 @@
             env = pkgs.buildEnv {
               name = "system-applications";
               paths = config.environment.systemPackages;
-              pathsToLink = "/Applications";
+              pathsToLink = [ "/Applications" ];
             };
           in
           pkgs.lib.mkForce ''
@@ -66,6 +76,16 @@
       enable = true;
     };
     # These are the global Nix settings
+    settings = {
+      substituters = [
+        "https://nix-community.cachix.org"
+        "https://deploy-rs.cachix.org"
+      ];
+      trusted-public-keys = [
+        "nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs="
+        "deploy-rs.cachix.org-1:xfNobmiwF/vzvK1gpfediPwpdIP0rpDV2rYqx40zdSI="
+      ];
+    };
     settings = {
       experimental-features = "nix-command flakes ca-derivations";
     };

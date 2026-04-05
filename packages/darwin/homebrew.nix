@@ -12,6 +12,7 @@
     brews = [
       "mactop"
       "gtk+3"
+      "baresip"
       "dbus"
       "bash"
       "adwaita-icon-theme"
@@ -30,6 +31,8 @@
       "cyberduck"
       "openmtp"
       "caffeine"
+      "kodi"
+      "macdroid"
       "gimp"
       "obs"
       "lens"
