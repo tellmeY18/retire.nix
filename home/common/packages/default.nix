@@ -19,6 +19,7 @@
     # Development essentials
     python3
     rustc
+    nil
     cargo
     go
     gcc

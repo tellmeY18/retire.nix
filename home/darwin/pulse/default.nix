@@ -1,4 +1,4 @@
-{ config, pkgs, ... }:
+{ pkgs, ... }:
 {
   home.packages = with pkgs; [
     pulseaudio  # includes paplay, parecord utilities
@@ -6,10 +6,20 @@
 
   # PulseAudio configuration
   home.file.".config/pulse/default.pa".text = ''
-    .include ${pkgs.pulseaudio}/etc/pulse/default.pa
+    # Load basic modules
+    load-module module-device-restore
+    load-module module-stream-restore
+    load-module module-card-restore
 
-    # Load TCP module for network access
-    load-module module-native-protocol-tcp auth-ip-acl=127.0.0.1
+    # Load macOS CoreAudio support
+    load-module module-coreaudio-detect
+
+    # Load protocols
+    load-module module-native-protocol-unix
+    load-module module-native-protocol-tcp auth-anonymous=1
+
+    # Default device restore
+    load-module module-default-device-restore
   '';
 
   # Optional: daemon configuration for low latency

@@ -6,12 +6,15 @@
     enable = true;
     package = pkgs.git;
 
-    # User configuration
-    userName = "Vysakh Premkumar";
-    userEmail = "vysakhpr218@gmail.com";
+    # All settings now go under 'settings'
+    settings = {
+      # User configuration (moved from top-level userName/userEmail)
+      user = {
+        name = "Vysakh Premkumar";
+        email = "vysakhpr218@gmail.com";
+      };
 
-    # Core settings
-    extraConfig = {
+      # Core settings (moved from extraConfig)
       init = {
         defaultBranch = "main";
       };
@@ -68,44 +71,44 @@
       format = {
         pretty = "format:%C(yellow)%h%Creset -%C(red)%d%Creset %s %C(dim green)(%an)%Creset";
       };
+
+      # Git aliases (moved from top-level aliases and renamed from 'aliases' to 'alias')
+      alias = {
+        # Basic shortcuts
+        st = "status";
+        co = "checkout";
+        br = "branch";
+        ci = "commit";
+        df = "diff";
+        lg = "log --oneline";
+
+        # More complex aliases
+        unstage = "reset HEAD --";
+        last = "log -1 HEAD";
+        visual = "!gitk";
+
+        # Pretty log formats
+        graph = "log --graph --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset' --abbrev-commit";
+        history = "log --pretty=format:'%h %ad | %s%d [%an]' --graph --date=short";
+
+        # Useful shortcuts
+        amend = "commit --amend";
+        wipe = "add -A && commit -qm 'WIPE SAVEPOINT' && git reset HEAD~1 --hard";
+        save = "!git add -A && git commit -m 'SAVEPOINT'";
+        undo = "reset HEAD~1 --mixed";
+
+        # Branch management
+        branches = "branch -a";
+        tags = "tag -l";
+        remotes = "remote -v";
+
+        # Find and cleanup
+        find = "!git ls-files | grep -i";
+        cleanup = "!git branch --merged | grep -v '\\*\\|master\\|main\\|develop' | xargs -n 1 git branch -d";
+      };
     };
 
-    # Git aliases
-    aliases = {
-      # Basic shortcuts
-      st = "status";
-      co = "checkout";
-      br = "branch";
-      ci = "commit";
-      df = "diff";
-      lg = "log --oneline";
-
-      # More complex aliases
-      unstage = "reset HEAD --";
-      last = "log -1 HEAD";
-      visual = "!gitk";
-
-      # Pretty log formats
-      graph = "log --graph --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset' --abbrev-commit";
-      history = "log --pretty=format:'%h %ad | %s%d [%an]' --graph --date=short";
-
-      # Useful shortcuts
-      amend = "commit --amend";
-      wipe = "add -A && commit -qm 'WIPE SAVEPOINT' && git reset HEAD~1 --hard";
-      save = "!git add -A && git commit -m 'SAVEPOINT'";
-      undo = "reset HEAD~1 --mixed";
-
-      # Branch management
-      branches = "branch -a";
-      tags = "tag -l";
-      remotes = "remote -v";
-
-      # Find and cleanup
-      find = "!git ls-files | grep -i";
-      cleanup = "!git branch --merged | grep -v '\\*\\|master\\|main\\|develop' | xargs -n 1 git branch -d";
-    };
-
-    # Git ignore patterns
+    # Git ignore patterns (unchanged)
     ignores = [
       # macOS
       ".DS_Store"
@@ -172,33 +175,33 @@
       ".temp"
     ];
 
-    # Git LFS
+    # Git LFS (unchanged)
     lfs = {
       enable = true;
     };
+  };
 
-    # Delta for better diffs
-    delta = {
-      enable = true;
-      options = {
-        navigate = true;
-        light = false;
-        side-by-side = true;
-        line-numbers = true;
-        syntax-theme = "Dracula";
-        plus-style = "syntax #012800";
-        minus-style = "syntax #340001";
-        map-styles = "bold purple => syntax #330f29, bold cyan => syntax #0e4344";
-        file-style = "bold yellow ul";
-        file-decoration-style = "none";
-        hunk-header-decoration-style = "cyan box ul";
-        line-numbers-minus-style = "#B10036";
-        line-numbers-plus-style = "#03a4ff";
-        line-numbers-left-format = "{nm:>4}┊";
-        line-numbers-right-format = "{np:>4}│";
-        line-numbers-left-style = "cyan";
-        line-numbers-right-style = "cyan";
-      };
+  # Delta is now a separate program (moved from programs.git.delta)
+  programs.delta = {
+    enable = true;
+    options = {
+      navigate = true;
+      light = false;
+      side-by-side = true;
+      line-numbers = true;
+      syntax-theme = "Dracula";
+      plus-style = "syntax #012800";
+      minus-style = "syntax #340001";
+      map-styles = "bold purple => syntax #330f29, bold cyan => syntax #0e4344";
+      file-style = "bold yellow ul";
+      file-decoration-style = "none";
+      hunk-header-decoration-style = "cyan box ul";
+      line-numbers-minus-style = "#B10036";
+      line-numbers-plus-style = "#03a4ff";
+      line-numbers-left-format = "{nm:>4}┊";
+      line-numbers-right-format = "{np:>4}│";
+      line-numbers-left-style = "cyan";
+      line-numbers-right-style = "cyan";
     };
   };
 }

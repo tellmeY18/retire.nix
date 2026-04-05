@@ -6,7 +6,7 @@
     #pkgs.neovim
 
     # Media & Graphics
-    pkgs.mpv
+    #pkgs.mpv
     pkgs.ffmpeg_6-full
     pkgs.imagemagick
     pkgs.sox
@@ -32,7 +32,6 @@
     pkgs.podman-tui
 
     # Runtime & Languages
-    pkgs.deno
     pkgs.cargo
     pkgs.rustc
     pkgs.python312Packages.grip
@@ -69,7 +68,7 @@
     pkgs.testdisk
     pkgs.mkalias
     pkgs.inetutils
-    pkgs.yt-dlp
+    #pkgs.yt-dlp
     pkgs.ripgrep
 
     # Build Tools
