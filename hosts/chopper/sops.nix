@@ -1,21 +1,25 @@
 # hosts/chopper/sops.nix — Secret declarations for the chopper host.
 # Requires: sops-nix.nixosModules.sops in the host's module list (already done).
+#
+# The host's private age key must exist at the path below.
+# Generate it on the host with: age-keygen -o /var/lib/sops-nix/key.txt
+# Then add the PUBLIC key to .sops.yaml under &chopper.
 { config, ... }:
 {
   sops = {
     defaultSopsFile = ../../secrets/chopper/secrets.yaml;
 
-    # The host's age key (derived from SSH host key)
-    age.sshKeyPaths = [ "/etc/ssh/ssh_host_ed25519_key" ];
-
-    # Fallback key path for sops-nix
+    # Age key generated with `age-keygen` — NOT derived from SSH keys.
+    # sops-nix reads this at activation to decrypt secrets.
     age.keyFile = "/var/lib/sops-nix/key.txt";
-    age.generateKey = true;
+    age.generateKey = false; # We manage key generation manually
+
+    # Do NOT use SSH key derivation
+    age.sshKeyPaths = [ ];
 
     secrets = {
       "tailscale-auth-key" = {
-        # Will be available at config.sops.secrets."tailscale-auth-key".path
-        # (typically /run/secrets/tailscale-auth-key)
+        # Decrypted to /run/secrets/tailscale-auth-key
       };
       "nextcloud-admin-pass" = {
         owner = "nextcloud";
@@ -24,7 +28,7 @@
       };
       "cloudflared-tunnel-credentials" = {
         owner = "cloudflared";
-        # mode = "0400";
+        mode = "0400";
       };
     };
   };

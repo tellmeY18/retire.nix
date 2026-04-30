@@ -1,22 +1,45 @@
 # .sops.yaml — sops-nix encryption rules
 #
-# Recipients:
-#   - Each host has an age key derived from its SSH host key:
-#     ssh-to-age -private-key -i /etc/ssh/ssh_host_ed25519_key > /var/lib/sops-nix/key.txt
-#   - Admin key: for decrypting on workstations during editing
+# Key hierarchy:
+#   - MASTER KEY: generated with `age-keygen` on your primary device.
+#     Can decrypt ALL secrets across every host.
+#     Private key: keep safe (password manager, encrypted USB, etc.)
+#     Public key: listed below as &master
+#
+#   - HOST KEYS: generated with `age-keygen` on each managed machine.
+#     Stored at /var/lib/sops-nix/key.txt on the host.
+#     Can ONLY decrypt secrets under secrets/<that-host>/*.
+#
+# To set up:
+#   1. Generate master key:   age-keygen -o master.key
+#      (note the public key, store private key safely)
+#   2. Generate host key:     age-keygen -o /var/lib/sops-nix/key.txt
+#      (note the public key)
+#   3. Replace the PLACEHOLDER values below with real public keys
+#   4. Encrypt secrets:       sops secrets/<host>/secrets.yaml
 #
 # To add a new host:
-#   1. Get the host's SSH ed25519 public key
-#   2. Convert: ssh-to-age < /etc/ssh/ssh_host_ed25519_key.pub
-#   3. Add the age public key below and run: sops updatekeys secrets/<host>/secrets.yaml
+#   1. On the new host: age-keygen -o /var/lib/sops-nix/key.txt
+#   2. Add the public key below with a new anchor (e.g. &newhost)
+#   3. Add a creation_rule for secrets/<newhost>/* with master + newhost
+#   4. Run: sops secrets/<newhost>/secrets.yaml
 
 keys:
-  - &admin_key age1PLACEHOLDER_ADMIN_KEY_HERE
-  - &chopper age1PLACEHOLDER_CHOPPER_HOST_KEY_HERE
+  # Master key — lives on your primary device, decrypts everything
+  - &master age1a58h6uzrz2pvk03swtjjzd7ekn9fxnyumxffr9ss4emkmgd03grq9v0eye
+
+  # Host keys — each host can only decrypt its own secrets
+  - &chopper age1mkxkedt5k4e9y4ldc4uteqw8dhvn7vuxjmhyp8ms68ppcqj9xv6qr35jtg
 
 creation_rules:
   - path_regex: secrets/chopper/.*
     key_groups:
       - age:
-          - *admin_key
+          - *master
           - *chopper
+  # Example for a future host:
+  # - path_regex: secrets/newhost/.*
+  #   key_groups:
+  #     - age:
+  #         - *master
+  #         - *newhost

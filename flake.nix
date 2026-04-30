@@ -83,7 +83,6 @@
               nil
               sops
               age
-              ssh-to-age
               just
               treefmt
             ];

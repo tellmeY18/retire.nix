@@ -62,7 +62,7 @@ Goal: any contributor can run a single command and have the right tools.
 
 - [x] Add `devShells.<system>.default` providing:
       `nixpkgs-fmt`, `treefmt`, `statix`, `deadnix`, `nil`, `nixd`,
-      `sops`, `age`, `ssh-to-age`, `nh`, `git`, `just` (optional).
+      `sops`, `age`, `nh`, `git`, `just` (optional).
 - [x] Add `treefmt.nix` (or `treefmt-nix` flake-module) covering:
       `*.nix` → `nixpkgs-fmt`, `*.md` → `mdformat`, `*.sh` → `shfmt`.
 - [x] Set `formatter.<system> = treefmt`.
@@ -169,8 +169,8 @@ in `users/vysakh.nix`.
 
 Goal: kill every `/home/vysakh/<secret>` reference.
 
-- [x] Generate per-host age keys (`ssh-to-age` from existing host SSH
-      keys); document in `docs/secrets.md`.
+- [x] Generate per-host age keys (`age-keygen` on each host);
+      document in `docs/secrets.md`.
 - [x] Add `.sops.yaml` with creation rules per host.
 - [x] Create `secrets/` with encrypted files:
   - [x] `secrets/chopper/tailscale-authkey`
