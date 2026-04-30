@@ -29,7 +29,7 @@ keys:
   - &master age1a58h6uzrz2pvk03swtjjzd7ekn9fxnyumxffr9ss4emkmgd03grq9v0eye
 
   # Host keys — each host can only decrypt its own secrets
-  - &chopper age1mkxkedt5k4e9y4ldc4uteqw8dhvn7vuxjmhyp8ms68ppcqj9xv6qr35jtg
+  - &chopper age1y8v9n2z4y8kp8mfdytvxasud379n44dlrwkn88ynh5u2xnjt2aks8m0xz4
 
 creation_rules:
   - path_regex: secrets/chopper/.*
