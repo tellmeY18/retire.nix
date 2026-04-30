@@ -61,30 +61,26 @@ let
   oauthScript = pkgs.writeShellScript "write-tailscale-oauth-secret" ''
     set -euo pipefail
 
-    SECRET_FILE="/run/secrets/tailscale-operator-oauth"
+    CLIENT_ID_FILE="/run/secrets/tailscale-operator-client-id"
+    CLIENT_SECRET_FILE="/run/secrets/tailscale-operator-client-secret"
 
-    if [ ! -f "$SECRET_FILE" ]; then
-      echo "ERROR: $SECRET_FILE does not exist — sops-nix may not have run yet." >&2
-      exit 1
-    fi
+    for f in "$CLIENT_ID_FILE" "$CLIENT_SECRET_FILE"; do
+      if [ ! -f "$f" ]; then
+        echo "ERROR: $f does not exist — sops-nix may not have run yet." >&2
+        exit 1
+      fi
+    done
 
-    # Source the env-var file. Expected format (no export keyword required):
-    #   TAILSCALE_OPERATOR_CLIENT_ID=tskey-client-...
-    #   TAILSCALE_OPERATOR_CLIENT_SECRET=tskey-...
-    # shellcheck disable=SC1090
-    source "$SECRET_FILE"
+    CLIENT_ID=$(cat "$CLIENT_ID_FILE")
+    CLIENT_SECRET=$(cat "$CLIENT_SECRET_FILE")
 
-    if [ -z "''${TAILSCALE_OPERATOR_CLIENT_ID:-}" ] || \
-       [ -z "''${TAILSCALE_OPERATOR_CLIENT_SECRET:-}" ]; then
-      echo "ERROR: TAILSCALE_OPERATOR_CLIENT_ID or TAILSCALE_OPERATOR_CLIENT_SECRET" \
-           "is empty after sourcing $SECRET_FILE" >&2
+    if [ -z "$CLIENT_ID" ] || [ -z "$CLIENT_SECRET" ]; then
+      echo "ERROR: client_id or client_secret is empty" >&2
       exit 1
     fi
 
     mkdir -p "${manifestDir}"
 
-    # Write the Kubernetes Secret manifest. Using printf rather than heredoc
-    # avoids any risk of the shell expanding characters inside the values.
     printf '%s\n' \
       'apiVersion: v1' \
       'kind: Secret' \
@@ -93,13 +89,11 @@ let
       '  namespace: tailscale' \
       'type: Opaque' \
       'stringData:' \
-      "  client_id: \"$TAILSCALE_OPERATOR_CLIENT_ID\"" \
-      "  client_secret: \"$TAILSCALE_OPERATOR_CLIENT_SECRET\"" \
+      "  client_id: \"$CLIENT_ID\"" \
+      "  client_secret: \"$CLIENT_SECRET\"" \
       > "${oauthManifest}"
 
-    # 0600: only root (k3s runs as root) may read this file.
     chmod 0600 "${oauthManifest}"
-
     echo "Tailscale operator OAuth Secret manifest written to ${oauthManifest}"
   '';
 
@@ -108,26 +102,16 @@ in
   config = mkIf config.services.k3s-cluster.enable {
 
     # -------------------------------------------------------------------------
-    # sops-nix secret declaration
+    # sops-nix secret declarations
     #
-    # Tells sops-nix to decrypt secrets/chopper/tailscale-operator-oauth and
-    # place the plaintext at /run/secrets/tailscale-operator-oauth (tmpfs,
-    # survives only until next boot — never persisted to disk).
-    #
-    # The corresponding encrypted file must exist at:
-    #   secrets/chopper/tailscale-operator-oauth
-    # and be encrypted with the host's age key (see .sops.yaml creation rules).
-    #
-    # In the host config, declare the sopsFile path:
-    #   sops.secrets.tailscale-operator-oauth = {
-    #     sopsFile = ../../secrets/chopper/tailscale-operator-oauth;
-    #   };
+    # Both keys live in the host's defaultSopsFile (secrets/chopper/secrets.yaml).
+    # sops-nix decrypts them to /run/secrets/ at activation — tmpfs only,
+    # never persisted to disk.
     # -------------------------------------------------------------------------
-    sops.secrets.tailscale-operator-oauth = {
-      # sopsFile is expected to be overridden per-host.
-      # Default restateVersion is null; sops-nix will error if sopsFile is
-      # not set, which is the correct behaviour — fail loudly rather than
-      # silently skip the credential.
+    sops.secrets."tailscale-operator-client-id" = {
+      restartUnits = [ "k3s-tailscale-oauth-secret.service" ];
+    };
+    sops.secrets."tailscale-operator-client-secret" = {
       restartUnits = [ "k3s-tailscale-oauth-secret.service" ];
     };
 

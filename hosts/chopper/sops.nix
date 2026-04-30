@@ -41,23 +41,18 @@
       # -----------------------------------------------------------------------
 
       # Shared cluster join token — same value used on all nodes.
-      # Encrypted file: secrets/chopper/k3s-token
-      # Generate token: openssl rand -hex 32
-      "k3s-token" = {
-        sopsFile = ../../secrets/chopper/k3s-token;
-        # No format — sops treats the whole file as the secret value.
-        format = "binary";
-      };
+      # Key in secrets/chopper/secrets.yaml: k3s-token
+      # Generate: openssl rand -hex 32
+      "k3s-token" = { };
 
-      # Tailscale Kubernetes Operator OAuth credentials.
-      # Encrypted file: secrets/chopper/tailscale-operator-oauth
-      # Used by modules/services/k3s-bootstrap-manifests.nix to render
-      # the operator-oauth Secret manifest at boot (via systemd oneshot).
-      # NEVER passes through the Nix store — decrypted to /run/secrets/ only.
-      "tailscale-operator-oauth" = {
-        sopsFile = ../../secrets/chopper/tailscale-operator-oauth;
-        format = "binary";
-      };
+      # Tailscale Kubernetes Operator OAuth credentials — two separate keys.
+      # Keys in secrets/chopper/secrets.yaml:
+      #   tailscale-operator-client-id
+      #   tailscale-operator-client-secret
+      # Create the OAuth client at https://login.tailscale.com/admin/settings/oauth
+      # Scopes: devices:write, auth_keys:write   Tag: tag:k8s
+      "tailscale-operator-client-id" = { };
+      "tailscale-operator-client-secret" = { };
     };
   };
 }
