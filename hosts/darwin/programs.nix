@@ -1,5 +1,6 @@
-{ pkgs
-, ...
+{
+  pkgs,
+  ...
 }:
 
 let
@@ -73,7 +74,8 @@ in
           servers = {
             nixd.enable = true;
             nil_ls.enable = false;
-            rust_analyzer.enable = false;
+            matlab_ls.enable = true;
+            rust_analyzer.enable = true;
             ts_ls.enable = false;
             pyright.enable = true;
           };

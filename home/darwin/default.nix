@@ -1,4 +1,9 @@
-{ lib, pkgs, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
 
 {
   imports = [
@@ -14,5 +19,10 @@
     HOMEBREW_PREFIX = "/opt/homebrew";
     HOMEBREW_CELLAR = "/opt/homebrew/Cellar";
     HOMEBREW_REPOSITORY = "/opt/homebrew";
+    LIBRARY_PATH = "${config.home.homeDirectory}/.nix-profile/lib";
   };
+
+  home.sessionPath = [
+    "${config.home.homeDirectory}/.cargo/bin"
+  ];
 }
