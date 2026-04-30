@@ -16,7 +16,7 @@
       theme = {
         mode = "dark";
         light = "One Light";
-        dark = "Ayu Dark";
+        dark = "Colorizer";
       };
       buffer_font_size = 18.0;
       ui_font_size = 16;
@@ -43,7 +43,10 @@
         nixx = {
           source = "custom";
           command = "nix";
-          args = [ "run" "github:natsukium/mcp-servers-nix#mcp-server-fetch" ];
+          args = [
+            "run"
+            "github:natsukium/mcp-servers-nix#mcp-server-fetch"
+          ];
           env = null;
           settings = { };
         };

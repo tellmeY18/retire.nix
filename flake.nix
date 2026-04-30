@@ -34,6 +34,12 @@
       # No extra inputs for nix-homebrew
     };
 
+    # Rust toolchain
+    fenix = {
+      url = "github:nix-community/fenix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
     # index database for nix-locate
     nix-index-database = {
       url = "github:nix-community/nix-index-database";
@@ -73,21 +79,23 @@
   ##  Outputs
   ####################
   outputs =
-    { self
-    , nixpkgs
-    , flake-utils
-    , home-manager
-    , nix-darwin
+    {
+      self,
+      nixpkgs,
+      flake-utils,
+      home-manager,
+      nix-darwin,
       #    , cook
-    , nix-homebrew
-    , nix-index-database
-    , nixvim
-    , disko
-    , sops-nix
-    , ...
+      nix-homebrew,
+      nix-index-database,
+      nixvim,
+      fenix,
+      disko,
+      sops-nix,
+      ...
     }:
-    flake-utils.lib.eachSystem [ "aarch64-darwin" "x86_64-linux" ]
-      (system:
+    flake-utils.lib.eachSystem [ "aarch64-darwin" "x86_64-linux" ] (
+      system:
       let
         pkgs = nixpkgs.legacyPackages.${system};
       in
@@ -97,16 +105,27 @@
         ############################################
         formatter = pkgs.nixpkgs-fmt;
 
+        ############################################
+        ##  Packages
+        ############################################
+        packages.default = fenix.packages.${system}.minimal.toolchain;
 
       }
-      ) // {
+    )
+    // {
       ############################################
       ##  macOS – Vysakh's MacBook Pro
       ############################################
       darwinConfigurations."Vysakhs-MacBook-Pro" = nix-darwin.lib.darwinSystem {
+        system = "aarch64-darwin";
         modules = [
           # expose flake-self inside modules
-          ({ ... }: { _module.args.self = self; })
+          (
+            { ... }:
+            {
+              _module.args.self = self;
+            }
+          )
 
           ./hosts/darwin/configuration.nix
 
@@ -114,6 +133,24 @@
           nix-homebrew.darwinModules.nix-homebrew
           nixvim.nixDarwinModules.nixvim
           nix-index-database.darwinModules.nix-index
+
+          # Fenix overlay and Rust toolchain
+          (
+            { pkgs, ... }:
+            {
+              nixpkgs.overlays = [ fenix.overlays.default ];
+              environment.systemPackages = [
+                (pkgs.fenix.complete.withComponents [
+                  "cargo"
+                  "clippy"
+                  "rust-src"
+                  "rustc"
+                  "rustfmt"
+                ])
+                pkgs.rust-analyzer-nightly
+              ];
+            }
+          )
 
           # local tweaks
           {
@@ -128,8 +165,7 @@
       };
 
       # Handy package set alias
-      darwinPackages =
-        self.darwinConfigurations."Vysakhs-MacBook-Pro".pkgs;
+      darwinPackages = self.darwinConfigurations."Vysakhs-MacBook-Pro".pkgs;
 
       ############################################
       ##  NixOS – "chopper" host on ZFS + Disko
@@ -139,11 +175,27 @@
         modules = [
           {
             nixpkgs.overlays = [
+              fenix.overlays.default
               (final: prev: {
                 neondb = final.callPackage ./packages/neondb/default.nix { };
               })
             ];
           }
+          (
+            { pkgs, ... }:
+            {
+              environment.systemPackages = [
+                (pkgs.fenix.complete.withComponents [
+                  "cargo"
+                  "clippy"
+                  "rust-src"
+                  "rustc"
+                  "rustfmt"
+                ])
+                pkgs.rust-analyzer-nightly
+              ];
+            }
+          )
           ./hosts/chopper/configuration.nix
           ./hosts/chopper/hardware-configuration.nix
           ./hosts/chopper/disko-config.nix

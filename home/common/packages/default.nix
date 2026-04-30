@@ -24,6 +24,7 @@
     go
     gcc
     gnumake
+    libiconv
 
     # Text editors and tools
     vim
