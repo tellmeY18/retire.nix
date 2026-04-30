@@ -9,6 +9,10 @@
     # All settings now go under 'settings'
     settings = {
       # User configuration (moved from top-level userName/userEmail)
+      # TODO(M6): These values are hardcoded. Milestone 6 (users/) will
+      # parameterize name/email via per-user metadata records so they are
+      # no longer baked into the module.  Do not change the values here;
+      # the users agent will wire them through lib/mkHome or similar.
       user = {
         name = "Vysakh Premkumar";
         email = "vysakhpr218@gmail.com";

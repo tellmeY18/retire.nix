@@ -1,3 +1,5 @@
+{ lib, pkgs, ... }:
+
 {
   programs.kitty = {
     enable = true;
@@ -33,7 +35,6 @@
       hide_window_decorations = false;
       confirm_os_window_close = 0;
       background_blur = 24;
-      macos_hide_titlebar = true;
 
       # Tab bar
       tab_bar_edge = "bottom";
@@ -71,7 +72,20 @@
       # Advanced
       allow_remote_control = false;
       listen_on = "unix:/tmp/kitty";
-    };
+    }
+    # macOS-specific settings
+    // (lib.optionalAttrs pkgs.stdenv.isDarwin {
+      macos_hide_titlebar = true;
+    })
+    # Linux-specific settings (merged from home/chopper/kitty/)
+    // (lib.optionalAttrs pkgs.stdenv.isLinux {
+      linux_display_server = "auto";
+      clipboard_control = "write-clipboard write-primary read-clipboard-ask read-primary-ask";
+      wayland_titlebar_color = "system";
+      disable_ligatures = "never";
+      x11_hide_window_decorations = false;
+      wayland_enable_ime = true;
+    });
 
     # Key bindings
     keybindings = {
@@ -102,6 +116,11 @@
       "ctrl+shift+page_down" = "scroll_page_down";
       "ctrl+shift+home" = "scroll_home";
       "ctrl+shift+end" = "scroll_end";
-    };
+    }
+    # Linux-specific keybindings (merged from home/chopper/kitty/)
+    // (lib.optionalAttrs pkgs.stdenv.isLinux {
+      "ctrl+shift+insert" = "paste_from_clipboard";
+      "shift+insert" = "paste_from_selection";
+    });
   };
 }

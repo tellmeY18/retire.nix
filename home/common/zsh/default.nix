@@ -72,14 +72,25 @@
     # Enhanced autosuggestions
     autosuggestion = {
       enable = true;
-      strategy = [ "history" "completion" ];
+      strategy = [
+        "history"
+        "completion"
+      ];
       highlight = "fg=#586e75";
     };
 
     # Enhanced syntax highlighting
     syntaxHighlighting = {
       enable = true;
-      highlighters = [ "main" "brackets" "pattern" "cursor" "regexp" "root" "line" ];
+      highlighters = [
+        "main"
+        "brackets"
+        "pattern"
+        "cursor"
+        "regexp"
+        "root"
+        "line"
+      ];
       styles = {
         comment = "fg=black,bold";
         alias = "fg=magenta,bold";
@@ -201,6 +212,7 @@
     # Oh-My-Zsh configuration
     oh-my-zsh = {
       enable = true;
+      theme = "jonathan"; # Overridden on macOS by darwin/zsh (mkForce "robbyrussell")
       plugins = [
         "git"
         "docker"

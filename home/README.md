@@ -1,106 +1,153 @@
 # Home Manager Configurations
 
-This directory contains Home Manager configurations for both Darwin (macOS) and NixOS systems.
+Per-user environment managed by [Home Manager](https://nix-community.github.io/home-manager/).
+Both macOS and NixOS share a common module set; platform-specific modules
+layer on top.
 
-## Structure
+## Directory Layout
 
-- `common.nix` - Shared configuration between all systems
-- `darwin.nix` - macOS-specific Home Manager configuration  
-- `chopper.nix` - NixOS-specific Home Manager configuration
+```
+home/
+├── darwin-home.nix        # HM entry point for macOS (imports common/ + darwin/)
+├── linux-home.nix         # HM entry point for NixOS  (imports common/ + chopper/)
+│
+├── common/                # Cross-platform modules (imported by both hosts)
+│   ├── default.nix        #   aggregates everything below
+│   ├── direnv/            #   automatic .envrc loading (nix-direnv)
+│   ├── firefox/           #   Firefox configuration
+│   ├── fzf/               #   fuzzy finder integration
+│   ├── git/               #   git config, aliases, delta
+│   ├── jujutsu/           #   jj VCS config (currently commented out)
+│   ├── kitty/             #   kitty terminal (cross-platform; uses lib.optionalAttrs
+│   │                      #     for macOS / Linux-specific settings)
+│   ├── packages/          #   shared CLI packages
+│   ├── programs/          #   miscellaneous program settings
+│   ├── tmux/              #   tmux config & plugins
+│   ├── zed-editor/        #   Zed editor settings
+│   └── zsh/               #   zsh + oh-my-zsh + autosuggestions + syntax highlighting
+│                          #     (base theme "jonathan"; macOS overrides in darwin/zsh)
+│
+├── darwin/                # macOS-only modules
+│   ├── default.nix
+│   ├── emacs/             #   Emacs configuration
+│   ├── packages/          #   mac-specific packages
+│   ├── pulse/             #   PulseAudio / sound config
+│   └── zsh/               #   macOS zsh overrides (Homebrew PATH, theme → robbyrussell)
+│
+└── chopper/               # chopper (NixOS) only modules
+    ├── default.nix
+    ├── packages/          #   linux-specific packages
+    └── sway/              #   Sway window manager
+```
+
+## Entry Points
+
+| File | Consumed by | Imports |
+|---|---|---|
+| `darwin-home.nix` | `homeConfigurations."mathewalex@Vysakhs-MacBook-Pro"` | `common/` + `darwin/` |
+| `linux-home.nix` | `homeConfigurations."vysakh@chopper"` | `common/` + `chopper/` |
+
+Home Manager is also pulled in as a module during system rebuilds
+(`nh darwin switch` / `nh os switch`), so a standalone `home-manager switch`
+is only needed when you want to update your user environment without
+rebuilding the full system.
+
+## Platform-specific configuration
+
+Modules in `common/` use `lib.optionalAttrs pkgs.stdenv.isDarwin` and
+`lib.optionalAttrs pkgs.stdenv.isLinux` guards to keep platform-specific
+settings co-located with the rest of the module's config. This avoids
+duplicating entire modules across `chopper/` and `darwin/`.
+
+Modules that are **entirely** platform-specific (e.g. Sway, Emacs, Homebrew
+setup) remain in the host-specific directories.
+
+### kitty
+
+All kitty configuration lives in `common/kitty/`. macOS-specific settings
+(`macos_hide_titlebar`) and Linux-specific settings (Wayland/X11, clipboard
+control) are gated with `lib.optionalAttrs`.
+
+### zsh
+
+The base zsh config (history, aliases, plugins, oh-my-zsh theme "jonathan")
+lives in `common/zsh/`. The `darwin/zsh/` module overrides the theme to
+"robbyrussell" via `lib.mkForce` and adds Homebrew PATH + macOS-specific
+aliases.
 
 ## Usage
 
-### Integrated with System Configurations
+### Via system rebuild (recommended)
 
-Home Manager is already integrated into both system configurations:
+```sh
+# macOS
+nh darwin switch .
 
-- **Darwin**: Automatically applies when rebuilding with `darwin-rebuild switch --flake .#Vysakhs-MacBook-Pro`
-- **NixOS**: Automatically applies when rebuilding with `nixos-rebuild switch --flake .#chopper`
-
-### Standalone Home Manager
-
-You can also use Home Manager independently:
-
-```bash
-# For Darwin (macOS)
-home-manager switch --flake .#mathewalex@Vysakhs-MacBook-Pro
-
-# For NixOS
-home-manager switch --flake .#mathew@chopper
+# NixOS
+nh os switch .
 ```
 
-## Configuration Details
+### Standalone
 
-### Common Configuration (`common.nix`)
+```sh
+# macOS
+home-manager switch --flake .#mathewalex@Vysakhs-MacBook-Pro
 
-Includes:
-- **Development tools**: git, python3, rust, go, gcc, docker, docker-compose
-- **CLI utilities**: eza, bat, ripgrep, fd, jq, htop, tree, tmux
-- **Shell configuration**: zsh with autosuggestions, syntax highlighting, and completions
-- **FZF integration**: fuzzy finder with file/directory/history search
-- **Direnv support**: automatic environment loading with nix-direnv
-- **Nix-index**: command-not-found functionality for Nix packages
-- **Git configuration**: sensible defaults with rebase strategy
-- **Tmux**: mouse support, sensible plugin, custom keybindings
+# NixOS
+home-manager switch --flake .#vysakh@chopper
+```
 
-### Darwin-specific (`darwin.nix`)
+## Adding a Module
 
-Adds:
-- **macOS tools**: mas (App Store CLI), zoxide
-- **Development**: docker, docker-compose
-- **Homebrew integration**: PATH setup and environment variables
-- **macOS aliases**: showfiles/hidefiles for Finder
-- **Environment**: macOS-specific paths and variables
+1. Create a directory under `common/` (cross-platform) or `<host>/`
+   (host-specific):
 
-### NixOS-specific (`chopper.nix`) 
+   ```
+   home/common/my-tool/default.nix
+   ```
 
-Adds:
-- **GUI applications**: firefox, chromium
-- **System monitoring**: iotop, lsof, strace, nethogs, ncdu
-- **Network tools**: nmap, netcat, tcpdump, wireshark-cli
-- **Development**: postgresql, redis, sqlite
-- **Linux utilities**: xclip, flatpak support
-- **System aliases**: systemctl, journalctl, docker shortcuts
+2. Write the module — typically `{ pkgs, ... }: { ... }`.
+3. Import it from the parent `default.nix`:
 
-## Features Migrated from System
+   ```nix
+   # home/common/default.nix
+   imports = [
+     ./my-tool
+     # …existing imports…
+   ];
+   ```
 
-The following configurations have been migrated from system-level to Home Manager:
+4. Rebuild: `nh darwin switch .` or `nh os switch .`.
 
-- **ZSH**: Full shell configuration with FZF integration
-- **Tmux**: Terminal multiplexer with sensible defaults and plugins
-- **Direnv**: Automatic environment loading for development projects
-- **Nix-index**: Command-not-found functionality
+### Platform guards
 
-This provides better user-level control and doesn't require system rebuilds for changes.
+If a module has platform-specific bits, prefer co-locating them with guards
+rather than creating a separate host-specific copy:
 
-## Customization
+```nix
+{ lib, pkgs, ... }:
+{
+  programs.my-tool = {
+    settings = {
+      # shared settings …
+    }
+    // (lib.optionalAttrs pkgs.stdenv.isDarwin {
+      # macOS-only settings
+    })
+    // (lib.optionalAttrs pkgs.stdenv.isLinux {
+      # Linux-only settings
+    });
+  };
+}
+```
 
-1. **Git**: Update email in `common.nix` git configuration
-2. **Packages**: Modify package lists in each file as needed
-3. **Dotfiles**: Add your own by configuring `home.file`
-4. **Shell**: Customize aliases and environment variables
-5. **FZF**: Adjust search commands and preview options
-6. **Tmux**: Modify keybindings and plugins in the configuration
-
-## Quick Start
-
-1. Update the email in `common.nix` git configuration
-2. Run `nh home switch .` to apply changes
-3. Open a new terminal to get the full zsh configuration
-4. Test tools: `eza`, `fzf`, `tmux`, etc.
-
-## Available Features
-
-- **Ctrl+R**: FZF history search in zsh
-- **Ctrl+T**: FZF file finder
-- **Alt+C**: FZF directory changer
-- **`ll`, `la`**: Enhanced ls aliases with eza
-- **Direnv**: Automatic `.envrc` loading in project directories
-- **Command-not-found**: Suggests nix packages for missing commands
+Only create a separate module in `darwin/` or `chopper/` when the **entire**
+module is platform-specific (e.g. Sway on Linux, Homebrew on macOS).
 
 ## Troubleshooting
 
-- If Home Manager conflicts exist, use `--backup-extension .backup`
-- Use `home-manager generations` to see previous configurations
-- Roll back with `home-manager switch --switch-generation X`
-- New shell features require opening a new terminal session
+- **Conflicting files** — pass `--backup-extension .backup` to
+  `home-manager switch` if it complains about existing dotfiles.
+- **List generations** — `home-manager generations`.
+- **Roll back** — `home-manager switch --switch-generation <N>`.
+- **New shell features** — open a fresh terminal after switching.
