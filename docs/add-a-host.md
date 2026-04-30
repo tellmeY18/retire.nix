@@ -88,7 +88,27 @@ nixosConfigurations = myLib.mkNixosConfigurations {
 
 See `docs/secrets.md` for setting up sops-nix secrets for the new host.
 
-### 6. (Optional) Add Home Manager
+### 6. (Optional) Enable remote deployment
+
+Add a `deploy` block to your host's `metadata.nix`:
+
+```nix
+deploy = {
+  host = "<tailscale-ip-or-hostname>";
+  sshUser = "root";
+  remoteBuild = true;
+};
+```
+
+Then deploy from your workstation:
+
+```sh
+deploy .#<hostname>
+```
+
+See `docs/deploy.md` for full details.
+
+### 7. (Optional) Add Home Manager
 
 Create a Home Manager entry in `home/<hostname>/` or reuse existing
 user configs. Add the homeConfiguration to `flake.nix`:

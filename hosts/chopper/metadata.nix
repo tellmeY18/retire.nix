@@ -15,4 +15,11 @@
     "wayland"
     "dev"
   ];
+
+  # deploy-rs configuration — see docs/deploy.md
+  deploy = {
+    host = "100.107.213.17"; # Tailscale IP
+    sshUser = "root";
+    remoteBuild = true; # target builds its own closure (cross-arch safe)
+  };
 }

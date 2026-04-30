@@ -128,6 +128,43 @@ let
     ) darwinHosts;
 
   # ---------------------------------------------------------------------------
+  # deploy-rs node generation
+  # ---------------------------------------------------------------------------
+
+  # Build deploy-rs nodes from discovered hosts that have deploy metadata.
+  # Only NixOS hosts are supported (darwin doesn't use deploy-rs).
+  #
+  # Usage in flake.nix:
+  #   deploy.nodes = myLib.mkDeployNodes {
+  #     hostsDir = ./hosts;
+  #     nixosConfigurations = self.nixosConfigurations;
+  #     deployLib = deploy-rs.lib;
+  #   };
+  mkDeployNodes =
+    {
+      hostsDir,
+      nixosConfigurations,
+      deployLib,
+    }:
+    let
+      allHosts = discoverHosts hostsDir;
+      deployableHosts = lib.filterAttrs (_: meta: meta.type == "nixos" && meta ? deploy) allHosts;
+    in
+    lib.mapAttrs' (
+      dirName: meta:
+      lib.nameValuePair meta.hostname {
+        hostname = meta.deploy.host;
+        sshUser = meta.deploy.sshUser or "root";
+        remoteBuild = meta.deploy.remoteBuild or true;
+
+        profiles.system = {
+          user = "root";
+          path = deployLib.${meta.system}.activate.nixos nixosConfigurations.${meta.hostname};
+        };
+      }
+    ) deployableHosts;
+
+  # ---------------------------------------------------------------------------
   # Standalone Home Manager factory
   # ---------------------------------------------------------------------------
 
@@ -151,6 +188,7 @@ in
     discoverHosts
     mkNixosConfigurations
     mkDarwinConfigurations
+    mkDeployNodes
     mkHome
     ;
 }
