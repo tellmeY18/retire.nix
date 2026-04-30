@@ -1,11 +1,11 @@
 { pkgs }:
 
-with pkgs; [
+with pkgs;
+[
   zfs
   gemini-cli
   beamMinimal28Packages.elixir
   nodejs
-  texliveFull
   dive
   profanity
   firefox
