@@ -68,7 +68,13 @@
           nixd.enable = true;
           nil_ls.enable = false;
           matlab_ls.enable = true;
-          rust_analyzer.enable = true;
+          rust_analyzer = {
+            enable = true;
+            # Rust toolchain (cargo + rustc) is provided system-wide via
+            # the Fenix overlay; let nixvim know not to manage them.
+            installCargo = false;
+            installRustc = false;
+          };
           ts_ls.enable = false;
           pyright.enable = true;
         };
