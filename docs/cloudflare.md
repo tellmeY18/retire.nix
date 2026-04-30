@@ -173,12 +173,27 @@ This opens a browser. Pick the `tellmey.fyi` zone. The command writes
 
 ### 2. Encrypt it with sops
 
+**⚠️ Important:** the `cert.pem` produced by `cloudflared tunnel login`
+contains **three PEM-style blocks** concatenated. You need to copy the
+**entire file contents** — missing the third block (`ARGO TUNNEL TOKEN`)
+causes `Error decoding origin cert: missing token in the certificate` at
+run time.
+
+Verify before you start:
+
+```sh
+grep -c "BEGIN" ~/.cloudflared/cert.pem
+# Should output: 3
+```
+
+Then edit the secrets file:
+
 ```sh
 cd ~/nix-config
 sops secrets/chopper/secrets.yaml
 ```
 
-Add an entry like:
+Add an entry like this — **all three blocks are required**:
 
 ```yaml
 cloudflare-cert: |
@@ -188,6 +203,16 @@ cloudflare-cert: |
   -----BEGIN CERTIFICATE-----
   MIIDXTCC...
   -----END CERTIFICATE-----
+  -----BEGIN ARGO TUNNEL TOKEN-----
+  eyJhUI...
+  -----END ARGO TUNNEL TOKEN-----
+```
+
+The quickest way to copy the file verbatim:
+
+```sh
+cat ~/.cloudflared/cert.pem | pbcopy            # macOS
+cat ~/.cloudflared/cert.pem | xclip -sel clip   # Linux
 ```
 
 Save and quit — sops re-encrypts the file. Commit it.
@@ -266,6 +291,28 @@ Client: `cloudflared access ssh --hostname ssh.tellmey.fyi`.
 ---
 
 ## Troubleshooting
+
+### `Error decoding origin cert: missing token in the certificate`
+
+The `cert.pem` you encrypted into sops is incomplete — it's missing the
+`-----BEGIN ARGO TUNNEL TOKEN-----` block at the end. cloudflared expects
+all three blocks (PRIVATE KEY, CERTIFICATE, ARGO TUNNEL TOKEN) concatenated.
+
+Fix:
+
+```sh
+# Re-login if you already deleted the local cert.pem
+cloudflared tunnel login
+
+# Verify all 3 blocks are present
+grep -c "BEGIN" ~/.cloudflared/cert.pem  # must be 3
+
+# Re-encrypt with the full file contents
+sops secrets/chopper/secrets.yaml
+# Replace the cloudflare-cert value with the entire cert.pem
+```
+
+See "One-time setup: the origin cert" above for the full format.
 
 ### Bootstrap fails on first run
 
