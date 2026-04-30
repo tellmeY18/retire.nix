@@ -110,7 +110,6 @@
         extraModules = {
           darwin = [
             nix-homebrew.darwinModules.nix-homebrew
-            nixvim.nixDarwinModules.nixvim
             nix-index-database.darwinModules.nix-index
             { nixpkgs.overlays = [ fenix.overlays.default ]; }
             ./modules/dev/rust.nix
@@ -146,12 +145,18 @@
       homeConfigurations = {
         "mathewalex@Vysakhs-MacBook-Pro" = myLib.mkHome {
           system = "aarch64-darwin";
-          modules = [ ./home/darwin-home.nix ];
+          modules = [
+            nixvim.homeManagerModules.nixvim
+            ./home/darwin-home.nix
+          ];
         };
 
         "vysakh@chopper" = myLib.mkHome {
           system = "x86_64-linux";
-          modules = [ ./home/linux-home.nix ];
+          modules = [
+            nixvim.homeManagerModules.nixvim
+            ./home/linux-home.nix
+          ];
         };
       };
 

@@ -128,6 +128,7 @@ find secrets -name '*.yaml' -exec sops updatekeys {} \;
 | chopper | `tailscale-auth-key` | `services.tailscale.authKeyFile` |
 | chopper | `nextcloud-admin-pass` | `services.nextcloud.config.adminpassFile` |
 | chopper | `cloudflared-tunnel-credentials` | `services.cloudflared.tunnels.*.credentialsFile` |
+| chopper | `cloudflare-cert` | `services.cloudflared-dns.certificateFile` (see [`cloudflare.md`](./cloudflare.md)) |
 
 ## How sops-nix decrypts at boot
 

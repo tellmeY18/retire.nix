@@ -34,6 +34,14 @@
         group = "root";
         mode = "0400";
       };
+      "cloudflare-cert" = {
+        # Origin cert (cert.pem) for declarative DNS provisioning via
+        # services.cloudflared-dns. Generated with `cloudflared tunnel login`
+        # on a workstation, then encrypted into secrets/chopper/secrets.yaml.
+        owner = "root";
+        group = "root";
+        mode = "0400";
+      };
     };
   };
 }
