@@ -27,7 +27,11 @@
         mode = "0400";
       };
       "cloudflared-tunnel-credentials" = {
-        owner = "cloudflared";
+        # cloudflared runs as a DynamicUser via systemd, so there's no
+        # static `cloudflared` user on the system. Keep the secret owned
+        # by root; systemd makes it accessible to the service.
+        owner = "root";
+        group = "root";
         mode = "0400";
       };
     };
