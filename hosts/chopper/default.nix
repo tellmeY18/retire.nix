@@ -12,5 +12,6 @@
     ./parts/programs.nix
     ./parts/users.nix
     ./parts/services.nix
+    ./parts/k3s.nix
   ];
 }

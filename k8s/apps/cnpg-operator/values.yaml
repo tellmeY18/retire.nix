@@ -1,0 +1,31 @@
+# values.yaml — Plain Helm values for the cloudnative-pg operator chart.
+# Encrypted / secret values belong in secrets.yaml (sops-encrypted).
+
+# Operator resource requests and limits.
+# Tune for the chopper hardware (old laptop — keep requests low).
+resources:
+  requests:
+    cpu: "100m"
+    memory: "128Mi"
+  limits:
+    cpu: "500m"
+    memory: "256Mi"
+
+# Expose a PodMonitor so Prometheus (kube-prometheus-stack) can scrape the
+# operator's own metrics.  Requires the Prometheus Operator CRDs to be present.
+monitoring:
+  podMonitorEnabled: true
+  grafanaDashboard:
+    # Set to true if kube-prometheus-stack is installed with sidecar support.
+    create: false
+
+# Operator log level: "debug" | "info" | "warning" | "error" | "trace"
+logLevel: "info"
+
+# CRD installation is handled by the chart itself; keep this enabled so
+# upgrades also upgrade the CRDs.
+crds:
+  create: true
+
+# Number of operator replicas.  1 is fine for a single-node cluster.
+replicaCount: 1

@@ -1,0 +1,39 @@
+---
+# helmfile.yaml — Helm chart declarations for the chopper k3s cluster.
+#
+# Run from the repo root:
+#   helmfile sync  --file k8s/helmfile.yaml   # install / upgrade
+#   helmfile diff  --file k8s/helmfile.yaml   # preview changes
+#
+# Prerequisites:
+#   helm plugin install https://github.com/jkroepke/helm-secrets
+#   (or: helm plugin install https://github.com/variantdev/vals)
+#
+# NOTE: chart version 0.22.1 ships CNPG operator ~1.22.x.
+# The ObjectStore CRD (in cnpg-backup.yaml) requires CNPG >= 1.23.
+# To enable it, bump the chart version to >= 0.23.0 once you are ready to
+# upgrade.  The Cluster spec's inline barmanObjectStore (WAL archiving) works
+# with 0.22.1.
+
+repositories:
+  - name: cnpg
+    url: https://cloudnative-pg.github.io/charts
+
+helmDefaults:
+  wait: true
+  timeout: 300
+  # Atomic install: roll back automatically on failed upgrade.
+  atomic: true
+
+releases:
+  - name: cloudnative-pg
+    namespace: cnpg-system
+    createNamespace: true
+    chart: cnpg/cloudnative-pg
+    version: "0.22.1"
+    values:
+      # Plain values — safe to commit.
+      - apps/cnpg-operator/values.yaml
+      # Encrypted values — decrypted at apply time by helm-secrets.
+      # File must be sops-encrypted; see k8s/README.md.
+      - secrets://apps/cnpg-operator/secrets.yaml

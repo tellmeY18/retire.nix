@@ -35,6 +35,29 @@
         group = "root";
         mode = "0400";
       };
+
+      # -----------------------------------------------------------------------
+      # k3s cluster secrets
+      # -----------------------------------------------------------------------
+
+      # Shared cluster join token — same value used on all nodes.
+      # Encrypted file: secrets/chopper/k3s-token
+      # Generate token: openssl rand -hex 32
+      "k3s-token" = {
+        sopsFile = ../../secrets/chopper/k3s-token;
+        # No format — sops treats the whole file as the secret value.
+        format = "binary";
+      };
+
+      # Tailscale Kubernetes Operator OAuth credentials.
+      # Encrypted file: secrets/chopper/tailscale-operator-oauth
+      # Used by modules/services/k3s-bootstrap-manifests.nix to render
+      # the operator-oauth Secret manifest at boot (via systemd oneshot).
+      # NEVER passes through the Nix store — decrypted to /run/secrets/ only.
+      "tailscale-operator-oauth" = {
+        sopsFile = ../../secrets/chopper/tailscale-operator-oauth;
+        format = "binary";
+      };
     };
   };
 }

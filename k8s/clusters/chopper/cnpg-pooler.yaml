@@ -1,0 +1,68 @@
+---
+# cnpg-pooler.yaml — CloudNativePG Pooler CR (PgBouncer in transaction mode).
+#
+# The Pooler sits in front of the chopper-pg cluster's read-write Service.
+# Cloud webservices should connect through the Tailscale LoadBalancer Service
+# (tailscale-pg-service.yaml) which targets these pods, rather than reaching
+# the CNPG -rw Service directly.
+#
+# PgBouncer in transaction mode:
+#   - Short-lived backend connections to PostgreSQL (released after each tx)
+#   - Long-lived frontend connections from webservices
+#   - Smooths reconnect latency during CNPG primary failover
+
+apiVersion: postgresql.cnpg.io/v1
+kind: Pooler
+metadata:
+  name: chopper-pg-pooler-rw
+  namespace: cnpg-clusters
+spec:
+  # Target cluster and service type.
+  cluster:
+    name: chopper-pg
+  type: rw
+
+  # 2 PgBouncer replicas for redundancy.
+  # Phase 1 (single node): both land on chopper — no pod-level HA, but the
+  # topology is ready.  Add requiredDuringScheduling anti-affinity in M21.
+  instances: 2
+
+  pgbouncer:
+    poolMode: transaction
+    parameters:
+      # Max simultaneous client connections per PgBouncer instance.
+      max_client_conn: "1000"
+      # Backend connections per (db, user) pair per PgBouncer instance.
+      default_pool_size: "25"
+      # Reserve connections for administrative queries.
+      reserve_pool_size: "5"
+      # Seconds to wait before dropping a client that has been idle.
+      client_idle_timeout: "600"
+      # Keep backend connections alive during idle periods.
+      server_idle_timeout: "600"
+      # Log client connect/disconnect events.
+      log_connections: "1"
+      log_disconnections: "1"
+
+  # Pod template for PgBouncer pods.
+  template:
+    spec:
+      # Phase 1: preferred anti-affinity (all on chopper is acceptable).
+      # Flip to requiredDuringSchedulingIgnoredDuringExecution in M21
+      # once ≥2 nodes are available.
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    cnpg.io/poolerName: chopper-pg-pooler-rw
+                topologyKey: kubernetes.io/hostname
+      resources:
+        requests:
+          cpu: "50m"
+          memory: "32Mi"
+        limits:
+          cpu: "200m"
+          memory: "128Mi"

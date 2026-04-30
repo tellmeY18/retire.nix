@@ -1,0 +1,119 @@
+---
+# cnpg-cluster.yaml — CloudNativePG Cluster CR for the chopper k3s cluster.
+#
+# Namespace: cnpg-clusters
+# Operator:  cloudnative-pg chart 0.22.1 (CNPG ~1.22.x), installed via helmfile.
+#
+# CNPG auto-generates TWO Kubernetes Secrets on first creation:
+#   - chopper-pg-superuser   (postgres superuser credentials)
+#   - chopper-pg-app         (application user credentials)
+# Do NOT supply passwords here — let CNPG manage them.
+#
+# WAL archiving is configured in spec.backup.barmanObjectStore below.
+# See cnpg-backup.yaml for the matching ScheduledBackup and ObjectStore CRs.
+
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: chopper-pg
+  namespace: cnpg-clusters
+spec:
+  # Three instances: one primary + two synchronous standbys.
+  # Phase 1 (single node): all three pods land on chopper — no HA at the node
+  # level, but the topology is already correct for when more nodes are added.
+  instances: 3
+
+  # ---------------------------------------------------------------------------
+  # Bootstrap
+  # ---------------------------------------------------------------------------
+  bootstrap:
+    initdb:
+      database: app
+      owner: app
+      # CNPG creates the 'chopper-pg-app' Secret automatically — no secret
+      # reference needed here.  Do NOT add a 'secret:' field.
+
+  # ---------------------------------------------------------------------------
+  # Storage  (OpenEBS ZFS LocalPV — provisioned by the NixOS-bootstrapped
+  #            openebs-zfs-localpv chart)
+  # ---------------------------------------------------------------------------
+  storage:
+    storageClass: zfs-localpv
+    size: 20Gi
+
+  # ---------------------------------------------------------------------------
+  # PostgreSQL tuning + synchronous replication
+  # ---------------------------------------------------------------------------
+  postgresql:
+    # Require at least 1 synchronous standby before acknowledging writes.
+    # method: any  →  synchronous_standby_names = 'ANY 1 (*)'
+    # With 3 instances this gives RPO ≈ 0 for a single replica loss.
+    synchronous:
+      method: any
+      number: 1
+
+  # ---------------------------------------------------------------------------
+  # Pod scheduling
+  # ---------------------------------------------------------------------------
+  # Phase 1 (single node): affinity is preferred, not required.
+  # Flip to requiredDuringScheduling in M21 when ≥2 nodes are joined.
+  affinity:
+    podAntiAffinityType: preferred
+    topologyKey: kubernetes.io/hostname
+
+  # ---------------------------------------------------------------------------
+  # Backup / WAL archiving  (Barman Cloud → S3)
+  # ---------------------------------------------------------------------------
+  # WAL archiving is enabled by the presence of this block.
+  # Update 'destinationPath' to your actual bucket before first apply.
+  # For CNPG >= 1.23 (chart >= 0.23.0) you can replace this inline block with
+  # a reference to the ObjectStore CR defined in cnpg-backup.yaml:
+  #   backup:
+  #     objectStore:
+  #       name: chopper-pg-backup-store
+  #     retentionPolicy: "14d"
+  backup:
+    barmanObjectStore:
+      # Replace with your actual S3 bucket path.
+      # For Backblaze B2:  s3://your-bucket/chopper-pg
+      # For Cloudflare R2: s3://your-bucket/chopper-pg  (+ endpointURL below)
+      destinationPath: "s3://YOUR-BUCKET-NAME/chopper-pg"
+
+      # Uncomment for non-AWS S3-compatible endpoints (Garage, R2, B2):
+      # endpointURL: "https://YOUR-S3-ENDPOINT"
+
+      # Credentials are read from the cnpg-backup-s3 Secret (applied via sops).
+      # See k8s/clusters/chopper/secrets/cnpg-backup-s3.enc.yaml.
+      s3Credentials:
+        accessKeyId:
+          name: cnpg-backup-s3
+          key: ACCESS_KEY_ID
+        secretAccessKey:
+          name: cnpg-backup-s3
+          key: SECRET_ACCESS_KEY
+
+      # WAL compression — gzip is universally available and reduces S3 costs.
+      wal:
+        compression: gzip
+        maxParallel: 4
+
+      # Base backup compression.
+      data:
+        compression: gzip
+        immediateCheckpoint: false
+        jobs: 2
+
+    # Retention: keep 14 days of base backups.
+    # WAL segments are retained long enough to allow PITR within that window.
+    retentionPolicy: "14d"
+
+  # ---------------------------------------------------------------------------
+  # Resource requests (tune for chopper's available RAM)
+  # ---------------------------------------------------------------------------
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "1Gi"
+      cpu: "1000m"

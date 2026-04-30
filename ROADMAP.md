@@ -1,6 +1,8 @@
 # ROADMAP.md — Path to a Truly Reproducible Multi-System Nix Config
 
 > **Status: All 16 milestones (M0–M15) complete as of initial cleanup pass.**
+> Active workstream: **M16–M22 — Production-grade k3s + CloudNativePG** (see
+> [`CLAUDE.md` §7](./CLAUDE.md#7-production-grade-k3s--cloudnativepg-architecture)).
 > Cross-cutting backlog items remain for ongoing maintenance.
 
 This roadmap operationalises the audit in [`CLAUDE.md`](./CLAUDE.md) into
@@ -313,6 +315,215 @@ Goal: prove the abstractions work.
 
 ---
 
+# Phase 2 — Production-Grade k3s + CloudNativePG
+
+> Reference design: [`CLAUDE.md` §7](./CLAUDE.md#7-production-grade-k3s--cloudnativepg-architecture).
+> Goal: a Postgres URL on the tailnet (`pg-rw.<tailnet>.ts.net:5432`) that
+> webservices in the cloud can rely on, surviving any single node failure
+> once ≥ 3 nodes are joined.
+
+**Phase rule:** every milestone leaves the cluster in a working state.
+We deliberately stand the cluster up on `chopper` alone first (no HA),
+then layer redundancy. Do not skip M16/M17 even though they don't add HA —
+they set the topology that later milestones rely on.
+
+---
+
+## Milestone 16 — k3s NixOS module + single-node bring-up on chopper  ·  🧹 🔒  ·  Effort: L
+
+Goal: a reproducible single-node k3s server on `chopper`, all traffic on
+`tailscale0`, kubeconfig usable from the laptop.
+
+- [ ] Add `modules/services/k3s.nix` with the option schema in
+      `CLAUDE.md` §7.4. Defaults: `--disable=traefik,servicelb`,
+      `--flannel-iface=tailscale0`, `--node-ip=<tailscale4>`,
+      `--advertise-address=<tailscale4>`, `--tls-san=<host>.ts.net`.
+- [ ] Add `profiles/k3s-node.nix`; add `"k3s"` to `chopper`'s
+      `metadata.roles`.
+- [ ] ZFS datasets: `rpool/k3s` (→ `/var/lib/rancher/k3s`) and
+      `rpool/openebs` (for ZFS LocalPV) created via disko or
+      `services.zfs.datasets`. Tuned per §7.4.
+- [ ] Sops secret `secrets/chopper/k3s-token` consumed by
+      `services.k3s-cluster.tokenFile` (random 64-byte token; same value
+      will be reused when peers join).
+- [ ] Firewall: open `6443/tcp`, `8472/udp` (flannel), `10250/tcp`,
+      `2379-2380/tcp` (etcd) **only on `tailscale0`**.
+- [ ] Wait condition on `tailscaled.service` so k3s never starts before
+      the tailnet IP is up (`systemd` `After=`/`Requires=`).
+- [ ] `kubectl` + `helm` + `cmctl` + `k9s` added to `profiles/k3s-node.nix`'s
+      system packages and `home/common/packages/dev-k8s.nix` (new bundle).
+- [ ] Smoke test: `kubectl get nodes` shows `chopper Ready` with
+      `INTERNAL-IP` = tailscale IP.
+
+**Exit criteria:** `nixos-rebuild switch` brings k3s up; node is Ready;
+no k3s ports are reachable on the public interface (`nmap` from off-net).
+
+---
+
+## Milestone 17 — Bootstrap operators via Nix + manifest layout for the rest  ·  🧹 🔒  ·  Effort: M
+
+Goal: every "install once, never touch" operator comes back automatically
+after a reboot via NixOS; everything iterative lives under `k8s/` and
+is applied with `helmfile` + `kubectl` from the laptop. **No Argo CD,
+no Flux, no Sealed Secrets, no External Secrets Operator.**
+
+- [ ] `services.k3s.charts.openebs-zfs-localpv` declared in NixOS:
+      pinned chart version, values point at `rpool/openebs`, default
+      `StorageClass` `zfs-localpv` with `volumeBindingMode: WaitForFirstConsumer`.
+- [ ] `services.k3s.charts.tailscale-operator` declared in NixOS,
+      consuming the OAuth client ID/secret rendered into a `Secret`
+      object via `services.k3s.manifests` from a sops-decrypted runtime
+      path (NOT a Nix-store path — see `CLAUDE.md` §7.4a).
+- [ ] Sops secret `secrets/chopper/tailscale-operator-oauth` added.
+- [ ] `.sops.yaml` extended with creation rules for `k8s/**/*.enc.yaml`
+      and `k8s/**/secrets.yaml` (encrypted to laptop user + each
+      cluster member host).
+- [ ] `k8s/` directory created per `CLAUDE.md` §7.5 with
+      `helmfile.yaml` pinning chart versions for CNPG (and any future
+      iterative charts).
+- [ ] `helm-secrets` plugin added to the dev shell + `profiles/k3s-node.nix`
+      so `helmfile sync` transparently decrypts `secrets.yaml`.
+- [ ] `Justfile` recipes:
+      - [ ] `just k8s-apply` — `helmfile sync` + `kubectl apply -k k8s/clusters/chopper`,
+            piping `sops --decrypt` for any `*.enc.yaml` Secret manifests.
+      - [ ] `just k8s-diff` — dry-run preview.
+      - [ ] `just k8s-edit-secret <path>` — wraps `sops`.
+- [ ] Verify: a throwaway `PVC` of class `zfs-localpv` binds and a
+      busybox pod writes to it; ZFS shows a new dataset under
+      `rpool/openebs`. `kubectl get pods -n tailscale` shows the
+      operator Running.
+
+**Exit criteria:** rebooting `chopper` brings the cluster back with
+OpenEBS + Tailscale operator already healthy, no human in the loop;
+`just k8s-apply` is idempotent and green from a clean checkout.
+
+---
+
+## Milestone 18 — CNPG operator + first Cluster (single node)  ·  🧹 🔒  ·  Effort: L
+
+Goal: a working Postgres reachable in-cluster, ready for HA topology.
+
+- [ ] `k8s/apps/cnpg-operator/` chart pinned via `helmfile.yaml`
+      (specific minor version + chart digest for reproducibility).
+- [ ] `k8s/clusters/chopper/cnpg-cluster.yaml`:
+      `instances: 3`, `storage.storageClass: zfs-localpv`,
+      `postgresql.synchronous.method: any`,
+      `postgresql.synchronous.number: 1`,
+      pod anti-affinity `preferredDuringScheduling` on hostname
+      (will become `required` in M21 once ≥ 2 nodes).
+- [ ] Bootstrap database + app role declared in the `Cluster` spec.
+      **No app password supplied** — CNPG generates `<cluster>-app` and
+      `<cluster>-superuser` Secrets in-cluster (§7.4a).
+- [ ] `cnpg-pooler.yaml`: `Pooler` (PgBouncer, transaction mode) in
+      front of the `-rw` Service.
+- [ ] Verify: `psql` from a debug pod (using `<cluster>-app`) hits
+      both `<cluster>-rw` and the pooler Service; `kubectl cnpg status`
+      is green; deleting the primary pod fails over within ~10s.
+
+**Exit criteria:** Postgres reachable in-cluster with replication
+healthy; primary pod deletion triggers clean failover.
+
+---
+
+## Milestone 19 — Tailscale-typed Service → stable Postgres URL  ·  🧹 🔒  ·  Effort: M
+
+Goal: cloud webservices get a forever-stable hostname.
+
+*(The Tailscale operator itself was already bootstrapped in M17.
+This milestone only declares the Service that exposes Postgres.)*
+
+- [ ] `k8s/clusters/chopper/tailscale-pg-service.yaml`: `Service` of
+      type `LoadBalancer` with `loadBalancerClass: tailscale` and
+      annotation `tailscale.com/hostname: pg-rw`, target = the
+      `Pooler` Service from M18.
+- [ ] Tailscale ACL update (out-of-band, documented in
+      `docs/k3s-cnpg.md`): `tag:k8s` accepts from `tag:cloud-webservice`
+      on `:5432` only.
+- [ ] Verify from a cloud tailnet member:
+      `psql "postgresql://app@pg-rw.<tailnet>.ts.net:5432/app"` works;
+      kill the primary pod → connection retries succeed within ~10s.
+
+**Exit criteria:** the documented Postgres URL works from at least one
+remote tailnet member; primary pod failover does not change it.
+
+---
+
+## Milestone 20 — Off-site backups + DR runbook  ·  🔒 📚  ·  Effort: M
+
+Goal: survive losing every laptop.
+
+- [ ] Provision an off-site S3 bucket (Backblaze B2 or Cloudflare R2).
+- [ ] Credentials stored as a sops-encrypted `Secret` manifest at
+      `k8s/clusters/chopper/secrets/cnpg-backup-s3.enc.yaml`,
+      applied by `just k8s-apply` via `sops --decrypt | kubectl apply -f -`.
+- [ ] `cnpg-backup.yaml`: `ObjectStore` + `ScheduledBackup` (daily base
+      + continuous WAL archiving), retention = 14 days.
+- [ ] Optional warm tier: a second `ObjectStore` pointing at the
+      existing Garage on `chopper` for fast in-network restores.
+- [ ] Document and rehearse:
+      - [ ] `docs/runbooks/restore-pitr.md` — PITR into a fresh `Cluster`.
+      - [ ] `docs/runbooks/failover.md` — manual switchover.
+      - [ ] Quarterly restore drill checklist.
+- [ ] Verify: spin up a `Cluster` with `bootstrap.recovery` from the
+      off-site object store in a scratch namespace; data is intact.
+
+**Exit criteria:** a documented, tested PITR succeeds end-to-end from
+the off-site bucket alone.
+
+---
+
+## Milestone 21 — Second node + true pod-anti-affinity  ·  🧹  ·  Effort: M
+
+Goal: pods spread across hosts; primary failover survives one node.
+
+- [ ] Add `hosts/<second-laptop>/` (real or VM) with the same
+      `"k3s"` role and `services.k3s-cluster.role = "server"`.
+- [ ] Joins via `tokenFile` + `serverAddr = https://chopper:6443`
+      (Tailscale FQDN preferred).
+- [ ] Flip CNPG `affinity.podAntiAffinityType` to
+      `requiredDuringSchedulingIgnoredDuringExecution` on
+      `kubernetes.io/hostname`.
+- [ ] Tailscale operator: scale ts-proxy `replicas: 2` with pod
+      anti-affinity so the egress survives one node.
+- [ ] Add admin kubeconfig with both apiservers in `clusters[].server`
+      (round-robin) so `kubectl` survives chopper being down.
+- [ ] **Document the 2-node trap loudly** in `docs/k3s-cnpg.md`:
+      losing either node makes etcd lose quorum; the cluster is
+      read-only until the third node arrives. M22 fixes this.
+- [ ] Verify: cordon+drain chopper; `pg-rw` URL still serves writes.
+
+**Exit criteria:** with both nodes up, killing chopper's k3s
+(`systemctl stop k3s`) keeps the Postgres URL writable until etcd
+quorum is lost. Time-to-failover ≤ 30s for the PG primary.
+
+---
+
+## Milestone 22 — Quorum tiebreaker + true "survives one host" SLO  ·  🧹 🔒  ·  Effort: M
+
+Goal: the cluster (and Postgres URL) survive any one host going away.
+
+- [ ] Provision a tiny always-on tailnet node (Pi / cheap VPS / home VM)
+      as `hosts/<tiebreaker>/` with role `"k3s"` and
+      `services.k3s-cluster.role = "quorum"`:
+      - taints: `node-role.kubernetes.io/control-plane:NoSchedule`,
+        `quorum-only=true:NoExecute`.
+      - no OpenEBS pool; minimal disk.
+- [ ] CNPG `Cluster` `nodeSelector`/`tolerations` exclude
+      `quorum-only` nodes; ts-proxy pods likewise.
+- [ ] System Upgrade Controller installed and pinned to a k3s channel.
+- [ ] `kube-prometheus-stack` (lightweight values) + alerts on:
+      etcd quorum loss, CNPG replication lag, PVC fill, node NotReady.
+- [ ] Chaos drill: power off chopper for 10 minutes; webservices keep
+      working. Power off the second laptop; webservices keep working.
+      Power off the tiebreaker; cluster goes read-only (expected).
+- [ ] Capture results + RTO/RPO in `docs/k3s-cnpg.md`.
+
+**Exit criteria:** the documented SLO holds: any one of the three
+nodes can be powered off and the Postgres URL keeps serving reads
+and writes within the documented RTO (target: ≤ 60s).
+
+---
+
 ## Cross-cutting backlog (pick up between milestones)
 
 - [ ] 🧹 Replace nested single-key attrsets with compact form where it
@@ -333,3 +544,9 @@ Goal: prove the abstractions work.
 5. **M8–M10**: HM, profiles, overlays cleanups.
 6. **M11–M12**: CI + security pass once the structure is stable.
 7. **M13–M15**: polish, validation, release.
+8. **M16–M19**: stand up k3s + CNPG on chopper alone, expose stable
+   Postgres URL over Tailscale (no HA yet, but topology is correct).
+9. **M20**: off-site backups — the only thing that protects against
+   losing every laptop. Do not defer.
+10. **M21–M22**: add the second laptop, then the quorum tiebreaker, to
+    finally honour "survives any one host".
