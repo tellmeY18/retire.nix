@@ -2,14 +2,26 @@
 
 This repository exposes self-hosted services to the public internet through
 [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/)
-(`cloudflared`). DNS records (CNAMEs) and tunnel ingress routes are
-**declared in one place** — the host's NixOS config — and provisioned
+(`cloudflared`). Tunnels, DNS records (CNAMEs), and ingress routes are
+all **declared in one place** — the host's NixOS config — and provisioned
 automatically on `nh os switch`.
 
-There is no manual clicking in the Cloudflare dashboard, no `cloudflared tunnel
-route dns` commands to remember, and no risk of DNS drifting from your tunnel
-config. The hostnames in `services.cloudflared.tunnels.<id>.ingress` are the
-**single source of truth**.
+There is no manual clicking in the Cloudflare dashboard, no
+`cloudflared tunnel create` commands, no UUIDs in the repo, and no risk of
+drift between your config and Cloudflare's state.
+
+## Three modules, one source of truth
+
+The flake provides three composing modules:
+
+| Module | What it does | When it runs |
+|---|---|---|
+| `services.cloudflared-bootstrap` | Creates tunnels by **name** in Cloudflare if missing; writes credentials to `/var/lib/cloudflared/<name>.json` | Once per boot, before tunnels start |
+| `services.cloudflared` (upstream) | Runs the tunnel daemon, routes ingress to localhost services | After bootstrap |
+| `services.cloudflared-dns` | Creates Cloudflare CNAMEs for every ingress hostname | After tunnels are up |
+
+All three read from the same `services.cloudflared.tunnels.<name>` config,
+so adding a service or changing the tunnel name updates everything atomically.
 
 ---
 
@@ -17,9 +29,8 @@ config. The hostnames in `services.cloudflared.tunnels.<id>.ingress` are the
 
 To expose `example.tellmey.fyi`:
 
-1. Make the service listen on a local port (any standard NixOS service module):
+1. Make the service listen on a local port:
    ```nix
-   # somewhere in your host config
    services.example = {
      enable = true;
      listenAddress = "127.0.0.1";
@@ -30,15 +41,10 @@ To expose `example.tellmey.fyi`:
 2. Add **one line** to the cloudflared ingress block in
    `hosts/chopper/parts/services.nix`:
    ```nix
-   services.cloudflared.tunnels."b0ca1206-1d09-4892-9d69-d3a196877013" = {
-     # ...
-     ingress = {
-       "next.tellmey.fyi"    = { service = "http://localhost:80"; };
-       "chat.tellmey.fyi"    = { service = "http://localhost:6167"; };
-       "cal.tellmey.fyi"     = { service = "http://localhost:4000"; };
-       "school.tellmey.fyi"  = { service = "http://localhost:7000"; };
-       "example.tellmey.fyi" = { service = "http://localhost:9000"; };  # ← NEW
-     };
+   services.cloudflared.tunnels.chopper-main.ingress = {
+     "next.tellmey.fyi"    = { service = "http://localhost:80"; };
+     "chat.tellmey.fyi"    = { service = "http://localhost:6167"; };
+     "example.tellmey.fyi" = { service = "http://localhost:9000"; };  # ← NEW
    };
    ```
 
@@ -48,11 +54,34 @@ To expose `example.tellmey.fyi`:
    nh os switch
    ```
 
-When activation runs, the `cloudflared-dns.service` one-shot picks up the
-new hostname, creates the CNAME in Cloudflare, and the tunnel starts routing
-traffic. Within a few seconds, `https://example.tellmey.fyi` is reachable
-from anywhere on the internet — with valid TLS, DDoS protection, and zero
-inbound firewall rules.
+The DNS module picks up the new hostname, creates the CNAME, and the tunnel
+starts routing traffic. Within seconds, `https://example.tellmey.fyi` is
+reachable with valid TLS, DDoS protection, and zero inbound firewall rules.
+
+---
+
+## TL;DR — Add a new tunnel
+
+Want a separate tunnel (e.g. for a different domain or isolation)?
+
+1. Add the name to the bootstrap list:
+   ```nix
+   services.cloudflared-bootstrap.tunnels = [ "chopper-main" "chopper-staging" ];
+   ```
+
+2. Declare the tunnel's ingress, referencing the auto-generated credentials path:
+   ```nix
+   services.cloudflared.tunnels.chopper-staging = {
+     credentialsFile = "/var/lib/cloudflared/chopper-staging.json";
+     default = "http_status:404";
+     ingress = {
+       "staging.tellmey.fyi" = { service = "http://localhost:9100"; };
+     };
+   };
+   ```
+
+3. Deploy. The tunnel is created in Cloudflare, credentials are written, the
+   daemon connects, and the CNAME is provisioned — all in one activation.
 
 ---
 
@@ -87,37 +116,49 @@ chopper to Cloudflare. See [`security.md`](./security.md).
 
 ---
 
-## How declarative DNS works
+## How it works
 
-The flake includes a custom NixOS module: `modules/services/cloudflared-dns.nix`.
+### `services.cloudflared-bootstrap`
 
-At a high level:
+On every activation, a systemd oneshot runs:
 
-1. The module reads `services.cloudflared.tunnels.*.ingress` at evaluation time.
-2. For each hostname, it generates a shell line like
-   `cloudflared tunnel route dns --overwrite-dns <tunnel-id> <hostname>`.
-3. Those lines run as a systemd one-shot (`cloudflared-dns.service`) on
-   every activation.
-4. The command is **idempotent** — already-correct records are no-ops, missing
-   records are created, mismatched records are corrected.
+1. Reads the `cert.pem` (account-level Cloudflare credential) from
+   `/run/secrets/cloudflare-cert` via systemd `LoadCredential`.
+2. For each name in the `tunnels` list:
+   - Calls `cloudflared tunnel list --output json` and filters for the name.
+   - **If found AND credentials file exists locally** — no-op.
+   - **If found BUT credentials file missing locally** — deletes and recreates
+     (Cloudflare doesn't allow re-downloading credentials for an existing
+     tunnel, so rotation is the only option). The DNS module will repoint
+     CNAMEs on the next run via `--overwrite-dns`.
+   - **If not found** — calls `cloudflared tunnel create <name>`, which
+     allocates a new UUID and writes `/var/lib/cloudflared/<name>.json`.
 
-The systemd unit is hardened (`DynamicUser`, `ProtectSystem=strict`, etc.) and
-gets the Cloudflare origin cert via `LoadCredential`, so the secret never
-touches disk in plaintext.
+### `services.cloudflared` (upstream NixOS module)
 
-### Wildcards
+Declares the actual tunnel daemon. Reads the credentials JSON written by
+the bootstrap module, parses ingress rules, and connects outbound to
+Cloudflare's edge.
 
-Wildcard hostnames (e.g. `*.tellmey.fyi`) are filtered out automatically
-because cloudflared cannot provision DNS for them. If you need a wildcard
-record, create it manually in the Cloudflare dashboard or via API.
+### `services.cloudflared-dns`
+
+After tunnels start, this oneshot reads `services.cloudflared.tunnels.*.ingress`
+at eval time and runs:
+```
+cloudflared tunnel route dns --overwrite-dns <tunnel> <hostname>
+```
+for each (tunnel, hostname) pair. Idempotent — already-correct records
+are no-ops.
+
+Wildcards (e.g. `*.tellmey.fyi`) are filtered out; cloudflared cannot
+provision DNS for them.
 
 ---
 
 ## One-time setup: the origin cert
 
-Declarative DNS provisioning needs a Cloudflare **origin cert** (`cert.pem`)
-that grants `cloudflared` permission to create DNS records on your behalf.
-This is a one-time bootstrap step per zone (domain).
+All three modules need a Cloudflare **origin cert** (`cert.pem`) to
+authenticate. This is a one-time bootstrap step per Cloudflare zone (domain).
 
 ### 1. Generate the cert on a workstation with a browser
 
@@ -127,15 +168,13 @@ On your Mac (or any machine with `cloudflared` installed):
 cloudflared tunnel login
 ```
 
-This opens a browser. Select the `tellmey.fyi` zone. The command writes
-`~/.cloudflared/cert.pem` containing the API token.
+This opens a browser. Pick the `tellmey.fyi` zone. The command writes
+`~/.cloudflared/cert.pem`.
 
 ### 2. Encrypt it with sops
 
 ```sh
 cd ~/nix-config
-
-# Add the cert as a multi-line block scalar in the secrets file
 sops secrets/chopper/secrets.yaml
 ```
 
@@ -159,61 +198,40 @@ Save and quit — sops re-encrypts the file. Commit it.
 rm ~/.cloudflared/cert.pem
 ```
 
-The cert is now safely encrypted in the repo and decrypted only at activation
-time on chopper to `/run/secrets/cloudflare-cert` (root-only, tmpfs).
-
 ### 4. Deploy
 
 ```sh
 nh os switch
+journalctl -u cloudflared-bootstrap
 journalctl -u cloudflared-dns
 ```
 
-You should see lines like:
+First run will create the tunnel and print its new UUID:
 
 ```
-[cloudflared-dns] Ensuring CNAME: next.tellmey.fyi -> b0ca1206-...
-[cloudflared-dns] Ensuring CNAME: chat.tellmey.fyi -> b0ca1206-...
-[cloudflared-dns] DNS provisioning complete.
+[cloudflared-bootstrap] Ensuring tunnel: chopper-main
+[cloudflared-bootstrap] Creating tunnel 'chopper-main'...
+Tunnel credentials written to /var/lib/cloudflared/chopper-main.json. ...
+Created tunnel chopper-main with id 7f3e2d1c-...
 ```
+
+Subsequent runs just confirm everything is in place.
 
 ---
 
-## Adding a brand-new tunnel (different account/zone)
+## Rotating a tunnel
 
-If you ever need a second tunnel (e.g. for a different domain):
+If you need to forcibly rotate a tunnel's credentials (e.g. after a
+compromise or recovering from a lost credentials file):
 
-1. Create the tunnel:
-   ```sh
-   cloudflared tunnel create <tunnel-name>
-   # Outputs a UUID and writes ~/.cloudflared/<uuid>.json
-   ```
+```sh
+sudo rm /var/lib/cloudflared/chopper-main.json
+nh os switch
+```
 
-2. Encrypt the credentials JSON into sops:
-   ```sh
-   sops secrets/chopper/secrets.yaml
-   # Add: cloudflared-tunnel-credentials-<name>: |  (JSON contents)
-   ```
-
-3. Declare the tunnel in your host config alongside the existing one:
-   ```nix
-   services.cloudflared.tunnels."<new-uuid>" = {
-     credentialsFile = "/run/secrets/cloudflared-tunnel-credentials-<name>";
-     default = "http_status:404";
-     ingress = {
-       "service.example.com" = { service = "http://localhost:8080"; };
-     };
-   };
-   ```
-
-4. Add a sops secret declaration in `hosts/chopper/sops.nix` for the
-   credentials file.
-
-5. Deploy. Both tunnels run side-by-side; the DNS module handles both.
-
-If the new tunnel is on a different Cloudflare account, you'll also need a
-separate `cert.pem` for that account. Either run two instances of the DNS
-module (more complex) or just provision the new account's records manually.
+The bootstrap module will detect the existing tunnel in Cloudflare without
+matching local credentials, delete it, recreate it with a fresh UUID, and
+the DNS module will repoint all CNAMEs automatically.
 
 ---
 
@@ -224,15 +242,6 @@ module (more complex) or just provision the new account's records manually.
 ```nix
 "app.tellmey.fyi" = {
   service = "http://localhost:3000";
-};
-```
-
-### HTTPS backend (rare — usually localhost is HTTP)
-
-```nix
-"secure.tellmey.fyi" = {
-  service = "https://localhost:8443";
-  # ...originRequest options if needed
 };
 ```
 
@@ -252,65 +261,79 @@ module (more complex) or just provision the new account's records manually.
 };
 ```
 
-Then on the client side: `cloudflared access ssh --hostname ssh.tellmey.fyi`.
+Client: `cloudflared access ssh --hostname ssh.tellmey.fyi`.
 
 ---
 
 ## Troubleshooting
 
-### "DNS provisioning failed" in journalctl
+### Bootstrap fails on first run
 
-- **Wrong cert.pem** — regenerate with `cloudflared tunnel login`, re-encrypt.
-- **Cert.pem is for the wrong account** — must match the account that owns
-  the tunnel.
+- **Wrong cert.pem** — regenerate with `cloudflared tunnel login`, re-encrypt
+  in sops.
+- **Cert.pem is for the wrong account** — must match the account that should
+  own the tunnel.
 - **Zone not active** — newly added domains need ~minutes to propagate
-  Cloudflare nameservers. Check the dashboard for "Active" status.
+  Cloudflare nameservers. Check the dashboard.
 
-### CNAME exists but points to old tunnel
+### Tunnel exists but service won't start
 
-`--overwrite-dns` should handle this. If not, delete the record manually in
-the dashboard and re-run `nh os switch`.
+```sh
+journalctl -u cloudflared-tunnel-chopper-main
+ls -la /var/lib/cloudflared/
+```
 
-### Service not reachable through tunnel
+If credentials file is missing, delete the tunnel in Cloudflare dashboard
+and let bootstrap recreate it. Or run the rotation flow above.
 
-Check in order:
-1. Is the underlying service actually listening?
-   `sudo ss -tlnp | grep <port>`
-2. Is `cloudflared` connected?
-   `journalctl -u cloudflared-tunnel-<id>`
-3. Is the CNAME present?
-   `dig example.tellmey.fyi`
-4. Cloudflare dashboard → Zero Trust → Networks → Tunnels → check status
+### DNS records pointing to wrong tunnel
+
+`--overwrite-dns` should fix this on the next run. Force it:
+```sh
+systemctl restart cloudflared-dns
+```
 
 ### Removing a hostname
 
-Remove the entry from the `ingress` block and run `nh os switch`. **Note:**
-the DNS module *creates* and *updates* records but does not delete them. To
-fully remove a CNAME, delete it manually in the Cloudflare dashboard after
-removing it from your config. (Idempotent removal is on the roadmap.)
+Remove the entry from `ingress` and run `nh os switch`. **Note:** the DNS
+module *creates* and *updates* records but does not delete them. To fully
+remove a CNAME, delete it manually in the Cloudflare dashboard after
+removing it from your config.
+
+### Removing a tunnel entirely
+
+1. Remove the name from `services.cloudflared-bootstrap.tunnels`.
+2. Remove the `services.cloudflared.tunnels.<name>` block.
+3. Deploy.
+4. Manually delete the tunnel + DNS records in the Cloudflare dashboard.
+
+(Auto-cleanup is on the roadmap but kept off by default for safety.)
 
 ---
 
-## Changing the apex domain (e.g. `tellmey.tech` → `tellmey.fyi`)
+## Migration notes (for the curious)
 
-This is a do-once-and-forget operation now:
+This repo previously hardcoded a tunnel UUID in `services.nix` and stored
+its credentials JSON in sops as `cloudflared-tunnel-credentials`. That
+worked but had two pain points:
 
-1. Add the new domain to your Cloudflare account
-2. Update every hostname in the ingress block (find/replace)
-3. Update `services.nextcloud.hostName` (and any other service that takes a
-   hostname argument)
-4. Generate a fresh `cert.pem` for the new zone (see "One-time setup" above)
-5. Re-encrypt it into sops, deploy
+1. The UUID was opaque — grepping for `b0ca1206-...` revealed nothing about
+   what tunnel it was.
+2. Setting up a fresh host (or recovering after losing credentials) required
+   manual `cloudflared tunnel create` + sops dance.
 
-Old DNS records under the previous domain stay until you delete them in the
-dashboard or remove the zone entirely.
+The `cloudflared-bootstrap` module replaces both: tunnels are addressed by
+friendly name, and creation is automatic.
+
+The `cloudflared-tunnel-credentials` sops secret is no longer used and was
+removed from `hosts/chopper/sops.nix`.
 
 ---
 
 ## Related docs
 
-- [`secrets.md`](./secrets.md) — how sops-nix secrets work (the cert.pem and
-  tunnel credentials are managed this way)
-- [`security.md`](./security.md) — firewall and SSH posture; explains why no
+- [`secrets.md`](./secrets.md) — how sops-nix secrets work; the cert.pem is
+  managed this way
+- [`security.md`](./security.md) — firewall/SSH posture; explains why no
   inbound ports are needed
 - [`deploy.md`](./deploy.md) — how to push config changes to chopper
