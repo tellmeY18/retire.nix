@@ -25,7 +25,7 @@ To use a stable package in a host config:
     config.allowUnfree = true;
   };
 in {
-  services.nextcloud.package = pkgs-stable.nextcloud31;
+  services.nextcloud.package = pkgs-stable.nextcloud32;
 })
 ```
 

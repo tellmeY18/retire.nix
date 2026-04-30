@@ -9,4 +9,11 @@
   type = "nixos"; # "nixos" or "darwin"
   users = [ ];
   roles = [ ];
+
+  # deploy-rs configuration (optional) — see docs/deploy.md
+  # deploy = {
+  #   host = "TAILSCALE_IP_OR_HOSTNAME";
+  #   sshUser = "root";
+  #   remoteBuild = true;
+  # };
 }

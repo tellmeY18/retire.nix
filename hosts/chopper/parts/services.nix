@@ -58,7 +58,7 @@
     hostName = "next.tellmey.tech";
 
     # Manually increment with every major upgrade.
-    package = pkgs.nextcloud31;
+    package = pkgs.nextcloud32;
 
     database.createLocally = true;
     configureRedis = true;

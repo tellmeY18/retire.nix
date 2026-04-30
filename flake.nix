@@ -39,6 +39,10 @@
       url = "github:Mic92/sops-nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    deploy-rs = {
+      url = "github:serokell/deploy-rs";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs =
@@ -53,6 +57,7 @@
       fenix,
       disko,
       sops-nix,
+      deploy-rs,
       ...
     }:
     let
@@ -73,18 +78,19 @@
       );
 
       devShells = myLib.forAllSystems (
-        { pkgs, ... }:
+        { pkgs, system, ... }:
         {
           default = pkgs.mkShell {
-            packages = with pkgs; [
-              nixpkgs-fmt
-              statix
-              deadnix
-              nil
-              sops
-              age
-              just
-              treefmt
+            packages = [
+              pkgs.nixpkgs-fmt
+              pkgs.statix
+              pkgs.deadnix
+              pkgs.nil
+              pkgs.sops
+              pkgs.age
+              pkgs.just
+              pkgs.treefmt
+              deploy-rs.packages.${system}.default
             ];
             shellHook = ''
               echo "nix-config devshell ready — run 'just' for available commands"
@@ -148,5 +154,15 @@
           modules = [ ./home/linux-home.nix ];
         };
       };
+
+      ## ── deploy-rs ────────────────────────────────────────────────────
+      deploy.nodes = myLib.mkDeployNodes {
+        hostsDir = ./hosts;
+        nixosConfigurations = self.nixosConfigurations;
+        deployLib = deploy-rs.lib;
+      };
+
+      ## ── Flake checks (includes deploy-rs validation) ─────────────────
+      checks = myLib.forAllSystems ({ system, ... }: deploy-rs.lib.${system}.deployChecks self.deploy);
     };
 }
