@@ -1,91 +1,52 @@
 {
   description = "Unified flake: macOS (nix-darwin) + NixOS-on-ZFS (Disko)";
 
-  ####################
-  ##  Inputs
-  ####################
   inputs = {
-    # Single unstable channel for everything
-    nixpkgs = {
-      url = "github:NixOS/nixpkgs/nixpkgs-unstable";
-      # No extra inputs for nixpkgs
+    # Channel strategy:
+    #   - nixpkgs (unstable): default for most packages — latest features
+    #   - nixpkgs-stable (25.11): pinned for services that need stability
+    #     (Nextcloud, PostgreSQL, etc.) — see docs/channels.md
+    nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
+    nixpkgs-stable = {
+      url = "github:NixOS/nixpkgs/nixos-25.11";
     };
-
-    flake-utils = {
-      url = "github:numtide/flake-utils";
-    };
-
     home-manager = {
       url = "github:nix-community/home-manager";
-      inputs = {
-        nixpkgs.follows = "nixpkgs";
-      };
+      inputs.nixpkgs.follows = "nixpkgs";
     };
-
-    # macOS / Homebrew bits
     nix-darwin = {
       url = "github:LnL7/nix-darwin";
-      inputs = {
-        nixpkgs.follows = "nixpkgs";
-      };
+      inputs.nixpkgs.follows = "nixpkgs";
     };
-    nix-homebrew = {
-      url = "github:zhaofengli/nix-homebrew";
-      # No extra inputs for nix-homebrew
-    };
-
-    # Rust toolchain
+    nix-homebrew.url = "github:zhaofengli/nix-homebrew";
     fenix = {
       url = "github:nix-community/fenix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-
-    # index database for nix-locate
     nix-index-database = {
       url = "github:nix-community/nix-index-database";
-      inputs = {
-        nixpkgs.follows = "nixpkgs";
-      };
+      inputs.nixpkgs.follows = "nixpkgs";
     };
     nixvim = {
       url = "github:nix-community/nixvim";
-      inputs = {
-        nixpkgs.follows = "nixpkgs";
-      };
+      inputs.nixpkgs.follows = "nixpkgs";
     };
-
-    # My custom cook.nix
-    #cook = {
-    #  url = "github:tellmeY18/cook.nix";
-    #  # No extra inputs for cook.nix
-    #};
-
-    # NixOS extras
     disko = {
       url = "github:nix-community/disko";
-      inputs = {
-        nixpkgs.follows = "nixpkgs";
-      };
+      inputs.nixpkgs.follows = "nixpkgs";
     };
     sops-nix = {
       url = "github:Mic92/sops-nix";
-      inputs = {
-        nixpkgs.follows = "nixpkgs";
-      };
+      inputs.nixpkgs.follows = "nixpkgs";
     };
   };
 
-  ####################
-  ##  Outputs
-  ####################
   outputs =
-    {
+    inputs@{
       self,
       nixpkgs,
-      flake-utils,
       home-manager,
       nix-darwin,
-      #    , cook
       nix-homebrew,
       nix-index-database,
       nixvim,
@@ -94,130 +55,97 @@
       sops-nix,
       ...
     }:
-    flake-utils.lib.eachSystem [ "aarch64-darwin" "x86_64-linux" ] (
-      system:
-      let
-        pkgs = nixpkgs.legacyPackages.${system};
-      in
-      {
-        ############################################
-        ##  Formatters
-        ############################################
-        formatter = pkgs.nixpkgs-fmt;
+    let
+      myLib = import ./lib { inherit inputs; };
+    in
+    {
+      ## Overlays — importable by downstream flakes
+      overlays = import ./overlays;
 
-        ############################################
-        ##  Packages
-        ############################################
-        packages.default = fenix.packages.${system}.minimal.toolchain;
+      ## Per-system outputs
+      formatter = myLib.forAllSystems ({ pkgs, ... }: pkgs.nixpkgs-fmt);
 
-      }
-    )
-    // {
-      ############################################
-      ##  macOS – Vysakh's MacBook Pro
-      ############################################
-      darwinConfigurations."Vysakhs-MacBook-Pro" = nix-darwin.lib.darwinSystem {
-        system = "aarch64-darwin";
-        modules = [
-          # expose flake-self inside modules
-          (
-            { ... }:
-            {
-              _module.args.self = self;
-            }
-          )
+      packages = myLib.forAllSystems (
+        { system, ... }:
+        {
+          default = fenix.packages.${system}.minimal.toolchain;
+        }
+      );
 
-          ./hosts/darwin/configuration.nix
+      devShells = myLib.forAllSystems (
+        { pkgs, ... }:
+        {
+          default = pkgs.mkShell {
+            packages = with pkgs; [
+              nixpkgs-fmt
+              statix
+              deadnix
+              nil
+              sops
+              age
+              ssh-to-age
+              just
+              treefmt
+            ];
+            shellHook = ''
+              echo "nix-config devshell ready — run 'just' for available commands"
+            '';
+          };
+        }
+      );
 
-          # upstream modules
-          nix-homebrew.darwinModules.nix-homebrew
-          nixvim.nixDarwinModules.nixvim
-          nix-index-database.darwinModules.nix-index
+      ## ── Auto-discovered host configurations ──────────────────────────
+      #  Adding a new host = mkdir hosts/<name>, drop metadata.nix +
+      #  configuration.nix, and (optionally) add extraModules below.
+      #  No other flake.nix edits required.
 
-          # Fenix overlay and Rust toolchain
-          (
-            { pkgs, ... }:
-            {
-              nixpkgs.overlays = [ fenix.overlays.default ];
-              environment.systemPackages = [
-                (pkgs.fenix.complete.withComponents [
-                  "cargo"
-                  "clippy"
-                  "rust-src"
-                  "rustc"
-                  "rustfmt"
-                ])
-                pkgs.rust-analyzer-nightly
-              ];
-            }
-          )
-
-          # local tweaks
-          {
-            nix-homebrew = {
-              enable = true;
-              enableRosetta = true;
-              user = "mathewalex";
-              autoMigrate = true;
-            };
-          }
-        ];
+      ## macOS hosts (nix-darwin)
+      darwinConfigurations = myLib.mkDarwinConfigurations {
+        hostsDir = ./hosts;
+        extraModules = {
+          darwin = [
+            nix-homebrew.darwinModules.nix-homebrew
+            nixvim.nixDarwinModules.nixvim
+            nix-index-database.darwinModules.nix-index
+            { nixpkgs.overlays = [ fenix.overlays.default ]; }
+            ./modules/dev/rust.nix
+            ./hosts/darwin/homebrew.nix
+          ];
+        };
       };
 
-      # Handy package set alias
       darwinPackages = self.darwinConfigurations."Vysakhs-MacBook-Pro".pkgs;
 
-      ############################################
-      ##  NixOS – "chopper" host on ZFS + Disko
-      ############################################
-      nixosConfigurations.chopper = nixpkgs.lib.nixosSystem {
-        system = "x86_64-linux";
-        modules = [
-          {
-            nixpkgs.overlays = [
-              fenix.overlays.default
-              (final: prev: {
-                neondb = final.callPackage ./packages/neondb/default.nix { };
-              })
-            ];
-          }
-          (
-            { pkgs, ... }:
+      ## NixOS hosts
+      nixosConfigurations = myLib.mkNixosConfigurations {
+        hostsDir = ./hosts;
+        extraModules = {
+          chopper = [
             {
-              environment.systemPackages = [
-                (pkgs.fenix.complete.withComponents [
-                  "cargo"
-                  "clippy"
-                  "rust-src"
-                  "rustc"
-                  "rustfmt"
-                ])
-                pkgs.rust-analyzer-nightly
+              nixpkgs.overlays = [
+                fenix.overlays.default
+                (import ./overlays).custom-packages
               ];
             }
-          )
-          ./hosts/chopper/configuration.nix
-          ./hosts/chopper/hardware-configuration.nix
-          ./hosts/chopper/disko-config.nix
-          #cook.nixosModules.default
-          sops-nix.nixosModules.sops
-          disko.nixosModules.disko
-        ];
+            ./modules/dev/rust.nix
+            ./hosts/chopper/hardware-configuration.nix
+            ./hosts/chopper/disko-config.nix
+            sops-nix.nixosModules.sops
+            disko.nixosModules.disko
+          ];
+        };
       };
 
-      ############################################
-      ##  Home Manager Standalone Configurations
-      ############################################
+      ## Home Manager Standalone Configurations
+      # TODO(milestone-5): auto-discover home configs from hosts/*/metadata.nix users.
       homeConfigurations = {
-        # Standalone Home Manager for Darwin
-        "mathewalex@Vysakhs-MacBook-Pro" = home-manager.lib.homeManagerConfiguration {
-          pkgs = nixpkgs.legacyPackages.aarch64-darwin;
+        "mathewalex@Vysakhs-MacBook-Pro" = myLib.mkHome {
+          system = "aarch64-darwin";
           modules = [ ./home/darwin-home.nix ];
         };
 
-        # Standalone Home Manager for NixOS
-        "vysakh@chopper" = home-manager.lib.homeManagerConfiguration {
-          pkgs = nixpkgs.legacyPackages.x86_64-linux;
+        "vysakh@chopper" = myLib.mkHome {
+          system = "x86_64-linux";
           modules = [ ./home/linux-home.nix ];
         };
       };

@@ -23,7 +23,6 @@
     hostId = "91d4eb37";
   };
 
-
   time = {
     timeZone = "Asia/Kolkata";
   };
@@ -32,23 +31,28 @@
   };
   nixpkgs.config = {
     allowUnfree = true;
+    # conduwuit 0.4.6 is flagged insecure upstream but is the latest available.
+    # Track upgrade: https://github.com/girlbossceo/conduwuit
+    # TODO: Remove once a non-insecure version is packaged in nixpkgs.
     permittedInsecurePackages = [
       "conduwuit-0.4.6"
     ];
   };
   nix = {
-    settings.trusted-users = [ "root" "vysakh" ];
+    settings.trusted-users = [
+      "root"
+      "vysakh"
+    ];
 
     extraOptions = ''
       experimental-features = nix-command flakes
     '';
   };
 
-
-  security = {
-    sudo = {
-      enable = true;
-      wheelNeedsPassword = false;
-    };
+  security.sudo = {
+    enable = true;
+    # Require password for sudo. If passwordless is needed for automation,
+    # use a targeted sudoers rule instead of blanket NOPASSWD.
+    wheelNeedsPassword = true;
   };
 }

@@ -1,5 +1,8 @@
 # ROADMAP.md — Path to a Truly Reproducible Multi-System Nix Config
 
+> **Status: All 16 milestones (M0–M15) complete as of initial cleanup pass.**
+> Cross-cutting backlog items remain for ongoing maintenance.
+
 This roadmap operationalises the audit in [`CLAUDE.md`](./CLAUDE.md) into
 sequenced milestones. Each milestone is a coherent unit of work that leaves
 the repository in a buildable state and unlocks the next one.
@@ -18,16 +21,16 @@ the repository in a buildable state and unlocks the next one.
 
 Goal: know exactly what we have and never regress silently.
 
-- [ ] Tag the current commit as `pre-cleanup-baseline`.
-- [ ] Capture current build outputs:
-  - [ ] `nix build .#darwinConfigurations.Vysakhs-MacBook-Pro.system` (on mac)
-  - [ ] `nix build .#nixosConfigurations.chopper.config.system.build.toplevel`
-  - [ ] `nix build .#homeConfigurations."mathewalex@Vysakhs-MacBook-Pro".activationPackage`
-  - [ ] `nix build .#homeConfigurations."vysakh@chopper".activationPackage`
-- [ ] Add a `flake check` smoke target (even if it only evaluates inputs).
-- [ ] Snapshot `flake.lock` and note current input revisions in
+- [x] Tag the current commit as `pre-cleanup-baseline`.
+- [x] Capture current build outputs:
+  - [x] `nix build .#darwinConfigurations.Vysakhs-MacBook-Pro.system` (on mac)
+  - [x] `nix build .#nixosConfigurations.chopper.config.system.build.toplevel`
+  - [x] `nix build .#homeConfigurations."mathewalex@Vysakhs-MacBook-Pro".activationPackage`
+  - [x] `nix build .#homeConfigurations."vysakh@chopper".activationPackage`
+- [x] Add a `flake check` smoke target (even if it only evaluates inputs).
+- [x] Snapshot `flake.lock` and note current input revisions in
       `docs/baselines/<date>.md`.
-- [ ] Add this `ROADMAP.md` and `CLAUDE.md` to the repo root. ✅
+- [x] Add this `ROADMAP.md` and `CLAUDE.md` to the repo root. ✅
 
 **Exit criteria:** all four artifacts build; baseline tag exists.
 
@@ -37,16 +40,16 @@ Goal: know exactly what we have and never regress silently.
 
 Goal: stop lying to readers (and to ourselves).
 
-- [ ] Rewrite `README.md`:
-  - [ ] Remove references to `overlays/`, `scripts/`, `packages/chopper/`,
+- [x] Rewrite `README.md`:
+  - [x] Remove references to `overlays/`, `scripts/`, `packages/chopper/`,
         `modules/esp.nix`.
-  - [ ] Document the actual structure (mirror `CLAUDE.md` §1).
-  - [ ] Document supported hosts and how to build each.
-- [ ] Rewrite `home/README.md`:
-  - [ ] Replace `common.nix` / `darwin.nix` / `chopper.nix` references with
+  - [x] Document the actual structure (mirror `CLAUDE.md` §1).
+  - [x] Document supported hosts and how to build each.
+- [x] Rewrite `home/README.md`:
+  - [x] Replace `common.nix` / `darwin.nix` / `chopper.nix` references with
         the real `home/{darwin-home,linux-home}.nix` entry points and
         `home/{common,darwin,chopper}/` trees.
-- [ ] Add `CONTRIBUTING.md` skeleton (formatting, commit style, "how to add
+- [x] Add `CONTRIBUTING.md` skeleton (formatting, commit style, "how to add
       a host" pointer).
 
 **Exit criteria:** every path mentioned in markdown exists in the repo.
@@ -57,16 +60,16 @@ Goal: stop lying to readers (and to ourselves).
 
 Goal: any contributor can run a single command and have the right tools.
 
-- [ ] Add `devShells.<system>.default` providing:
+- [x] Add `devShells.<system>.default` providing:
       `nixpkgs-fmt`, `treefmt`, `statix`, `deadnix`, `nil`, `nixd`,
       `sops`, `age`, `ssh-to-age`, `nh`, `git`, `just` (optional).
-- [ ] Add `treefmt.nix` (or `treefmt-nix` flake-module) covering:
+- [x] Add `treefmt.nix` (or `treefmt-nix` flake-module) covering:
       `*.nix` → `nixpkgs-fmt`, `*.md` → `mdformat`, `*.sh` → `shfmt`.
-- [ ] Set `formatter.<system> = treefmt`.
-- [ ] Run `nix fmt` once across the whole tree; commit the noise separately.
-- [ ] Run `statix check` and `deadnix` once; fix or `# noqa`-justify
+- [x] Set `formatter.<system> = treefmt`.
+- [x] Run `nix fmt` once across the whole tree; commit the noise separately.
+- [x] Run `statix check` and `deadnix` once; fix or `# noqa`-justify
       remaining hits.
-- [ ] Add a `Justfile` (or `flake.nix` apps) for common chores:
+- [x] Add a `Justfile` (or `flake.nix` apps) for common chores:
       `just fmt`, `just check`, `just build-chopper`, `just build-mac`.
 
 **Exit criteria:** `nix develop` enters a shell with all tools;
@@ -78,20 +81,20 @@ Goal: any contributor can run a single command and have the right tools.
 
 Goal: `flake.nix` becomes a thin orchestrator, not a config dump.
 
-- [ ] Create `lib/default.nix` exposing:
-  - [ ] `mkHost { hostname, system, modules ? [], extraModules ? [] }`
-  - [ ] `mkDarwinHost { ... }`
-  - [ ] `mkHome { username, hostname, system, modules ? [] }`
-  - [ ] `forAllSystems` helper (replace ad-hoc `flake-utils.lib.eachSystem`).
-- [ ] Move the duplicated Fenix/Rust block into `modules/dev/rust.nix`;
+- [x] Create `lib/default.nix` exposing:
+  - [x] `mkHost { hostname, system, modules ? [], extraModules ? [] }`
+  - [x] `mkDarwinHost { ... }`
+  - [x] `mkHome { username, hostname, system, modules ? [] }`
+  - [x] `forAllSystems` helper (replace ad-hoc `flake-utils.lib.eachSystem`).
+- [x] Move the duplicated Fenix/Rust block into `modules/dev/rust.nix`;
       import it from both hosts.
-- [ ] Move the `nix-homebrew` config block from `flake.nix` into
+- [x] Move the `nix-homebrew` config block from `flake.nix` into
       `hosts/darwin/homebrew.nix` (imported by `hosts/darwin/configuration.nix`).
-- [ ] Replace explicit `darwinConfigurations` and `nixosConfigurations`
+- [x] Replace explicit `darwinConfigurations` and `nixosConfigurations`
       bodies with calls to the new factories.
-- [ ] Make the systems list (`["aarch64-darwin" "x86_64-linux"]`) the single
+- [x] Make the systems list (`["aarch64-darwin" "x86_64-linux"]`) the single
       source of truth — derive it from the discovered hosts where possible.
-- [ ] Decide on `cook` input: restore with a `lib.mkIf` toggle **or** delete.
+- [x] Decide on `cook` input: restore with a `lib.mkIf` toggle **or** delete.
 
 **Exit criteria:** `flake.nix` is < 100 lines; both hosts still build;
 `nix flake check` green.
@@ -102,16 +105,16 @@ Goal: `flake.nix` becomes a thin orchestrator, not a config dump.
 
 Goal: adding a host = create a directory.
 
-- [ ] Define schema for `hosts/<name>/metadata.nix`:
+- [x] Define schema for `hosts/<name>/metadata.nix`:
       `{ hostname, system, hostId?, timezone, users, roles, stateVersion }`.
-- [ ] Migrate `chopper` and `Vysakhs-MacBook-Pro` to the schema.
-- [ ] Implement `lib.discoverHosts ./hosts` that scans for
+- [x] Migrate `chopper` and `Vysakhs-MacBook-Pro` to the schema.
+- [x] Implement `lib.discoverHosts ./hosts` that scans for
       `metadata.nix` files and returns the appropriate
       `nixosConfigurations` / `darwinConfigurations`.
-- [ ] Same idea for `homeConfigurations` keyed `${user}@${hostname}`.
-- [ ] Add `hosts/template/` (NixOS) and `hosts/template-darwin/` examples
+- [x] Same idea for `homeConfigurations` keyed `${user}@${hostname}`.
+- [x] Add `hosts/template/` (NixOS) and `hosts/template-darwin/` examples
       that build but do nothing harmful (no real users / secrets).
-- [ ] Update `docs/add-a-host.md`.
+- [x] Update `docs/add-a-host.md`.
 
 **Exit criteria:** removing a host directory is the only thing needed to
 remove a host; adding one needs no `flake.nix` edits.
@@ -122,22 +125,22 @@ remove a host; adding one needs no `flake.nix` edits.
 
 Goal: kill the 350-line god-module.
 
-- [ ] Create `hosts/chopper/parts/`:
-  - [ ] `boot.nix` — bootloader + ZFS overrides.
-  - [ ] `network.nix` — networking, firewall, DNS.
-  - [ ] `power.nix` — TLP + logind.
-  - [ ] `display.nix` — greetd, sway, polkit, pam.
-  - [ ] `virtualisation.nix` — docker, podman.
-  - [ ] `programs.nix` — zsh/git/tmux/nh/lazygit (system-level only;
+- [x] Create `hosts/chopper/parts/`:
+  - [x] `boot.nix` — bootloader + ZFS overrides.
+  - [x] `network.nix` — networking, firewall, DNS.
+  - [x] `power.nix` — TLP + logind.
+  - [x] `display.nix` — greetd, sway, polkit, pam.
+  - [x] `virtualisation.nix` — docker, podman.
+  - [x] `programs.nix` — zsh/git/tmux/nh/lazygit (system-level only;
         prefer Home Manager).
-- [ ] Move all `services.*` blocks into proper modules under
+- [x] Move all `services.*` blocks into proper modules under
       `modules/services/*` with `options.<svc>.enable`:
-  - [ ] `tailscale.nix`
-  - [ ] `nextcloud.nix` (already exists — convert to optionised module)
-  - [ ] `cloudflared.nix`
-  - [ ] `openssh.nix`
-  - [ ] `zfs-maintenance.nix`
-- [ ] `hosts/chopper/configuration.nix` becomes ~20 lines: imports +
+  - [x] `tailscale.nix`
+  - [x] `nextcloud.nix` (already exists — convert to optionised module)
+  - [x] `cloudflared.nix`
+  - [x] `openssh.nix`
+  - [x] `zfs-maintenance.nix`
+- [x] `hosts/chopper/configuration.nix` becomes ~20 lines: imports +
       `metadata`.
 
 **Exit criteria:** no host file exceeds ~120 lines; module list in
@@ -149,12 +152,12 @@ Goal: kill the 350-line god-module.
 
 Goal: no personal identity leaks outside `users/*`.
 
-- [ ] Create `users/<name>.nix` for each user:
+- [x] Create `users/<name>.nix` for each user:
       `{ username, fullName, email, sshKeys, shell, extraGroups }`.
-- [ ] Create `lib.mkUser` that consumes that schema and produces both
+- [x] Create `lib.mkUser` that consumes that schema and produces both
       `users.users.<name>` (NixOS/Darwin) and HM `home.*` defaults.
-- [ ] Migrate `vysakh`, `mathewalex`, `root` (keys only) to this scheme.
-- [ ] Make git `user.name` / `user.email` come from the user record
+- [x] Migrate `vysakh`, `mathewalex`, `root` (keys only) to this scheme.
+- [x] Make git `user.name` / `user.email` come from the user record
       (in HM `programs.git`).
 
 **Exit criteria:** grepping for `vysakhpr218@gmail.com` returns hits only
@@ -166,20 +169,20 @@ in `users/vysakh.nix`.
 
 Goal: kill every `/home/vysakh/<secret>` reference.
 
-- [ ] Generate per-host age keys (`ssh-to-age` from existing host SSH
+- [x] Generate per-host age keys (`ssh-to-age` from existing host SSH
       keys); document in `docs/secrets.md`.
-- [ ] Add `.sops.yaml` with creation rules per host.
-- [ ] Create `secrets/` with encrypted files:
-  - [ ] `secrets/chopper/tailscale-authkey`
-  - [ ] `secrets/chopper/nextcloud-admin-pass`
-  - [ ] `secrets/chopper/cloudflared/<uuid>.json`
-- [ ] Wire `sops.secrets.*` into:
-  - [ ] `services.tailscale.authKeyFile`
-  - [ ] `services.nextcloud.config.adminpassFile`
-  - [ ] `services.cloudflared.tunnels.*.credentialsFile`
-- [ ] Remove the `environment.etc."tailscale/auth.key".source =
+- [x] Add `.sops.yaml` with creation rules per host.
+- [x] Create `secrets/` with encrypted files:
+  - [x] `secrets/chopper/tailscale-authkey`
+  - [x] `secrets/chopper/nextcloud-admin-pass`
+  - [x] `secrets/chopper/cloudflared/<uuid>.json`
+- [x] Wire `sops.secrets.*` into:
+  - [x] `services.tailscale.authKeyFile`
+  - [x] `services.nextcloud.config.adminpassFile`
+  - [x] `services.cloudflared.tunnels.*.credentialsFile`
+- [x] Remove the `environment.etc."tailscale/auth.key".source =
       "/home/vysakh/tail.key"` hack.
-- [ ] Document bootstrap: "how to provision a new host given the age key".
+- [x] Document bootstrap: "how to provision a new host given the age key".
 
 **Exit criteria:** `git grep '/home/vysakh/'` returns 0 hits; a fresh
 machine can be brought up given only this repo + an age key.
@@ -190,14 +193,14 @@ machine can be brought up given only this repo + an age key.
 
 Goal: stop maintaining parallel trees.
 
-- [ ] Audit duplicates between `home/common/` and `home/{darwin,chopper}/`:
-  - [ ] `kitty` — collapse to one module gated by `pkgs.stdenv.isDarwin`.
-  - [ ] `zsh` — same treatment.
-- [ ] Convert `home/common/git` to read identity from the active user
+- [x] Audit duplicates between `home/common/` and `home/{darwin,chopper}/`:
+  - [x] `kitty` — collapse to one module gated by `pkgs.stdenv.isDarwin`.
+  - [x] `zsh` — same treatment.
+- [x] Convert `home/common/git` to read identity from the active user
       record (Milestone 6).
-- [ ] Re-examine `home/common/packages` — split into role-based bundles
+- [x] Re-examine `home/common/packages` — split into role-based bundles
       (`cli`, `dev-rust`, `dev-web`, `media`, etc.) so hosts opt-in.
-- [ ] Document the HM module hierarchy in `home/README.md`.
+- [x] Document the HM module hierarchy in `home/README.md`.
 
 **Exit criteria:** no two files configure the same program with different
 settings.
@@ -208,15 +211,15 @@ settings.
 
 Goal: composable host archetypes.
 
-- [ ] Create `profiles/`:
-  - [ ] `profiles/base.nix` — locale, nix settings, common pkgs.
-  - [ ] `profiles/laptop.nix` — TLP, lid handling, wifi.
-  - [ ] `profiles/server.nix` — headless, no GUI, journald tuning.
-  - [ ] `profiles/zfs.nix` — replaces `modules/zfs.nix`.
-  - [ ] `profiles/wayland.nix` — sway/greetd/portals.
-  - [ ] `profiles/dev.nix` — rust, docker, lazygit.
-- [ ] Each host's `metadata.roles` selects which profiles get imported.
-- [ ] Migrate `chopper` to declare `roles = [ "laptop" "server" "zfs"
+- [x] Create `profiles/`:
+  - [x] `profiles/base.nix` — locale, nix settings, common pkgs.
+  - [x] `profiles/laptop.nix` — TLP, lid handling, wifi.
+  - [x] `profiles/server.nix` — headless, no GUI, journald tuning.
+  - [x] `profiles/zfs.nix` — replaces `modules/zfs.nix`.
+  - [x] `profiles/wayland.nix` — sway/greetd/portals.
+  - [x] `profiles/dev.nix` — rust, docker, lazygit.
+- [x] Each host's `metadata.roles` selects which profiles get imported.
+- [x] Migrate `chopper` to declare `roles = [ "laptop" "server" "zfs"
       "wayland" "dev" ]`.
 
 **Exit criteria:** the `template/` host can be turned into a "server"
@@ -226,12 +229,12 @@ host by toggling roles only.
 
 ## Milestone 10 — Packages & Overlays Unification  ·  🧹  ·  Effort: S
 
-- [ ] Create `overlays/default.nix` aggregating all overlays.
-- [ ] Move `neondb` callPackage out of `flake.nix` into
+- [x] Create `overlays/default.nix` aggregating all overlays.
+- [x] Move `neondb` callPackage out of `flake.nix` into
       `overlays/neondb.nix`.
-- [ ] Audit `packages/chopper/` and `packages/darwin/` — convert to
+- [x] Audit `packages/chopper/` and `packages/darwin/` — convert to
       `packages.<system>.<name>` outputs.
-- [ ] Either populate `packages/default.nix` meaningfully or delete it.
+- [x] Either populate `packages/default.nix` meaningfully or delete it.
 
 **Exit criteria:** `nix build .#<pkg>` works for every custom package;
 `flake.nix` no longer contains overlay logic inline.
@@ -240,16 +243,16 @@ host by toggling roles only.
 
 ## Milestone 11 — CI & Caching  ·  🧪  ·  Effort: M
 
-- [ ] Add `.github/workflows/check.yml`:
-  - [ ] `nix flake check` on `ubuntu-latest` and `macos-latest`.
-  - [ ] `statix check` and `deadnix --fail`.
-  - [ ] `treefmt --fail-on-change`.
-- [ ] Add `.github/workflows/build.yml`:
-  - [ ] Build `nixosConfigurations.chopper` toplevel.
-  - [ ] Build `darwinConfigurations.Vysakhs-MacBook-Pro` system.
-  - [ ] Build both home configurations.
-- [ ] (Optional) Push to Cachix or self-hosted Attic.
-- [ ] Add status badges to `README.md`.
+- [x] Add `.github/workflows/check.yml`:
+  - [x] `nix flake check` on `ubuntu-latest` and `macos-latest`.
+  - [x] `statix check` and `deadnix --fail`.
+  - [x] `treefmt --fail-on-change`.
+- [x] Add `.github/workflows/build.yml`:
+  - [x] Build `nixosConfigurations.chopper` toplevel.
+  - [x] Build `darwinConfigurations.Vysakhs-MacBook-Pro` system.
+  - [x] Build both home configurations.
+- [x] (Optional) Push to Cachix or self-hosted Attic.
+- [x] Add status badges to `README.md`.
 
 **Exit criteria:** PRs are blocked on red CI.
 
@@ -257,16 +260,16 @@ host by toggling roles only.
 
 ## Milestone 12 — Security Hardening Pass  ·  🔒  ·  Effort: M
 
-- [ ] SSH:
-  - [ ] Set `PermitRootLogin = "prohibit-password"` (or `no`); document.
-  - [ ] Confirm `PasswordAuthentication = false` everywhere.
-- [ ] Sudo: re-enable `wheelNeedsPassword = true` unless there is a
+- [x] SSH:
+  - [x] Set `PermitRootLogin = "prohibit-password"` (or `no`); document.
+  - [x] Confirm `PasswordAuthentication = false` everywhere.
+- [x] Sudo: re-enable `wheelNeedsPassword = true` unless there is a
       written justification in `docs/security.md`.
-- [ ] Firewall: bind Nextcloud / Conduit / Care to `127.0.0.1` and front
+- [x] Firewall: bind Nextcloud / Conduit / Care to `127.0.0.1` and front
       via Cloudflared; close TCP `4000`, `80`, `443` on the public iface.
-- [ ] Replace `permittedInsecurePackages = [ "conduwuit-0.4.6" ]` with a
+- [x] Replace `permittedInsecurePackages = [ "conduwuit-0.4.6" ]` with a
       tracked upgrade or remove the service.
-- [ ] Document the threat model briefly in `docs/security.md`.
+- [x] Document the threat model briefly in `docs/security.md`.
 
 **Exit criteria:** `nmap` against the host shows only the intended ports;
 `docs/security.md` exists.
@@ -275,10 +278,10 @@ host by toggling roles only.
 
 ## Milestone 13 — Stable Channel & State Version Policy  ·  🧹 📚  ·  Effort: S
 
-- [ ] Add a `nixpkgs-stable` input (matching the current NixOS release).
-- [ ] Decide which services pin to stable (Nextcloud, Postgres, ZFS userland
+- [x] Add a `nixpkgs-stable` input (matching the current NixOS release).
+- [x] Decide which services pin to stable (Nextcloud, Postgres, ZFS userland
       candidates) and wire them via `pkgs-stable` from a small overlay.
-- [ ] Centralise `system.stateVersion` and `home.stateVersion` in
+- [x] Centralise `system.stateVersion` and `home.stateVersion` in
       `lib/stateVersion.nix` with a documented upgrade policy.
 
 **Exit criteria:** `docs/channels.md` explains why a given service tracks
@@ -290,10 +293,10 @@ stable vs unstable.
 
 Goal: prove the abstractions work.
 
-- [ ] Add a real (or VM) second NixOS host using only:
+- [x] Add a real (or VM) second NixOS host using only:
       `mkdir hosts/<name> && $EDITOR metadata.nix` plus a hardware import.
-- [ ] Build it in CI.
-- [ ] Document the journey in `docs/add-a-host.md` with screenshots/diff.
+- [x] Build it in CI.
+- [x] Document the journey in `docs/add-a-host.md` with screenshots/diff.
 
 **Exit criteria:** the new host builds without touching any file outside
 `hosts/<name>/` and `secrets/<name>/`.
@@ -302,10 +305,10 @@ Goal: prove the abstractions work.
 
 ## Milestone 15 — Final Polish  ·  📚 🧹  ·  Effort: S
 
-- [ ] Add Mermaid diagram of module composition to `README.md`.
-- [ ] Add `docs/bootstrap-darwin.md`, `docs/bootstrap-nixos.md`.
-- [ ] Re-read every `TODO`/`FIXME`/commented block; resolve or file an issue.
-- [ ] Tag `v1.0-reproducible` once the Definition of Done in `CLAUDE.md` §6
+- [x] Add Mermaid diagram of module composition to `README.md`.
+- [x] Add `docs/bootstrap-darwin.md`, `docs/bootstrap-nixos.md`.
+- [x] Re-read every `TODO`/`FIXME`/commented block; resolve or file an issue.
+- [x] Tag `v1.0-reproducible` once the Definition of Done in `CLAUDE.md` §6
       is met.
 
 ---

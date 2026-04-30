@@ -8,7 +8,8 @@ This document provides an overview of the Zsh configuration managed by Nix Home 
 
 This configuration uses the popular [Oh-My-Zsh](https://ohmyz.sh/) framework to manage themes and plugins.
 
-- **Theme**: `robbyrussell` is used for a clean and simple prompt.
+- **Theme**: `jonathan` is the base theme on Linux. On macOS, `darwin/zsh`
+  overrides this to `robbyrussell` via `lib.mkForce`.
 - **Plugins**: A curated list of plugins is enabled to add useful features and completions for tools like:
   - `git`
   - `docker` & `docker-compose`

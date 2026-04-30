@@ -1,0 +1,46 @@
+# CI: Build Configurations — evaluate all host and home-manager configs
+# Uses --dry-run so Nix fully evaluates every derivation (catching syntax
+# errors, missing attributes, type mismatches) without downloading or
+# building store paths. Full builds are left to the machine owner locally.
+name: Build Configurations
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-nixos:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: DeterminateSystems/nix-installer-action@main
+
+      - uses: DeterminateSystems/magic-nix-cache-action@main
+
+      - name: Build chopper (NixOS) toplevel
+        run: nix build .#nixosConfigurations.chopper.config.system.build.toplevel --dry-run
+
+      - name: Build Home Manager (chopper)
+        run: nix build .#homeConfigurations."vysakh@chopper".activationPackage --dry-run
+
+  build-darwin:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: DeterminateSystems/nix-installer-action@main
+
+      - uses: DeterminateSystems/magic-nix-cache-action@main
+
+      - name: Build macOS (darwin) system
+        run: nix build .#darwinConfigurations."Vysakhs-MacBook-Pro".system --dry-run
+
+      - name: Build Home Manager (darwin)
+        run: nix build .#homeConfigurations."mathewalex@Vysakhs-MacBook-Pro".activationPackage --dry-run

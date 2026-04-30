@@ -1,5 +1,13 @@
+# packages/default.nix — custom package set
+#
+# Usage:
+#   Consumed by overlays/default.nix via callPackage.
+#   Platform-specific packages are under packages/<platform>/.
 {
+  # Platform package sets (imported by their respective host configs)
   darwin = import ./darwin;
   chopper = import ./chopper;
-  # Add more platforms or shared packages here as needed
+
+  # Cross-platform packages
+  neondb = ./neondb;
 }

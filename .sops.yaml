@@ -1,0 +1,22 @@
+# .sops.yaml — sops-nix encryption rules
+#
+# Recipients:
+#   - Each host has an age key derived from its SSH host key:
+#     ssh-to-age -private-key -i /etc/ssh/ssh_host_ed25519_key > /var/lib/sops-nix/key.txt
+#   - Admin key: for decrypting on workstations during editing
+#
+# To add a new host:
+#   1. Get the host's SSH ed25519 public key
+#   2. Convert: ssh-to-age < /etc/ssh/ssh_host_ed25519_key.pub
+#   3. Add the age public key below and run: sops updatekeys secrets/<host>/secrets.yaml
+
+keys:
+  - &admin_key age1PLACEHOLDER_ADMIN_KEY_HERE
+  - &chopper age1PLACEHOLDER_CHOPPER_HOST_KEY_HERE
+
+creation_rules:
+  - path_regex: secrets/chopper/.*
+    key_groups:
+      - age:
+          - *admin_key
+          - *chopper

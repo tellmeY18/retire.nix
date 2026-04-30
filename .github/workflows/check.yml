@@ -1,0 +1,35 @@
+# CI: Nix Flake Check — lint, dead-code, and format validation
+# Runs on every push/PR to main. Lightweight (no builds).
+name: Nix Flake Check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: DeterminateSystems/nix-installer-action@main
+
+      - uses: DeterminateSystems/magic-nix-cache-action@main
+
+      - name: Nix flake check
+        run: nix flake check --no-build
+
+      - name: Statix lint
+        run: nix run nixpkgs#statix -- check .
+
+      - name: Deadnix check
+        run: nix run nixpkgs#deadnix -- --fail .
+
+      - name: Format check (treefmt)
+        run: nix run nixpkgs#treefmt -- --fail-on-change
