@@ -26,18 +26,11 @@
         group = "nextcloud";
         mode = "0400";
       };
-      "cloudflared-tunnel-credentials" = {
-        # cloudflared runs as a DynamicUser via systemd, so there's no
-        # static `cloudflared` user on the system. Keep the secret owned
-        # by root; systemd makes it accessible to the service.
-        owner = "root";
-        group = "root";
-        mode = "0400";
-      };
       "cloudflare-cert" = {
-        # Origin cert (cert.pem) for declarative DNS provisioning via
-        # services.cloudflared-dns. Generated with `cloudflared tunnel login`
-        # on a workstation, then encrypted into secrets/chopper/secrets.yaml.
+        # Origin cert (cert.pem) for declarative DNS provisioning AND
+        # tunnel auto-creation via services.cloudflared-{bootstrap,dns}.
+        # Generated with `cloudflared tunnel login` on a workstation, then
+        # encrypted into secrets/chopper/secrets.yaml.
         owner = "root";
         group = "root";
         mode = "0400";

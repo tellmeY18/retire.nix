@@ -91,10 +91,13 @@
   ####################
   # Cloudflare Tunnel#
   ####################
+  # Tunnels are auto-created by services.cloudflared-bootstrap below.
+  # We reference them by NAME (not UUID) so the config has a stable SSOT.
+  # The credentials file is auto-written by the bootstrap module.
   services.cloudflared = {
     enable = true;
-    tunnels."b0ca1206-1d09-4892-9d69-d3a196877013" = {
-      credentialsFile = "/run/secrets/cloudflared-tunnel-credentials";
+    tunnels.chopper-main = {
+      credentialsFile = "/var/lib/cloudflared/chopper-main.json";
       default = "http_status:404";
       ingress = {
         "next.tellmey.fyi" = {
@@ -113,9 +116,16 @@
     };
   };
 
+  # Auto-create tunnels in Cloudflare on activation if they don't exist.
+  # Writes credentials to /var/lib/cloudflared/<name>.json.
+  services.cloudflared-bootstrap = {
+    enable = true;
+    certificateFile = "/run/secrets/cloudflare-cert";
+    tunnels = [ "chopper-main" ];
+  };
+
   # Declarative DNS provisioning — auto-creates Cloudflare CNAMEs for every
-  # hostname declared in services.cloudflared.tunnels.<id>.ingress above.
-  # The cert.pem is sourced from sops at /run/secrets/cloudflare-cert.
+  # hostname declared in services.cloudflared.tunnels.<name>.ingress above.
   services.cloudflared-dns = {
     enable = true;
     certificateFile = "/run/secrets/cloudflare-cert";
