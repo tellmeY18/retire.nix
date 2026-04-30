@@ -1,14 +1,60 @@
 # .sops.yaml — sops-nix encryption rules
 #
-# Key hierarchy:
+# =============================================================================
+# TWO-TIER SECRET ARCHITECTURE
+# =============================================================================
+#
+# This repository has two distinct classes of encrypted secrets, each with a
+# different decryption actor and a different point-in-time for decryption:
+#
+# TIER 1 — NixOS-side secrets  (under secrets/<host>/)
+# -------------------------------------------------------
+#   Decrypted by: sops-nix at NixOS system activation time
+#   How:          the host reads its own age private key from
+#                 /var/lib/sops-nix/key.txt, decrypts the secret, and
+#                 materialises it under /run/secrets/<name> (tmpfs).
+#   Who can decrypt: master key (laptop) + the specific host's age key
+#   Examples:
+#     secrets/chopper/k3s-token                   → k3s join token for all
+#                                                    cluster nodes
+#     secrets/chopper/tailscale-operator-oauth    → OAuth creds bootstrapped
+#                                                    into the Tailscale k8s
+#                                                    operator Secret manifest
+#     secrets/chopper/secrets.yaml                → Tailscale auth key,
+#                                                    Nextcloud admin pass,
+#                                                    Cloudflared tunnel creds
+#
+# TIER 2 — Cluster-side secrets  (under k8s/clusters/*/secrets/)
+# ---------------------------------------------------------------
+#   Decrypted by: the operator's laptop, manually, via `just k8s-apply`
+#   How:          `sops --decrypt <file> | kubectl apply -f -` or
+#                 `helmfile` with the helm-secrets plugin.
+#                 Cluster nodes never need to hold these decrypt keys.
+#   Who can decrypt: master key only (the laptop)
+#   Examples:
+#     k8s/clusters/chopper/secrets/cnpg-backup-s3.enc.yaml
+#                                                 → Barman Cloud / S3 creds
+#                                                    for off-site CNPG backups
+#     k8s/apps/*/secrets.yaml                     → Helm chart values with
+#                                                    embedded secrets
+#
+# KEY PRINCIPLE: Plaintext Secret manifests MUST NEVER enter git.
+#   Every file matching k8s/**/secrets.yaml and k8s/**/*.enc.yaml is
+#   encrypted by the rules below. A .gitattributes diff driver can
+#   additionally be used for readability, but encryption is the hard rule.
+#
+# =============================================================================
+# KEY HIERARCHY
+# =============================================================================
+#
 #   - MASTER KEY: generated with `age-keygen` on your primary device.
-#     Can decrypt ALL secrets across every host.
+#     Can decrypt ALL secrets across every host and every k8s context.
 #     Private key: keep safe (password manager, encrypted USB, etc.)
 #     Public key: listed below as &master
 #
 #   - HOST KEYS: generated with `age-keygen` on each managed machine.
 #     Stored at /var/lib/sops-nix/key.txt on the host.
-#     Can ONLY decrypt secrets under secrets/<that-host>/*.
+#     Can ONLY decrypt Tier-1 secrets under secrets/<that-host>/*.
 #
 # To set up:
 #   1. Generate master key:   age-keygen -o master.key
@@ -28,18 +74,56 @@ keys:
   # Master key — lives on your primary device, decrypts everything
   - &master age1a58h6uzrz2pvk03swtjjzd7ekn9fxnyumxffr9ss4emkmgd03grq9v0eye
 
-  # Host keys — each host can only decrypt its own secrets
+  # Host keys — each host can only decrypt its own Tier-1 secrets
   - &chopper age1y8v9n2z4y8kp8mfdytvxasud379n44dlrwkn88ynh5u2xnjt2aks8m0xz4
 
 creation_rules:
+  # ---------------------------------------------------------------------------
+  # TIER 1: NixOS-side secrets — decrypted by sops-nix at system activation
+  # ---------------------------------------------------------------------------
+  #
+  # secrets/chopper/ covers ALL Tier-1 secrets for the chopper host, including:
+  #   - secrets.yaml                   (Tailscale auth key, Nextcloud pass, etc.)
+  #   - k3s-token                      (k3s cluster join token)
+  #   - tailscale-operator-oauth       (Tailscale k8s operator OAuth creds)
+  #
+  # Both the master key (laptop) and chopper's own age key can decrypt these.
+  # The host needs its own key because sops-nix decrypts at activation time,
+  # before any human operator is present.
   - path_regex: secrets/chopper/.*
     key_groups:
       - age:
           - *master
           - *chopper
-  # Example for a future host:
+
+  # Example for a future host (add its age key anchor above first):
   # - path_regex: secrets/newhost/.*
   #   key_groups:
   #     - age:
   #         - *master
   #         - *newhost
+
+  # ---------------------------------------------------------------------------
+  # TIER 2: Cluster-side secrets — decrypted by the operator at apply time
+  # ---------------------------------------------------------------------------
+  #
+  # k8s/**/secrets.yaml    — Helm values files containing secrets (helm-secrets)
+  # k8s/**/*.enc.yaml      — Encrypted raw Kubernetes Secret manifests
+  #                          (e.g. cnpg-backup-s3.enc.yaml)
+  #
+  # These are decrypted by the operator's laptop via `just k8s-apply`:
+  #   sops --decrypt k8s/clusters/chopper/secrets/cnpg-backup-s3.enc.yaml \
+  #     | kubectl apply -f -
+  #
+  # ALSO encrypted to *chopper* so that bootstrap operators whose credentials
+  # must be present the moment k3s starts (e.g. Tailscale operator OAuth)
+  # can be surfaced by sops-nix as well. See TIER 1 note above — the
+  # tailscale-operator-oauth secret lives under secrets/chopper/ (Tier 1),
+  # NOT here; this rule is for cluster-side secrets only.
+  #
+  # Only the master key can decrypt Tier-2 secrets (cluster nodes have no
+  # business decrypting raw Kubernetes Secret manifests).
+  - path_regex: k8s/.*/(secrets\.yaml|.*\.enc\.yaml)$
+    key_groups:
+      - age:
+          - *master

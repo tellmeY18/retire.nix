@@ -4,6 +4,7 @@
   imports = [
     ./packages/default.nix
     ./sway/default.nix
+    ../common/packages/dev-k8s.nix
   ];
 
   # NixOS-specific environment variables

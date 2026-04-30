@@ -14,4 +14,5 @@
   zfs = ./zfs.nix;
   wayland = ./wayland.nix;
   dev = ./dev.nix;
+  k3s = ./k3s-node.nix;
 }

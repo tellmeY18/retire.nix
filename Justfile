@@ -52,3 +52,23 @@ deploy-dry host:
 # Collect garbage and delete old generations
 clean:
     nix-collect-garbage -d
+
+# ---------------------------------------------------------------------------
+# Kubernetes / k8s recipes
+# ---------------------------------------------------------------------------
+
+# Apply all k8s cluster resources (helmfile + kustomize + sops secrets)
+k8s-apply:
+    helmfile sync --file k8s/helmfile.yaml
+    kubectl apply -k k8s/clusters/chopper
+    @echo "Applying sops-encrypted secrets..."
+    for f in k8s/clusters/chopper/secrets/*.enc.yaml; do sops --decrypt "$f" | kubectl apply -f -; done
+
+# Preview k8s changes without applying
+k8s-diff:
+    helmfile diff --file k8s/helmfile.yaml
+    kubectl diff -k k8s/clusters/chopper
+
+# Edit a sops-encrypted secret file  (e.g. just k8s-edit-secret k8s/clusters/chopper/secrets/cnpg-backup-s3.enc.yaml)
+k8s-edit-secret path:
+    sops {{path}}

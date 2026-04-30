@@ -1,0 +1,47 @@
+---
+# tailscale-pg-service.yaml — Tailscale LoadBalancer Service exposing the
+# PgBouncer pooler on the tailnet.
+#
+# The Tailscale Kubernetes operator watches Services with:
+#   spec.loadBalancerClass: tailscale
+# and creates a ts-proxy StatefulSet that registers a device on the tailnet
+# with the MagicDNS hostname set by the annotation below.
+#
+# Webservices connect to:  pg-rw.<tailnet>.ts.net:5432
+#
+# Traffic path:
+#   pg-rw.<tailnet>.ts.net:5432
+#     → this Service (Tailscale ts-proxy forwards here)
+#     → chopper-pg-pooler-rw PgBouncer pods (selected by cnpg.io/poolerName)
+#     → chopper-pg-rw Service (CNPG primary)
+#
+# Prerequisites:
+#   - Tailscale Kubernetes operator installed (NixOS-bootstrapped via
+#     services.k3s.charts in modules/services/k3s.nix).
+#   - Tailscale operator OAuth credentials applied as a Secret in the
+#     tailscale namespace (managed by sops-nix on the host).
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: pg-rw-tailscale
+  namespace: cnpg-clusters
+  annotations:
+    # MagicDNS hostname registered on the tailnet.
+    # The stable connection string for webservices is:
+    #   pg-rw.<tailnet>.ts.net:5432
+    tailscale.com/hostname: "pg-rw"
+spec:
+  type: LoadBalancer
+  loadBalancerClass: tailscale
+
+  # Select the PgBouncer pods managed by the chopper-pg-pooler-rw Pooler CR.
+  # CNPG stamps this label on all pods belonging to the named Pooler.
+  selector:
+    cnpg.io/poolerName: chopper-pg-pooler-rw
+
+  ports:
+    - name: postgres
+      protocol: TCP
+      port: 5432
+      targetPort: 5432

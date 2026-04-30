@@ -14,6 +14,7 @@
     "zfs"
     "wayland"
     "dev"
+    "k3s"
   ];
 
   # deploy-rs configuration — see docs/deploy.md

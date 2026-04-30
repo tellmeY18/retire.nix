@@ -1,0 +1,20 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# All CNPG workload resources live in the cnpg-clusters namespace.
+# The CNPG operator itself lives in cnpg-system (managed by helmfile).
+namespace: cnpg-clusters
+
+resources:
+  - cnpg-cluster.yaml
+  - cnpg-pooler.yaml
+  - cnpg-backup.yaml
+  - tailscale-pg-service.yaml
+
+# Secrets are NOT included here.  They are applied separately to avoid
+# plaintext ever entering the kustomize pipeline:
+#
+#   sops --decrypt k8s/clusters/chopper/secrets/cnpg-backup-s3.enc.yaml \
+#     | kubectl apply -f -
+#
+# See k8s/README.md and `just k8s-apply`.
