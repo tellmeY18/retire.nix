@@ -1,5 +1,4 @@
 { ... }:
-
 {
   imports = [
     ./hardware-configuration.nix
@@ -10,6 +9,7 @@
     ../../modules/conduit.nix
     ../../modules/arr.nix
     ../../modules/neondb.nix
+    ../../modules/services/cloudflared-dns.nix
     ./default.nix
     ../../packages/chopper
   ];

@@ -55,7 +55,7 @@
   ####################
   services.nextcloud = {
     enable = true;
-    hostName = "next.tellmey.tech";
+    hostName = "next.tellmey.fyi";
 
     # Manually increment with every major upgrade.
     package = pkgs.nextcloud32;
@@ -97,20 +97,28 @@
       credentialsFile = "/run/secrets/cloudflared-tunnel-credentials";
       default = "http_status:404";
       ingress = {
-        "next.tellmey.tech" = {
+        "next.tellmey.fyi" = {
           service = "http://localhost:80";
         };
-        "chat.tellmey.tech" = {
+        "chat.tellmey.fyi" = {
           service = "http://localhost:6167";
         };
-        "cal.tellmey.tech" = {
+        "cal.tellmey.fyi" = {
           service = "http://localhost:4000";
         };
-        "school.tellmey.tech" = {
+        "school.tellmey.fyi" = {
           service = "http://localhost:7000";
         };
       };
     };
+  };
+
+  # Declarative DNS provisioning — auto-creates Cloudflare CNAMEs for every
+  # hostname declared in services.cloudflared.tunnels.<id>.ingress above.
+  # The cert.pem is sourced from sops at /run/secrets/cloudflare-cert.
+  services.cloudflared-dns = {
+    enable = true;
+    certificateFile = "/run/secrets/cloudflare-cert";
   };
 
   ####################

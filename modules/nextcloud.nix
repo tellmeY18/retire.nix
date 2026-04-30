@@ -1,11 +1,16 @@
-{ config, pkgs, lib, ... }:
+{
+  config,
+  pkgs,
+  lib,
+  ...
+}:
 
 {
   options.services.nextcloud-chopper = {
     enable = lib.mkEnableOption "Nextcloud instance for chopper host";
     hostName = lib.mkOption {
       type = lib.types.str;
-      default = "next.tellmey.tech";
+      default = "next.tellmey.fyi";
       description = "The hostname for the Nextcloud instance.";
     };
     adminUser = lib.mkOption {
@@ -44,7 +49,11 @@
       description = "Port for Nextcloud to listen on.";
     };
     dbType = lib.mkOption {
-      type = lib.types.enum [ "pgsql" "mysql" "sqlite" ];
+      type = lib.types.enum [
+        "pgsql"
+        "mysql"
+        "sqlite"
+      ];
       default = "pgsql";
       description = "Database backend for Nextcloud.";
     };
