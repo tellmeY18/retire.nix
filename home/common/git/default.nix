@@ -6,6 +6,11 @@
     enable = true;
     package = pkgs.git;
 
+    # Adopt the new (>= stateVersion 25.05) default explicitly. We don't
+    # configure git commit signing in this repo, so leaving this null
+    # silences the deprecation warning without changing behavior.
+    signing.format = null;
+
     # All settings now go under 'settings'
     settings = {
       # User configuration (moved from top-level userName/userEmail)

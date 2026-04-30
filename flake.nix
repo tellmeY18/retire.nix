@@ -146,7 +146,7 @@
         "mathewalex@Vysakhs-MacBook-Pro" = myLib.mkHome {
           system = "aarch64-darwin";
           modules = [
-            nixvim.homeManagerModules.nixvim
+            nixvim.homeModules.nixvim
             ./home/darwin-home.nix
           ];
         };
@@ -154,7 +154,7 @@
         "vysakh@chopper" = myLib.mkHome {
           system = "x86_64-linux";
           modules = [
-            nixvim.homeManagerModules.nixvim
+            nixvim.homeModules.nixvim
             ./home/linux-home.nix
           ];
         };

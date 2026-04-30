@@ -157,6 +157,12 @@ in
   programs.firefox = {
     enable = true;
 
+    # Pin the legacy config path explicitly to silence HM's warning about
+    # the upcoming default change to `${xdg.configHome}/mozilla/firefox`
+    # (active when home.stateVersion >= "26.05"). Migrating the on-disk
+    # profile to XDG can be done later as a deliberate change.
+    configPath = ".mozilla/firefox";
+
     # Use cached binary without any overrides
 
     #    # OR use override for policies/prefs (slight wrapper rebuild)
