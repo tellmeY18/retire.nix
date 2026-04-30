@@ -39,15 +39,15 @@ build-all: build-chopper build-mac build-home-mac build-home-chopper
 
 # Deploy to a specific NixOS host (e.g., just deploy chopper)
 deploy host:
-    deploy .#{{host}}
+    nix run .#deploy-rs -- .#{{host}}
 
 # Deploy to all configured hosts
 deploy-all:
-    deploy .
+    nix run .#deploy-rs -- .#
 
 # Dry-run deploy (build + dry-activate, no switch)
 deploy-dry host:
-    deploy .#{{host}} -- --dry-activate
+    nix run .#deploy-rs -- .#{{host}} -- --dry-activate
 
 # Collect garbage and delete old generations
 clean:

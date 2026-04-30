@@ -74,6 +74,9 @@
         { system, ... }:
         {
           default = fenix.packages.${system}.minimal.toolchain;
+          # Expose deploy-rs so `nix run .#deploy-rs` works outside the devshell.
+          # Used by the Justfile `deploy` / `deploy-dry` recipes.
+          deploy-rs = deploy-rs.packages.${system}.default;
         }
       );
 
