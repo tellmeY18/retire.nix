@@ -45,9 +45,11 @@ in
         enable = true;
         extraArgs = "--keep-since 4d --keep 3";
       };
-      # TODO: This assumes the repo is checked out at /etc/nixos.
-      # Let nh discover the flake automatically, or use a per-host variable.
-      flake = "/etc/nixos";
+      # Idiomatic: keep the flake in a user-owned directory, not /etc/nixos.
+      # This sets NH_OS_FLAKE so `nh os switch` works from anywhere
+      # without needing sudo to read the flake.
+      # See: https://github.com/nix-community/nh#nixos
+      flake = "/home/vysakh/nix-config";
     };
 
     git = {
