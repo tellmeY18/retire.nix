@@ -515,6 +515,35 @@ kubectl -n kube-system logs job/helm-install-openebs-zfs-localpv -f
 kubectl -n kube-system describe job helm-install-tailscale-operator
 ```
 
+**Forcing a HelmChart to re-run after fixing a chart pin.** k3s's HelmChart
+controller does not re-run a failed install Job just because the
+`HelmChart` CR's `spec.version` (or `valuesContent`) changed. After
+`nh os switch`-ing a fix, delete the failed Job so the controller
+recreates it with the new spec:
+
+```sh
+# Delete the failed install Job (the controller recreates it):
+kubectl -n kube-system delete job helm-install-tailscale-operator
+
+# Watch the new attempt:
+kubectl -n kube-system get jobs -w | grep helm-install-tailscale-operator
+kubectl -n kube-system logs -f job/helm-install-tailscale-operator
+```
+
+If a chart version was pinned to a tag that the upstream repo never
+published (Tailscale, for example, has historically skipped some `x.y.0`
+patches — always cross-check `https://pkgs.tailscale.com/helmcharts/index.yaml`),
+you'll see this in the install Job logs:
+
+```
+Error: INSTALLATION FAILED: chart "tailscale-operator" matching X.Y.Z
+not found in tailscale-operator index.
+```
+
+The fix is to update the `version =` line in `modules/services/k3s.nix`,
+rebuild, then delete the failed Job as shown above.
+
+
 When these Jobs succeed you'll see the operator pods themselves:
 
 ```sh

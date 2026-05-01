@@ -309,7 +309,12 @@ in
           spec = {
             repo = "https://pkgs.tailscale.com/helmcharts";
             chart = "tailscale-operator";
-            version = "1.76.0";
+            # NOTE: Tailscale's chart index skips x.y.0 patches — the lowest
+            # 1.76.x they publish is 1.76.1 (see
+            # https://pkgs.tailscale.com/helmcharts/index.yaml). 1.76.6 is the
+            # final patch in that minor and is what we pin to. When bumping,
+            # always cross-check the index.yaml above before changing this.
+            version = "1.76.6";
             targetNamespace = "tailscale";
             createNamespace = true;
             valuesContent = ''
