@@ -209,6 +209,14 @@ in
           # Embedded containerd image registry mirror — useful for air-gap /
           # slow connections; harmless when not configured.
           "--embedded-registry"
+
+          # Make /etc/rancher/k3s/k3s.yaml group-readable so that members of
+          # the wheel group (i.e. the laptop's primary admin user) can run
+          # kubectl/k9s/helm without sudo. The cluster API is only reachable
+          # over tailnet, so widening file mode here does not widen network
+          # exposure. The kubeconfig is then chgrp'd to `wheel` by a tmpfiles
+          # rule below.
+          "--write-kubeconfig-mode=0640"
         ]
 
         # Quorum-only nodes: taint so that the scheduler never places workloads
@@ -335,11 +343,26 @@ in
     };
 
     # -------------------------------------------------------------------------
-    # Tmpfiles — ensure the k3s data directory exists before the service starts.
-    # Mode 0750: only root and the k3s process need to traverse this tree.
+    # Tmpfiles
+    #
+    #   /var/lib/rancher/k3s — ensure the k3s data directory exists before the
+    #     service starts. Mode 0750: only root and the k3s process need to
+    #     traverse this tree.
+    #
+    #   /etc/rancher/k3s     — k3s writes k3s.yaml here at startup, owned by
+    #     root:root. We pre-create the directory as 2750 root:wheel: the setgid
+    #     bit (2xxx) is critical — it makes the kubeconfig inherit group
+    #     `wheel` automatically on every k3s restart, so the 0640 file mode
+    #     (set via --write-kubeconfig-mode in extraFlags) translates to
+    #     "readable by any wheel-group user". Without setgid, the file would
+    #     be created group=root and `wheel` users would still need sudo.
+    #
+    #     `Z` (capital) ensures the existing path's mode/ownership are
+    #     re-asserted on every boot in case k3s ever clobbers them.
     # -------------------------------------------------------------------------
     systemd.tmpfiles.rules = [
       "d /var/lib/rancher/k3s 0750 root root -"
+      "Z /etc/rancher/k3s 2750 root wheel -"
     ];
 
     # -------------------------------------------------------------------------
