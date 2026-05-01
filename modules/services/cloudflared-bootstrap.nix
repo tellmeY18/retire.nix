@@ -44,34 +44,36 @@ let
     ${lib.concatMapStringsSep "\n" (name: ''
       echo "[cloudflared-bootstrap] Ensuring tunnel: ${name}"
 
-      # Check if a tunnel with this name already exists in Cloudflare.
-      EXISTING=$(${cfg.package}/bin/cloudflared tunnel list --output json 2>/dev/null \
-        | ${pkgs.jq}/bin/jq -r --arg name "${name}" '
-            .[] | select(.name == $name and (.deleted_at // "") == "") | .id
-          ' || true)
-
-      if [ -n "$EXISTING" ] && [ -f ${credDir}/${name}.json ]; then
-        echo "[cloudflared-bootstrap] Tunnel '${name}' (id: $EXISTING) exists, credentials present."
-      elif [ -n "$EXISTING" ] && [ ! -f ${credDir}/${name}.json ]; then
-        # Tunnel exists in Cloudflare but credentials file is missing locally.
-        # We can't recover the credentials — Cloudflare doesn't let you re-download them.
-        # The only option is to rotate: delete and recreate.
-        echo "[cloudflared-bootstrap] Tunnel '${name}' exists in Cloudflare but credentials are missing locally."
-        echo "[cloudflared-bootstrap] Rotating: deleting and recreating tunnel '${name}'."
-        ${cfg.package}/bin/cloudflared tunnel delete --force ${name} || true
-        ${cfg.package}/bin/cloudflared tunnel create \
-          --credentials-file ${credDir}/${name}.json \
-          ${name}
+      # Fast path: if the credentials file already exists locally, the tunnel
+      # was already created on a previous run. Skip all API calls entirely —
+      # this makes the service a true no-op on every boot after the first.
+      if [ -f ${credDir}/${name}.json ]; then
+        echo "[cloudflared-bootstrap] Credentials for '${name}' already present, nothing to do."
       else
-        # Tunnel doesn't exist — create it.
+        # Credentials file is missing — we need to talk to Cloudflare.
+        # Check whether a tunnel with this name already exists remotely.
+        echo "[cloudflared-bootstrap] Credentials missing, querying Cloudflare API..."
+        EXISTING=$(${cfg.package}/bin/cloudflared tunnel list --output json 2>/dev/null \
+          | ${pkgs.jq}/bin/jq -r --arg name "${name}" '
+              .[] | select(.name == $name and (.deleted_at // "") == "") | .id
+            ' || true)
+
+        if [ -n "$EXISTING" ]; then
+          # Tunnel exists in Cloudflare but credentials are missing locally.
+          # Credentials can't be re-downloaded — rotate the tunnel.
+          echo "[cloudflared-bootstrap] Tunnel '${name}' (id: $EXISTING) exists remotely but credentials missing locally."
+          echo "[cloudflared-bootstrap] Rotating: deleting and recreating tunnel '${name}'."
+          ${cfg.package}/bin/cloudflared tunnel delete --force ${name} || true
+        fi
+
         echo "[cloudflared-bootstrap] Creating tunnel '${name}'..."
         ${cfg.package}/bin/cloudflared tunnel create \
           --credentials-file ${credDir}/${name}.json \
           ${name}
-      fi
 
-      chmod 600 ${credDir}/${name}.json
-      chown root:root ${credDir}/${name}.json
+        chmod 600 ${credDir}/${name}.json
+        chown root:root ${credDir}/${name}.json
+      fi
     '') cfg.tunnels}
 
     echo "[cloudflared-bootstrap] Bootstrap complete."
@@ -136,11 +138,10 @@ in
       # by the time tunnels try to start.
       before = map (name: "cloudflared-tunnel-${name}.service") cfg.tunnels;
 
-      # cert.pem is loaded into a tmpfs credential dir, never written to disk.
       serviceConfig = {
         Type = "oneshot";
         RemainAfterExit = true;
-        User = "root"; # needs to write /var/lib/cloudflared
+        User = "root";
         LoadCredential = [ "cert.pem:${cfg.certificateFile}" ];
         ExecStart = bootstrapScript;
       };
