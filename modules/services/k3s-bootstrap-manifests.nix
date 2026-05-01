@@ -131,13 +131,11 @@ in
       wantedBy = [ "k3s.service" ];
       before = [ "k3s.service" ];
 
-      # The sops-nix activation service must have run first so that
-      # /run/secrets/tailscale-operator-oauth exists.
-      after = [
-        "sops-nix.service"
-        "network-online.target"
-      ];
-      requires = [ "sops-nix.service" ];
+      # sops-nix decrypts secrets during NixOS activation (before any service
+      # starts), so /run/secrets/ is already populated by the time this unit
+      # runs. No dependency on a sops-nix.service is needed — it doesn't exist
+      # as a systemd unit; it's an activation script.
+      after = [ "network-online.target" ];
       wants = [ "network-online.target" ];
 
       serviceConfig = {
@@ -155,10 +153,8 @@ in
         # the secret values — belt-and-suspenders.
         PrivateTmp = true;
         ProtectSystem = "strict";
-        ReadWritePaths = [
-          manifestDir
-          "/run/secrets"
-        ];
+        ReadWritePaths = [ manifestDir ];
+        ReadOnlyPaths = [ "/run/secrets" ];
         ProtectHome = true;
         NoNewPrivileges = true;
       };
