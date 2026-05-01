@@ -411,25 +411,161 @@ nh os switch -- --target-host chopper
 kubectl rollout restart deployment/operator -n tailscale
 ```
 
-### Access the Kubernetes API from the laptop
+### Access the Kubernetes API
 
-The kubeconfig is written to `/etc/rancher/k3s/k3s.yaml` on chopper. Copy it
-to your laptop and replace the server address with the Tailscale FQDN:
+There are three contexts in which you'll want `kubectl`: directly on the
+cluster node (`chopper`), from a remote admin machine over Tailscale, and
+for the bundled `helm-install-*` jobs that k3s runs internally. All three
+are covered below.
+
+#### From `chopper` itself (out-of-the-box)
+
+The k3s NixOS module (`modules/services/k3s.nix`) and the
+`profiles/k3s-node.nix` role together arrange for kubectl to Just Work for
+any user in the `wheel` group:
+
+- k3s is started with `--write-kubeconfig-mode=0640`, and a tmpfiles rule
+  chgrp's `/etc/rancher/k3s/k3s.yaml` to `wheel`. Members of `wheel` can
+  read the kubeconfig without `sudo`.
+- The profile exports `KUBECONFIG=/etc/rancher/k3s/k3s.yaml` system-wide via
+  `environment.variables`, so `kubectl`, `helm`, `helmfile`, `k9s`, and
+  `cmctl` all pick it up automatically on login.
+- `kubectl`, `helm`, `helmfile`, `k9s`, and `sops` are installed at the
+  system level by the profile, plus a richer set (including aliases
+  `k`, `kns`, `kctx`) at the user level by `home/common/packages/dev-k8s.nix`.
+
+**First-time verification after `nh os switch`:**
 
 ```sh
-# On chopper (or via nixos-rebuild copy):
-scp chopper:/etc/rancher/k3s/k3s.yaml ~/.kube/chopper.yaml
+# 1. The KUBECONFIG env var only reaches NEW login sessions.
+#    Re-login, OR refresh the current shell:
+exec $SHELL -l
+echo $KUBECONFIG     # → /etc/rancher/k3s/k3s.yaml
 
-# Edit the server line:
-sed -i 's|https://127.0.0.1:6443|https://chopper.<tailnet>.ts.net:6443|' \
+# 2. Sanity-check the cluster:
+kubectl get nodes                        # NAME=chopper, STATUS=Ready
+kubectl get pods -A                      # kube-system, openebs, tailscale
+kubectl get storageclass                 # zfs-localpv (default)
+kubectl get helmcharts -A                # both bootstrap charts present
+```
+
+**If `kubectl` still says `connection refused` to `localhost:8080`:**
+
+That error is the smoking gun for `KUBECONFIG` not being set in the
+current process. Run any of:
+
+```sh
+# (a) one-shot for the current command:
+KUBECONFIG=/etc/rancher/k3s/k3s.yaml kubectl get nodes
+
+# (b) one-shot for the current shell:
+export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+
+# (c) bypass kubectl entirely — k3s ships its own embedded kubectl that
+#     reads the kubeconfig as root:
+sudo k3s kubectl get nodes
+sudo k3s kubectl logs -n kube-system job.batch/helm-install-tailscale-operator
+```
+
+Option (c) is the canonical "is the cluster actually up?" probe — it works
+even if `KUBECONFIG`, file permissions, or the `wheel` group membership
+are misconfigured.
+
+**If `kubectl get nodes` returns `permission denied` reading the
+kubeconfig:**
+
+```sh
+# Confirm file mode and group:
+ls -l /etc/rancher/k3s /etc/rancher/k3s/k3s.yaml
+#    drwxr-s--- 2 root wheel ...   /etc/rancher/k3s        ← note the `s`
+#    -rw-r----- 1 root wheel ...   /etc/rancher/k3s/k3s.yaml
+
+# Confirm your user is in wheel:
+id -nG | tr ' ' '\n' | grep -x wheel
+
+# If the file is still 0600 root:root, the system was rebuilt but k3s was
+# already running with the old flags. Force it to rewrite by restarting:
+sudo systemctl restart k3s
+sudo systemd-tmpfiles --create
+
+# As a one-shot manual fix without rebuilding (survives only until next
+# k3s restart, after which the tmpfiles rule + setgid dir takes over):
+sudo chmod g+s /etc/rancher/k3s
+sudo chgrp wheel /etc/rancher/k3s /etc/rancher/k3s/k3s.yaml
+sudo chmod 0640 /etc/rancher/k3s/k3s.yaml
+```
+
+#### Inspecting the bootstrap HelmChart jobs
+
+k3s renders our `services.k3s.manifests.helmchart-*` entries into
+`HelmChart` CRs in `kube-system`. Each one creates a one-shot Job called
+`helm-install-<name>` that runs the actual `helm install` and writes its
+logs into the Job pod. To inspect them:
+
+```sh
+# List both bootstrap charts and their phase:
+kubectl get helmcharts -A
+
+# Watch the install Job for the Tailscale operator:
+kubectl -n kube-system get jobs | grep helm-install
+kubectl -n kube-system logs job/helm-install-tailscale-operator -f
+kubectl -n kube-system logs job/helm-install-openebs-zfs-localpv -f
+
+# If a Job is stuck or failed, describe it for events:
+kubectl -n kube-system describe job helm-install-tailscale-operator
+```
+
+When these Jobs succeed you'll see the operator pods themselves:
+
+```sh
+kubectl -n openebs   get pods   # zfs-localpv-controller + per-node DaemonSet
+kubectl -n tailscale get pods   # operator-... pod
+```
+
+If the Tailscale operator pod is `CrashLoopBackOff`, the most common cause
+is a missing or wrong OAuth secret. See [Section 5](#5-secret-management)
+for the OAuth secret pipeline; the quick check is:
+
+```sh
+kubectl -n tailscale get secret operator-oauth -o yaml
+# stringData should be populated, NOT empty.
+sudo systemctl status k3s-tailscale-oauth-secret
+```
+
+#### From a remote admin machine over Tailscale
+
+To administer the cluster from your laptop or another tailnet member,
+copy the kubeconfig and rewrite the `server:` URL to use the node's
+Tailscale FQDN (the apiserver's TLS cert already includes
+`chopper` as a SAN — see `extraFlags` in `hosts/chopper/parts/k3s.nix`;
+add your tailnet FQDN there once known):
+
+```sh
+# On the laptop:
+mkdir -p ~/.kube
+scp chopper:/etc/rancher/k3s/k3s.yaml ~/.kube/chopper.yaml
+chmod 0600 ~/.kube/chopper.yaml
+
+# Rewrite the server address. Use the bare hostname if MagicDNS is on,
+# or the full FQDN otherwise:
+sed -i '' 's|https://127.0.0.1:6443|https://chopper:6443|' \
   ~/.kube/chopper.yaml
+# (drop the '' on Linux)
 
 export KUBECONFIG=~/.kube/chopper.yaml
 kubectl get nodes
 ```
 
-For resilience across node loss, add both server FQDNs to the kubeconfig and
-use a context that lists both in `--server` (Phase 3).
+If you get a TLS hostname mismatch (`x509: certificate is valid for ...,
+not chopper.<tailnet>.ts.net`), add the FQDN to the apiserver's TLS SANs
+by uncommenting the second `--tls-san=...` line in
+`hosts/chopper/parts/k3s.nix`, rebuild with `nh os switch`, and restart
+k3s. The apiserver regenerates its serving cert on next start.
+
+For resilience across node loss (Phase 3+), merge multiple host
+kubeconfigs and keep contexts named `chopper`, `node-2`, etc.; switch
+with `kctx` (alias for `kubectl config use-context`).
+
 
 ### Drain a node for maintenance
 
