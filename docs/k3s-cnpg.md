@@ -225,7 +225,7 @@ bound to `tailscale0`. Public interfaces are firewalled for k3s ports.
    (sops-nix-decrypted). Bootstrap manifests (OpenEBS, Tailscale operator)
    are applied automatically from `/var/lib/rancher/k3s/server/manifests/`.
 2. After `pg-rw.<tailnet>.ts.net` is resolvable, deploy CNPG operator and
-   Cluster via `just k8s-apply`.
+   Cluster via `just k8s::apply`.
 3. When adding node-2 or node-3, set `role = "server"` or `"quorum"` and
    point `serverAddr` at `https://chopper.<tailnet>.ts.net:6443`.
 
@@ -288,7 +288,7 @@ decrypts at apply time. Cluster nodes never hold the decrypt keys.
 
 ```
 Git (sops-encrypted Helm values)
-  → just k8s-apply
+  → just k8s::apply
   → helmfile sync
   → helm-secrets plugin: sops --decrypt inline
   → values merged on top of values.yaml
@@ -732,7 +732,7 @@ spec:
     topologyKey: kubernetes.io/hostname
 ```
 
-Apply via `just k8s-apply`. CNPG will roll the instances one at a time onto
+Apply via `just k8s::apply`. CNPG will roll the instances one at a time onto
 separate nodes. No downtime if PgBouncer is in front.
 
 ---

@@ -2,7 +2,7 @@
 
 This directory contains all Kubernetes manifests and Helm values for the
 `glug-infra` k3s cluster. It is **not** managed by a GitOps controller;
-resources are applied manually via `just k8s-apply` from the laptop.
+resources are applied manually via `just k8s::apply` from the laptop.
 
 > See [`docs/k3s-cnpg.md`](../docs/k3s-cnpg.md) for the full architecture,
 > including the HA reality-check (the 2-node etcd quorum trap), Tailscale
@@ -85,10 +85,10 @@ head -3 k8s/apps/postgres/secrets.yaml         # should now start with `sops:`
 sops --encrypt --in-place k8s/apps/cnpg-operator/secrets.yaml
 
 # 4. Apply.
-just k8s-apply
+just k8s::apply
 ```
 
-`just k8s-apply` runs:
+`just k8s::apply` runs:
 
 1. `helmfile sync` — installs/upgrades the CNPG **operator** and (declared via
    `needs:`) the `postgres` cluster release. helm-secrets decrypts each
@@ -99,7 +99,7 @@ just k8s-apply
 ### Preview before applying
 
 ```sh
-just k8s-diff
+just k8s::diff
 ```
 
 This runs `helmfile diff` then `kubectl diff -k …`. The kubectl diff exit
@@ -110,11 +110,11 @@ code is squashed because absent objects return non-zero on a clean cluster.
 ## Day-2 helpers
 
 ```sh
-just k8s-cnpg-status              # kubectl cnpg status postgres
-just k8s-cnpg-operator-logs       # tail operator logs
-just k8s-cnpg-primary-logs        # tail current primary
-just k8s-cnpg-backup-now          # on-demand base backup
-just k8s-cnpg-backup-list         # list Backup objects with phase
+just k8s::cnpg-status              # kubectl cnpg status postgres
+just k8s::cnpg-operator-logs       # tail operator logs
+just k8s::cnpg-primary-logs        # tail current primary
+just k8s::cnpg-backup-now          # on-demand base backup
+just k8s::cnpg-backup-list         # list Backup objects with phase
 ```
 
 For switchover, drain, and restore procedures see [`docs/runbooks/`](docs/runbooks/).
@@ -132,7 +132,7 @@ Secrets live in two places, both as sops-encrypted Helm values files:
 To edit either:
 
 ```sh
-just k8s-edit-secret k8s/apps/postgres/secrets.yaml
+just k8s::edit-secret k8s/apps/postgres/secrets.yaml
 ```
 
 This opens the file in `$EDITOR` via `sops`, which encrypts on save. The
@@ -214,7 +214,7 @@ k8s/
 
 ## Verifying a healthy install
 
-After the first `just k8s-apply`, walk through these checks:
+After the first `just k8s::apply`, walk through these checks:
 
 ```sh
 # Operator is up.
@@ -225,7 +225,7 @@ kubectl -n cnpg-system get pods                     # 1/1 Running
 kubectl get crd | grep cnpg                         # cluster, pooler, backup, scheduledbackup
 
 # Cluster reaches "Cluster in healthy state".
-just k8s-cnpg-status                                 # kubectl cnpg status postgres
+just k8s::cnpg-status                                 # kubectl cnpg status postgres
 
 # All 3 instances Running, exactly one is primary.
 kubectl -n cnpg-clusters get pods -l cnpg.io/cluster=postgres -o wide
@@ -242,8 +242,8 @@ kubectl exec -n cnpg-clusters -it postgres-1 -- \
   psql -c "SELECT last_archived_wal, last_failed_wal FROM pg_stat_archiver;"
 
 # Trigger an immediate backup; confirm it completes.
-just k8s-cnpg-backup-now
-just k8s-cnpg-backup-list
+just k8s::cnpg-backup-now
+just k8s::cnpg-backup-list
 
 # Connect from a tailnet client.
 psql "postgres://app:$(kubectl -n cnpg-clusters get secret postgres-app -o jsonpath='{.data.password}' | base64 -d)@pg-rw.<tailnet>.ts.net:5432/app"
