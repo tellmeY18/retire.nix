@@ -24,8 +24,7 @@ spec:
       - pxc-clusters
   selector:
     matchLabels:
-      app.kubernetes.io/instance: mysql
-      app.kubernetes.io/component: pxc
+      app.kubernetes.io/instance: mysql-pxc-db
   endpoints:
     - port: metrics
       interval: 30s
