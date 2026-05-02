@@ -18,7 +18,7 @@
 # Adding a second Postgres cluster (e.g. for analytics):
 #   - Create k8s/apps/analytics/{values,secrets}.yaml.
 #   - Add another release block below with `name: analytics`.
-#   - `just k8s-apply`.
+#   - `just k8s::apply`.
 #
 # Version policy:
 #   - Always pin chart versions explicitly. Never use "*" or floating tags.

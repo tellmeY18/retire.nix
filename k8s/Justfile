@@ -1,0 +1,105 @@
+# k8s/Justfile — recipes for the glug-infra cluster.
+#
+# Invoke from the repo root via the `k8s` module:
+#   just k8s              # list these recipes
+#   just k8s::apply       # apply everything
+# or directly from this directory:
+#   cd k8s && just apply
+#
+# Why a separate Justfile?
+#   helm-secrets resolves `secrets://...` URLs in helmfile.yaml relative to
+#   the CURRENT WORKING DIRECTORY. By making `k8s/` the working directory
+#   for every recipe in this file we avoid sprinkling `cd k8s &&` over each
+#   helmfile invocation, and let users in the k8s/ subtree drive everything
+#   without typing `--file ../helmfile.yaml`.
+#
+# Pin the working directory so all recipes (helmfile, kubectl -k, sops)
+# resolve relative paths against `k8s/` regardless of where `just` is run.
+set working-directory := '.'
+
+# List available commands
+default:
+    @just --list
+
+# ---------------------------------------------------------------------------
+# Apply / diff / template
+# ---------------------------------------------------------------------------
+
+# Apply all k8s cluster resources (helmfile + kustomize).
+#
+# Order matters:
+#   1. helmfile installs/upgrades the CNPG operator (and its CRDs) first.
+#      The `postgres` cluster release declares `needs:` on the operator so
+#      it waits for the operator's webhook to be reachable before applying
+#      the Cluster CR.
+#   2. kustomize applies the namespace, network policies, and Tailscale
+#      LoadBalancer Service.
+#
+# Helm-side secrets (S3 access keys, bucket, endpointURL) live in
+# `apps/postgres/secrets.yaml` as a sops-encrypted helm values file and are
+# merged on top of `apps/postgres/values.yaml` by helm-secrets at install
+# time — no separate `sops --decrypt | kubectl apply` step needed.
+[doc('Apply helmfile + kustomize to the cluster')]
+apply:
+    helmfile sync
+    kubectl apply -k clusters/glug-infra
+
+# Preview k8s changes without applying.
+[doc('Preview helmfile + kustomize changes (no apply)')]
+diff:
+    helmfile diff
+    kubectl diff -k clusters/glug-infra || true
+
+# Render the fully-merged helm output (values.yaml + decrypted secrets.yaml)
+# without touching the cluster. Useful to confirm sensitive overrides are
+# coming through before the first apply.
+[doc('Render merged helm output (values + decrypted secrets)')]
+template:
+    helmfile template
+
+# ---------------------------------------------------------------------------
+# Secrets
+# ---------------------------------------------------------------------------
+
+# Edit a sops-encrypted secret file (path is relative to k8s/).
+# Examples:
+#   just k8s::edit-secret apps/postgres/secrets.yaml
+#   just k8s::edit-secret apps/cnpg-operator/secrets.yaml
+[doc('Open a sops-encrypted file in $EDITOR')]
+edit-secret path:
+    sops {{ path }}
+
+# Encrypt a plaintext values file in place (first-time setup only).
+# After this runs, use `edit-secret` for subsequent edits.
+# Example:
+#   just k8s::encrypt-secret apps/cnpg-operator/secrets.yaml
+[doc('Encrypt a plaintext values file in place (first-time)')]
+encrypt-secret path:
+    sops --encrypt --in-place {{ path }}
+
+# ---------------------------------------------------------------------------
+# CNPG day-2 helpers
+# ---------------------------------------------------------------------------
+# All assume the kubectl-cnpg plugin is installed:
+#   kubectl krew install cnpg
+
+# Show the CNPG cluster status.
+cnpg-status:
+    kubectl cnpg status postgres -n cnpg-clusters
+
+# Tail logs from the CNPG operator.
+cnpg-operator-logs:
+    kubectl logs -n cnpg-system -l app.kubernetes.io/name=cloudnative-pg -f --tail=200
+
+# Tail logs from the current CNPG primary.
+cnpg-primary-logs:
+    kubectl logs -n cnpg-clusters -l cnpg.io/cluster=postgres,role=primary -f --tail=200
+
+# Trigger an on-demand backup.
+cnpg-backup-now:
+    kubectl cnpg backup postgres -n cnpg-clusters
+
+# List Backup objects with their phase.
+cnpg-backup-list:
+    kubectl get backup -n cnpg-clusters \
+      -o custom-columns=NAME:.metadata.name,PHASE:.status.phase,STARTED:.status.startedAt,STOPPED:.status.stoppedAt

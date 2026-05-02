@@ -169,8 +169,8 @@ poolers:
 Apply the change. helmfile diff first, then sync:
 
 ```shell
-just k8s-diff           # preview the rolling-restart impact
-just k8s-apply          # CNPG performs a rolling restart respecting PDBs
+just k8s::diff           # preview the rolling-restart impact
+just k8s::apply          # CNPG performs a rolling restart respecting PDBs
 kubectl get pods -n cnpg-clusters -o wide -w
 ```
 
