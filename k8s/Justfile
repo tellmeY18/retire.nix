@@ -25,30 +25,24 @@ default:
 # Apply / diff / template
 # ---------------------------------------------------------------------------
 
-# Apply all k8s cluster resources (helmfile + kustomize).
+# Apply all k8s cluster resources (kustomize + helmfile).
 #
 # Order matters:
-#   1. helmfile installs/upgrades the CNPG operator (and its CRDs) first.
-#      The `postgres` cluster release declares `needs:` on the operator so
-#      it waits for the operator's webhook to be reachable before applying
-#      the Cluster CR.
-#   2. kustomize applies the namespace, network policies, and Tailscale
-#      LoadBalancer Service.
-#
-# Helm-side secrets (S3 access keys, bucket, endpointURL) live in
-# `apps/postgres/secrets.yaml` as a sops-encrypted helm values file and are
-# merged on top of `apps/postgres/values.yaml` by helm-secrets at install
-# time — no separate `sops --decrypt | kubectl apply` step needed.
-[doc('Apply helmfile + kustomize to the cluster')]
+#   1. kustomize creates the cnpg-clusters namespace (with PSA labels),
+#      network policies, and the Tailscale LoadBalancer Service.
+#   2. helmfile installs/upgrades the CNPG operator first (CRDs + controller),
+#      then the postgres cluster release (which needs the namespace from step 1
+#      and the CRDs from the operator).
+[doc('Apply kustomize + helmfile to the cluster')]
 apply:
-    helmfile sync
     kubectl apply -k clusters/glug-infra
+    helmfile sync
 
 # Preview k8s changes without applying.
-[doc('Preview helmfile + kustomize changes (no apply)')]
+[doc('Preview kustomize + helmfile changes (no apply)')]
 diff:
-    helmfile diff
     kubectl diff -k clusters/glug-infra || true
+    helmfile diff
 
 # Render the fully-merged helm output (values.yaml + decrypted secrets.yaml)
 # without touching the cluster. Useful to confirm sensitive overrides are
