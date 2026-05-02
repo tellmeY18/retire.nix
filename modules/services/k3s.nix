@@ -200,11 +200,18 @@ in
           "--flannel-iface=${cfg.tailscaleInterface}"
 
           # Disable components we do not use:
-          #   traefik    — we expose nothing over HTTP/S from the cluster; only
-          #                Postgres over tailnet via the Tailscale operator.
-          #   servicelb  — replaced by the Tailscale operator which manages a
-          #                ts-proxy pod per LoadBalancer Service.
-          "--disable=traefik,servicelb"
+          #   traefik       — we expose nothing over HTTP/S from the cluster;
+          #                   only Postgres over tailnet via the Tailscale
+          #                   operator.
+          #   servicelb     — replaced by the Tailscale operator which
+          #                   manages a ts-proxy pod per LoadBalancer Service.
+          #   local-storage — k3s ships a `local-path` provisioner +
+          #                   StorageClass (marked default) by default. We
+          #                   replace it with OpenEBS ZFS LocalPV via the
+          #                   bootstrap manifests below; without disabling
+          #                   this, the cluster would have two default
+          #                   StorageClasses and emit a warning on every PVC.
+          "--disable=traefik,servicelb,local-storage"
 
           # Embedded containerd image registry mirror — useful for air-gap /
           # slow connections; harmless when not configured.
@@ -245,10 +252,13 @@ in
       manifests = {
 
         # --------------------------------------------------------------------
-        # OpenEBS ZFS LocalPV
+        # OpenEBS ZFS LocalPV — CSI driver only
         #
-        # Provides the cluster's only StorageClass (zfs-localpv, set as default).
-        # CNPG PVCs and any other StatefulSets will use it automatically.
+        # IMPORTANT: this chart installs ONLY the CSI driver, controller, and
+        # per-node DaemonSet. It does NOT create a StorageClass — the
+        # `storageClass.*` values keys do not exist in chart 2.6.2 (verified
+        # against the upstream values.yaml). The StorageClass is therefore
+        # declared as a separate manifest below (`zfs-localpv-storageclass`).
         #
         # Pool must be pre-created on the host:
         #   zfs create -o mountpoint=none rpool/openebs
@@ -276,11 +286,55 @@ in
             valuesContent = ''
               zfsNode:
                 kubeletDir: /var/lib/kubelet
-              storageClass:
-                name: zfs-localpv
-                isDefaultClass: true
-                poolname: rpool/openebs
             '';
+          };
+        };
+
+        # --------------------------------------------------------------------
+        # StorageClass for OpenEBS ZFS LocalPV
+        #
+        # k3s applies this manifest unconditionally on every boot, so the
+        # cluster always has a default StorageClass even if someone
+        # accidentally deletes it. The provisioner string `zfs.csi.openebs.io`
+        # MUST match the CSIDriver name created by the chart above.
+        #
+        # Annotations:
+        #   storageclass.kubernetes.io/is-default-class=true
+        #     New PVCs without an explicit storageClassName get this class.
+        #     k3s ships `local-path` as the default; this annotation makes
+        #     zfs-localpv the default instead. Both can coexist; PVCs that
+        #     name `local-path` explicitly still work.
+        #
+        # Parameters:
+        #   poolname    — ZFS dataset that backs the volumes (must exist).
+        #   fstype      — zfs (the dataset itself is the filesystem).
+        #   recordsize  — inherited from the parent dataset; explicitly set
+        #                  here too so future PVs are predictable.
+        #   compression — inherited; declared for the same reason.
+        #
+        # volumeBindingMode: WaitForFirstConsumer
+        #   Don't allocate the ZFS dataset until a Pod is actually scheduled,
+        #   so volume placement follows pod placement (single-node today,
+        #   per-node-locality once a 2nd node joins).
+        # --------------------------------------------------------------------
+        "openebs-zfs-localpv-storageclass".content = {
+          apiVersion = "storage.k8s.io/v1";
+          kind = "StorageClass";
+          metadata = {
+            name = "zfs-localpv";
+            annotations = {
+              "storageclass.kubernetes.io/is-default-class" = "true";
+            };
+          };
+          provisioner = "zfs.csi.openebs.io";
+          allowVolumeExpansion = true;
+          reclaimPolicy = "Delete";
+          volumeBindingMode = "WaitForFirstConsumer";
+          parameters = {
+            poolname = "rpool/openebs";
+            fstype = "zfs";
+            recordsize = "8k";
+            compression = "zstd";
           };
         };
 

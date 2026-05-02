@@ -57,18 +57,51 @@ clean:
 # Kubernetes / k8s recipes
 # ---------------------------------------------------------------------------
 
-# Apply all k8s cluster resources (helmfile + kustomize + sops secrets)
+# Apply all k8s cluster resources (helmfile + kustomize + sops secrets).
+# Order matters:
+#   1. helmfile installs/upgrades the CNPG operator (and its CRDs) first.
+#      The Cluster CR in step 2 will fail apply if the CRD is not yet present.
+#   2. kustomize applies the namespace, network policies, Cluster, Pooler,
+#      ScheduledBackup, and Tailscale Service.
+#   3. sops decrypts each *.enc.yaml secret and pipes it into kubectl apply.
+#      The for-loop uses `nullglob` so a missing /empty secrets dir is a
+#      no-op rather than an error (the literal pattern would otherwise be
+#      passed to sops verbatim).
 k8s-apply:
     helmfile sync --file k8s/helmfile.yaml
     kubectl apply -k k8s/clusters/chopper
     @echo "Applying sops-encrypted secrets..."
-    for f in k8s/clusters/chopper/secrets/*.enc.yaml; do sops --decrypt "$f" | kubectl apply -f -; done
+    @bash -c 'shopt -s nullglob; for f in k8s/clusters/chopper/secrets/*.enc.yaml; do echo "  $f"; sops --decrypt "$f" | kubectl apply -f -; done'
 
-# Preview k8s changes without applying
+# Preview k8s changes without applying.
 k8s-diff:
     helmfile diff --file k8s/helmfile.yaml
-    kubectl diff -k k8s/clusters/chopper
+    kubectl diff -k k8s/clusters/chopper || true
 
-# Edit a sops-encrypted secret file  (e.g. just k8s-edit-secret k8s/clusters/chopper/secrets/cnpg-backup-s3.enc.yaml)
+# Edit a sops-encrypted secret file.
+# Example:
+#   just k8s-edit-secret k8s/clusters/chopper/secrets/cnpg-backup-s3.enc.yaml
 k8s-edit-secret path:
     sops {{path}}
+
+# Show the CNPG cluster status (uses the kubectl-cnpg plugin).
+# Install the plugin once with:
+#   kubectl krew install cnpg
+k8s-cnpg-status:
+    kubectl cnpg status chopper-pg -n cnpg-clusters
+
+# Tail logs from the CNPG operator.
+k8s-cnpg-operator-logs:
+    kubectl logs -n cnpg-system -l app.kubernetes.io/name=cloudnative-pg -f --tail=200
+
+# Tail logs from the current CNPG primary.
+k8s-cnpg-primary-logs:
+    kubectl logs -n cnpg-clusters -l cnpg.io/cluster=chopper-pg,role=primary -f --tail=200
+
+# Trigger an on-demand backup.
+k8s-cnpg-backup-now:
+    kubectl cnpg backup chopper-pg -n cnpg-clusters
+
+# List Backup objects with their phase.
+k8s-cnpg-backup-list:
+    kubectl get backup -n cnpg-clusters -o custom-columns=NAME:.metadata.name,PHASE:.status.phase,STARTED:.status.startedAt,STOPPED:.status.stoppedAt

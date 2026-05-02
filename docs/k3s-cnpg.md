@@ -551,15 +551,28 @@ kubectl -n openebs   get pods   # zfs-localpv-controller + per-node DaemonSet
 kubectl -n tailscale get pods   # operator-... pod
 ```
 
-If the Tailscale operator pod is `CrashLoopBackOff`, the most common cause
-is a missing or wrong OAuth secret. See [Section 5](#5-secret-management)
-for the OAuth secret pipeline; the quick check is:
+If the Tailscale operator pod is `CrashLoopBackOff`, check the pod logs
+first — the failure mode dictates the fix:
+
+```sh
+kubectl -n tailscale logs deploy/operator --tail=50
+```
+
+| Log message contains | Cause | Fix |
+|---|---|---|
+| `requested tags [tag:k8s] are invalid or not permitted` | OAuth client is missing `tag:k8s` in its per-client allowed-tags list | See [Section 10 → OAuth client scopes](#oauth-client-scopes). Tick `tag:k8s` in the OAuth client UI, regenerate, update sops, `nh os switch`, restart the deploy. |
+| `Status: 401` or `invalid client` | Wrong / rotated OAuth client id or secret | Re-mint the OAuth client, update `secrets/chopper/secrets.yaml`, `nh os switch`. |
+| `tag:k8s ... not in tagOwners` | `tag:k8s` is not declared in the tailnet ACL | See [Section 10 → Tags / Minimum ACL rules](#10-tailscale-acl-requirements). |
+| `NeedsLogin` for more than a few seconds with no further progress | OAuth flow is reaching Tailscale but no auth key is being returned — same root cause as the `tag:k8s` row above | Same fix as the first row. |
+
+Quick checks for the secret pipeline itself:
 
 ```sh
 kubectl -n tailscale get secret operator-oauth -o yaml
 # stringData should be populated, NOT empty.
 sudo systemctl status k3s-tailscale-oauth-secret
 ```
+
 
 #### From a remote admin machine over Tailscale
 
@@ -822,14 +835,42 @@ in the Tailscale admin console at `https://login.tailscale.com/admin/acls`.
 ### OAuth client scopes
 
 The OAuth client created for `secrets/chopper/tailscale-operator-oauth` must
-have:
+have **all three** of the following set in the Tailscale admin UI at
+`https://login.tailscale.com/admin/settings/oauth`:
 
-- **Scope:** `devices:write` (to register new proxy devices)
-- **Scope:** `auth_keys:write` (to create ephemeral auth keys for pods)
-- **Tag:** `tag:k8s` (the operator creates devices pre-tagged with this tag)
+- **Scope:** `devices` → *Write* (to register new proxy devices)
+- **Scope:** `auth_keys` → *Write* (to create ephemeral auth keys for pods)
+- **Tags:** **`tag:k8s` MUST be ticked in the "Tags" section of the
+  OAuth client form.**
 
-Without these scopes the Tailscale operator cannot register the `pg-rw` proxy
-device and the stable PostgreSQL endpoint will not come up.
+The third bullet is the most common gotcha. Declaring `tag:k8s` in
+`tagOwners` of the ACL is necessary but **not sufficient** — each OAuth
+client additionally has its own per-client allow-list of tags it may mint
+auth keys for. If `tag:k8s` is not ticked there, the operator pod logs
+(`kubectl -n tailscale logs deploy/operator`) will contain:
+
+```
+fatal	creating operator authkey:
+Status: 400, Message: "requested tags [tag:k8s] are invalid or not permitted"
+```
+
+Fix: edit the OAuth client, tick `tag:k8s` (and `tag:k8s-operator` if you
+use it for the operator's own identity), regenerate the client secret if
+the UI forces you to, then update the sops-encrypted file:
+
+```sh
+sops secrets/chopper/secrets.yaml
+# update tailscale-operator-client-id / tailscale-operator-client-secret,
+# then save & exit — the editor re-encrypts in place.
+
+nh os switch                                  # re-deploys the Secret manifest
+kubectl -n tailscale rollout restart deploy/operator
+kubectl -n tailscale logs -f deploy/operator
+```
+
+Without these scopes the Tailscale operator cannot register the `pg-rw`
+proxy device and the stable PostgreSQL endpoint will not come up.
+
 
 ### MagicDNS
 

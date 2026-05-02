@@ -1,100 +1,50 @@
 ---
-# cnpg-backup.yaml — ScheduledBackup and ObjectStore CRs for chopper-pg.
+# cnpg-backup.yaml — ScheduledBackup CR for chopper-pg.
 #
-# WAL archiving is configured inline in the Cluster spec (cnpg-cluster.yaml,
-# spec.backup.barmanObjectStore).  This file declares:
-#   1. ObjectStore — a standalone CR describing the S3 destination.
-#      NOTE: ObjectStore CRD requires CNPG >= 1.23.0 (chart >= 0.23.0).
-#      With chart 0.22.1, WAL archiving uses the inline barmanObjectStore block
-#      in the Cluster spec.  Apply this CR only after upgrading the chart.
-#   2. ScheduledBackup — triggers daily base backups at 02:00 UTC.
+# This file declares the *cadence* of base backups. The *destination* and
+# *credentials* live in cnpg-cluster.yaml (spec.backup.barmanObjectStore)
+# and the cnpg-backup-s3 Secret (applied via sops) respectively.
 #
-# Retention: 14 days (configured in ObjectStore.spec.configuration.retentionPolicy
-# and mirrored in the Cluster spec's barmanObjectStore for 0.22.1 compatibility).
-#
-# S3 credentials come from the 'cnpg-backup-s3' Secret in namespace cnpg-clusters.
-# That Secret is applied separately via sops:
-#   sops --decrypt k8s/clusters/chopper/secrets/cnpg-backup-s3.enc.yaml \
-#     | kubectl apply -f -
-
-# ---------------------------------------------------------------------------
-# ObjectStore CR
-# Requires CNPG >= 1.23.0 (chart >= 0.23.0).
-# After upgrading, you can replace the inline barmanObjectStore block in
-# cnpg-cluster.yaml with:
-#   backup:
-#     objectStore:
-#       name: chopper-pg-backup-store
-#     retentionPolicy: "14d"
-# ---------------------------------------------------------------------------
-apiVersion: postgresql.cnpg.io/v1
-kind: ObjectStore
-metadata:
-  name: chopper-pg-backup-store
-  namespace: cnpg-clusters
-spec:
-  configuration:
-    # Replace with your actual S3 bucket path.
-    # Must match the destinationPath in cnpg-cluster.yaml's barmanObjectStore.
-    destinationPath: "s3://YOUR-BUCKET-NAME/chopper-pg"
-
-    # Uncomment for non-AWS S3-compatible endpoints (Garage, Cloudflare R2, Backblaze B2):
-    # endpointURL: "https://YOUR-S3-ENDPOINT"
-
-    # Credentials from the sops-managed Secret.
-    s3Credentials:
-      accessKeyId:
-        name: cnpg-backup-s3
-        key: ACCESS_KEY_ID
-      secretAccessKey:
-        name: cnpg-backup-s3
-        key: SECRET_ACCESS_KEY
-
-    # WAL segment archiving settings.
-    wal:
-      compression: gzip
-      maxParallel: 4
-
-    # Base backup settings.
-    data:
-      compression: gzip
-      immediateCheckpoint: false
-      jobs: 2
-
-    # Retain base backups for 14 days; Barman keeps enough WAL for PITR within
-    # that window.
-    retentionPolicy: "14d"
-
----
-# ---------------------------------------------------------------------------
-# ScheduledBackup CR — daily base backup at 02:00 UTC.
+# Why no standalone ObjectStore CR here?
+#   CNPG 1.28 introduces an optional barman-cloud plugin that consumes
+#   ObjectStore CRs. We use the inline barmanObjectStore in the Cluster
+#   spec instead — same effect, one fewer operator to install. See the
+#   header comment in cnpg-cluster.yaml for the full reasoning.
 #
 # CNPG ScheduledBackup uses a 6-field cron expression:
 #   <second> <minute> <hour> <day-of-month> <month> <day-of-week>
 # "0 0 2 * * *" = every day at 02:00:00 UTC.
-#
-# backupOwnerReference: self  →  the backup object owns its own lifecycle;
-# old Backup objects are garbage-collected when they age out of the retention
-# window.
-# ---------------------------------------------------------------------------
+
 apiVersion: postgresql.cnpg.io/v1
 kind: ScheduledBackup
 metadata:
   name: chopper-pg-daily
   namespace: cnpg-clusters
+  labels:
+    app.kubernetes.io/name: chopper-pg
+    app.kubernetes.io/part-of: cloudnative-pg
+    app.kubernetes.io/managed-by: kustomize
 spec:
-  # Daily at 02:00 UTC.
+  # Daily at 02:00 UTC. Adjust if your tailnet has a quieter window.
   schedule: "0 0 2 * * *"
 
-  # The backup object is owned by the ScheduledBackup controller; it will be
-  # cleaned up when it falls outside the retention window.
+  # The Backup objects produced by this schedule are owned by the
+  # ScheduledBackup; CNPG garbage-collects them once they fall outside the
+  # Cluster's retentionPolicy ("14d" — see cnpg-cluster.yaml).
   backupOwnerReference: self
 
   cluster:
     name: chopper-pg
 
-  # Take a consistent base backup (includes an immediate checkpoint).
+  # Take a consistent base backup. Setting `immediate: false` here means we
+  # do NOT take a base backup the moment this CR is applied — the first one
+  # runs at the next 02:00 UTC tick. Set this to `true` once at first apply
+  # if you want an immediate baseline (then re-apply with `false`), or just
+  # trigger one manually:
+  #   kubectl cnpg backup chopper-pg -n cnpg-clusters
   immediate: false
 
-  # Online backup — taken while PostgreSQL is running (no downtime).
-  target: primary
+  # The CNPG Cluster's `backup.target: prefer-standby` (cnpg-cluster.yaml)
+  # determines which instance to back up from when this Schedule fires.
+  # We do NOT override it here.
+  method: barmanObjectStore

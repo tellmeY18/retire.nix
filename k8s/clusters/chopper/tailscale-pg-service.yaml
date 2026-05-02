@@ -1,42 +1,69 @@
 ---
-# tailscale-pg-service.yaml — Tailscale LoadBalancer Service exposing the
-# PgBouncer pooler on the tailnet.
+# tailscale-pg-service.yaml — Expose the PgBouncer pooler on the tailnet as
+# a stable MagicDNS endpoint via the Tailscale Kubernetes operator.
 #
-# The Tailscale Kubernetes operator watches Services with:
-#   spec.loadBalancerClass: tailscale
-# and creates a ts-proxy StatefulSet that registers a device on the tailnet
-# with the MagicDNS hostname set by the annotation below.
+# The Tailscale operator watches Services with `spec.loadBalancerClass:
+# tailscale` and provisions a ts-proxy StatefulSet that registers a device
+# on the tailnet. The annotation drives the device's MagicDNS hostname,
+# giving cloud webservices a stable connection target:
 #
-# Webservices connect to:  pg-rw.<tailnet>.ts.net:5432
+#   pg-rw.<tailnet>.ts.net:5432
 #
 # Traffic path:
-#   pg-rw.<tailnet>.ts.net:5432
-#     → this Service (Tailscale ts-proxy forwards here)
-#     → chopper-pg-pooler-rw PgBouncer pods (selected by cnpg.io/poolerName)
-#     → chopper-pg-rw Service (CNPG primary)
+#   webservice
+#     → pg-rw.<tailnet>.ts.net:5432    (Tailscale MagicDNS)
+#     → ts-proxy pod                    (this Service, ts-managed)
+#     → chopper-pg-pooler-rw Service    (created by CNPG Pooler CR)
+#     → PgBouncer pods (transaction mode)
+#     → chopper-pg-rw Service           (always points at current primary)
+#     → PostgreSQL primary pod
+#
+# Why not let this Service directly select PgBouncer pods?
+#   The CNPG Pooler creates its own Service (`chopper-pg-pooler-rw`) with
+#   the precise selector and session-affinity defaults that PgBouncer needs.
+#   The Tailscale operator's `ExternalName` mode (annotation
+#   `tailscale.com/proxy-class` is unrelated; we use the loadBalancerClass
+#   pattern) proxies to the *named* in-cluster Service rather than to pods
+#   directly, so we delegate selection to CNPG and do not duplicate it here.
 #
 # Prerequisites:
 #   - Tailscale Kubernetes operator installed (NixOS-bootstrapped via
 #     services.k3s.charts in modules/services/k3s.nix).
 #   - Tailscale operator OAuth credentials applied as a Secret in the
-#     tailscale namespace (managed by sops-nix on the host).
+#     `tailscale` namespace by sops-nix (see modules/services/
+#     k3s-bootstrap-manifests.nix and docs/k3s-cnpg.md §10).
+#   - Tailscale ACL allows tag:k8s → tag:k8s:5432 for the cluster's source
+#     ranges, AND the OAuth client has tag:k8s in its allowed-tags list.
 
 apiVersion: v1
 kind: Service
 metadata:
   name: pg-rw-tailscale
   namespace: cnpg-clusters
+  labels:
+    app.kubernetes.io/name: chopper-pg
+    app.kubernetes.io/component: tailnet-frontend
+    app.kubernetes.io/part-of: cloudnative-pg
+    app.kubernetes.io/managed-by: kustomize
   annotations:
-    # MagicDNS hostname registered on the tailnet.
-    # The stable connection string for webservices is:
-    #   pg-rw.<tailnet>.ts.net:5432
+    # MagicDNS hostname registered on the tailnet. Must be a valid DNS label
+    # (lowercase, alphanumeric+hyphen). The fully-qualified hostname is
+    # `<this>.<tailnet>.ts.net`.
     tailscale.com/hostname: "pg-rw"
+    # Add the device to the cluster's tag namespace. The OAuth client used
+    # by the operator MUST have this tag in its allowed-tags list, and the
+    # tailnet ACL MUST declare it under tagOwners. See docs/k3s-cnpg.md §10
+    # for the exact ACL JSON snippet.
+    tailscale.com/tags: "tag:k8s"
 spec:
   type: LoadBalancer
   loadBalancerClass: tailscale
 
   # Select the PgBouncer pods managed by the chopper-pg-pooler-rw Pooler CR.
-  # CNPG stamps this label on all pods belonging to the named Pooler.
+  # CNPG stamps `cnpg.io/poolerName=<pooler-name>` on every PgBouncer pod.
+  # The selector goes here (not on a separate ExternalName) because the
+  # Tailscale operator's ts-proxy pod uses iptables DNAT directly to the
+  # selected pod IPs.
   selector:
     cnpg.io/poolerName: chopper-pg-pooler-rw
 
@@ -45,3 +72,12 @@ spec:
       protocol: TCP
       port: 5432
       targetPort: 5432
+
+  # Use ClientIP session affinity so a single client (webservice) sticks to
+  # the same PgBouncer pod for the duration of its connection pool's lifetime.
+  # PgBouncer is stateless across connections so this is purely a latency /
+  # cache-locality optimisation, not a correctness requirement.
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 10800 # 3 hours
