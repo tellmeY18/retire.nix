@@ -42,6 +42,9 @@ labels:
 resources:
   # Namespace declaration — must be applied first.
   - namespace.yaml
+  # NetworkPolicies — default-deny + explicit allow rules. Locks down
+  # Prometheus to only accept queries from Grafana, not from arbitrary pods.
+  - networkpolicy.yaml
   # Tailscale LoadBalancer Service exposing Grafana on the tailnet under
   # MagicDNS name `grafana`.
   - tailscale-grafana-service.yaml

@@ -1,0 +1,194 @@
+---
+# networkpolicy.yaml — NetworkPolicies for the monitoring namespace.
+#
+# Defense in depth: even though Prometheus and Alertmanager are ClusterIP-only
+# (no Tailscale LoadBalancer, no NodePort), we lock down ingress so that only
+# authorised pods can reach each service.
+#
+# Architecture:
+#
+#   tailnet → ts-proxy → Grafana (:3000) → Prometheus (:9090)
+#                                        → Alertmanager (:9093)
+#
+#   Prometheus (:9090) ← scrapes ← kube-state-metrics, node-exporter,
+#                                   operator, CNPG pods (via PodMonitor)
+#
+# Rules:
+#   1. Default-deny ingress for the namespace.
+#   2. Allow Grafana ingress from the Tailscale ts-proxy (namespace: tailscale).
+#   3. Allow Prometheus ingress from Grafana (port 9090) for dashboard queries.
+#   4. Allow Alertmanager ingress from Prometheus (port 9093) for alert delivery.
+#   5. Allow intra-namespace scraping — Prometheus scrapes kube-state-metrics,
+#      node-exporter, the operator, and Alertmanager. Rather than enumerating
+#      every target, we allow all monitoring-namespace pods to accept ingress
+#      from Prometheus on their metrics ports.
+#
+# NOTE: Prometheus EGRESS is not restricted. It needs to reach pods in many
+# namespaces (cnpg-clusters, cnpg-system, kube-system, etc.) for scraping.
+# Restricting egress would require enumerating every scrape target namespace,
+# which is brittle and breaks silently when new PodMonitors are added.
+
+# ---- 1. Default deny ingress ------------------------------------------------
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/part-of: kube-prometheus-stack
+    app.kubernetes.io/managed-by: kustomize
+spec:
+  podSelector: {} # all pods in the namespace
+  policyTypes:
+    - Ingress
+---
+# ---- 2. Allow Grafana ingress from Tailscale ts-proxy -----------------------
+# The Tailscale LoadBalancer Service selects Grafana pods directly. The
+# ts-proxy pod lives in the `tailscale` namespace and forwards traffic
+# from `grafana.<tailnet>.ts.net:3000`.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-grafana-ingress
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/part-of: kube-prometheus-stack
+    app.kubernetes.io/managed-by: kustomize
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: grafana
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        # Tailscale ts-proxy pods.
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: tailscale
+      ports:
+        - protocol: TCP
+          port: 3000
+---
+# ---- 3. Allow Prometheus ingress from Grafana --------------------------------
+# Grafana queries Prometheus on port 9090 for all dashboard panels.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-prometheus-from-grafana
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/part-of: kube-prometheus-stack
+    app.kubernetes.io/managed-by: kustomize
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: prometheus
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        # Grafana pods in this namespace.
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: grafana
+      ports:
+        - protocol: TCP
+          port: 9090
+---
+# ---- 4. Allow Alertmanager ingress from Prometheus ---------------------------
+# Prometheus pushes firing alerts to Alertmanager on port 9093.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-alertmanager-from-prometheus
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/part-of: kube-prometheus-stack
+    app.kubernetes.io/managed-by: kustomize
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: alertmanager
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: prometheus
+      ports:
+        - protocol: TCP
+          port: 9093
+        # Alertmanager cluster peering port (for multi-replica HA).
+        - protocol: TCP
+          port: 9094
+        - protocol: UDP
+          port: 9094
+---
+# ---- 5. Allow intra-namespace metrics scraping by Prometheus -----------------
+# Prometheus scrapes kube-state-metrics (:8080/:8443), node-exporter (:9100),
+# the prometheus-operator (:10250), and Alertmanager (:9093). Rather than
+# listing each target individually, we allow Prometheus to reach any pod in
+# this namespace on common metrics ports.
+#
+# NOTE: node-exporter runs with hostNetwork=true, so it is NOT subject to
+# pod-level NetworkPolicy. The ports listed here cover the non-hostNetwork
+# components.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-prometheus-scraping
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/part-of: kube-prometheus-stack
+    app.kubernetes.io/managed-by: kustomize
+spec:
+  podSelector: {} # all pods in the namespace
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: prometheus
+      ports:
+        # kube-state-metrics HTTP
+        - protocol: TCP
+          port: 8080
+        # kube-state-metrics self-metrics (telemetry port)
+        - protocol: TCP
+          port: 8443
+        # node-exporter (pod-network fallback, though it usually uses hostNetwork)
+        - protocol: TCP
+          port: 9100
+        # Alertmanager metrics
+        - protocol: TCP
+          port: 9093
+        # prometheus-operator metrics
+        - protocol: TCP
+          port: 10250
+---
+# ---- 6. Allow Prometheus operator webhook & API access -----------------------
+# The prometheus-operator needs to be reached by the Kubernetes API server
+# for admission webhook calls. The API server's source IP varies by cluster,
+# so we allow the webhook port from anywhere within the cluster.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-operator-webhook
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/part-of: kube-prometheus-stack
+    app.kubernetes.io/managed-by: kustomize
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: prometheus-operator
+  policyTypes:
+    - Ingress
+  ingress:
+    - ports:
+        # Admission webhook port (validating/mutating webhooks for PrometheusRule etc.)
+        - protocol: TCP
+          port: 10250
