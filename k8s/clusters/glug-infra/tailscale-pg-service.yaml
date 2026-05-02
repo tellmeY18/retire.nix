@@ -65,7 +65,7 @@ spec:
   # `k8s/apps/postgres/values.yaml` (poolers[0].name=rw → release-prefixed
   # name `postgres-pooler-rw`).
   selector:
-    cnpg.io/poolerName: postgres-pooler-rw
+    cnpg.io/poolerName: postgres-cluster-pooler-rw
 
   ports:
     - name: postgres

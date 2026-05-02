@@ -200,7 +200,7 @@ poolers:
                 podAffinityTerm:
                   labelSelector:
                     matchLabels:
-                      cnpg.io/poolerName: postgres-pooler-rw
+                      cnpg.io/poolerName: postgres-cluster-pooler-rw
                   topologyKey: kubernetes.io/hostname
         containers:
           - name: pgbouncer
