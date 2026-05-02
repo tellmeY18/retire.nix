@@ -41,8 +41,9 @@
   # Pool size: 20% of RAM ≈ 1.5GB. With ~2:1 average compression, this holds
   # ~3GB of logical swap data in RAM.
   #
-  # zstd gives the best compression ratio; z3fold is a simple allocator that
-  # stores up to 3 compressed pages per physical page.
+  # zstd gives the best compression ratio. For the zpool allocator:
+  #   - z3fold was removed in Linux 6.14
+  #   - zsmalloc is the modern replacement (built-in on 6.14+)
   boot.kernelParams = [
     # ZFS ARC limits
     "zfs.zfs_arc_max=1610612736" # 1.5 GiB
@@ -51,13 +52,7 @@
     "zswap.enabled=1"
     "zswap.compressor=zstd"
     "zswap.max_pool_percent=20"
-    "zswap.zpool=z3fold"
-  ];
-
-  # Ensure the z3fold allocator and zstd compressor modules are available.
-  boot.initrd.kernelModules = [
-    "z3fold"
-    "zstd"
+    "zswap.zpool=zsmalloc"
   ];
 
   # ---------------------------------------------------------------------------
