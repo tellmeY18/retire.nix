@@ -1,0 +1,150 @@
+---
+# cnpg-prometheusrules.yaml — PrometheusRule for CloudNativePG.
+#
+# Based on the official CNPG sample:
+#   https://github.com/cloudnative-pg/cloudnative-pg/blob/main/docs/src/samples/monitoring/prometheusrule.yaml
+#
+# These are the upstream-recommended alerting rules. We maintain them as a
+# standalone kustomize resource rather than using the cnpg/cluster chart's
+# built-in PrometheusRule (which fails prometheus-operator v0.90.x webhook
+# validation).
+#
+# Alerts:
+#   - LongRunningTransaction:  query > 5 min
+#   - BackendsWaiting:         backends waiting > 5 min
+#   - PGDatabaseXidAge:        XID age > 300M (transaction wraparound risk)
+#   - PGReplication:            replication lag > 5 min
+#   - LastFailedArchiveTime:   WAL archiving failure
+#   - DatabaseDeadlockConflicts: deadlocks > 10
+#   - ReplicaFailingReplication: replica WAL receiver down
+#
+# Additional custom alerts for storage monitoring are appended below the
+# upstream rules.
+#
+# Reference:
+#   https://cloudnative-pg.io/documentation/current/monitoring/
+
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: cnpg-default-alerts
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: cloudnative-pg
+    app.kubernetes.io/component: alerting
+    app.kubernetes.io/part-of: cloudnative-pg
+    app.kubernetes.io/managed-by: kustomize
+spec:
+  groups:
+    # =======================================================================
+    # Official CNPG upstream rules
+    # =======================================================================
+    - name: cnpg-default.rules
+      rules:
+        - alert: LongRunningTransaction
+          annotations:
+            description: Pod {{ $labels.pod }} is taking more than 5 minutes (300 seconds) for a query.
+            summary: A query is taking longer than 5 minutes.
+          expr: |-
+            cnpg_backends_max_tx_duration_seconds > 300
+          for: 1m
+          labels:
+            severity: warning
+
+        - alert: BackendsWaiting
+          annotations:
+            description: Pod {{ $labels.pod }} has been waiting for longer than 5 minutes
+            summary: If a backend is waiting for longer than 5 minutes
+          expr: |-
+            cnpg_backends_waiting_total > 300
+          for: 1m
+          labels:
+            severity: warning
+
+        - alert: PGDatabaseXidAge
+          annotations:
+            description: Over 300,000,000 transactions from frozen xid on pod {{ $labels.pod }}
+            summary: Number of transactions from the frozen XID to the current one
+          expr: |-
+            cnpg_pg_database_xid_age > 300000000
+          for: 1m
+          labels:
+            severity: warning
+
+        - alert: PGReplication
+          annotations:
+            description: Standby is lagging behind by over 300 seconds (5 minutes)
+            summary: The standby is lagging behind the primary
+          expr: |-
+            cnpg_pg_replication_lag > 300
+          for: 1m
+          labels:
+            severity: warning
+
+        - alert: LastFailedArchiveTime
+          annotations:
+            description: Archiving failed for {{ $labels.pod }}
+            summary: Checks the last time archiving failed. Will be < 0 when it has not failed.
+          expr: |-
+            (cnpg_pg_stat_archiver_last_failed_time - cnpg_pg_stat_archiver_last_archived_time) > 1
+          for: 1m
+          labels:
+            severity: warning
+
+        - alert: DatabaseDeadlockConflicts
+          annotations:
+            description: There are over 10 deadlock conflicts in {{ $labels.pod }}
+            summary: Checks the number of database conflicts
+          expr: |-
+            cnpg_pg_stat_database_deadlocks > 10
+          for: 1m
+          labels:
+            severity: warning
+
+        - alert: ReplicaFailingReplication
+          annotations:
+            description: Replica {{ $labels.pod }} is failing to replicate
+            summary: Checks if the replica is failing to replicate
+          expr: |-
+            cnpg_pg_replication_in_recovery > cnpg_pg_replication_is_wal_receiver_up
+          for: 1m
+          labels:
+            severity: warning
+
+    # =======================================================================
+    # Custom storage alerts (not in the upstream sample)
+    # =======================================================================
+    - name: cnpg-storage.rules
+      rules:
+        - alert: CNPGPVCFillingUp
+          annotations:
+            description: >-
+              PVC {{ $labels.persistentvolumeclaim }} in namespace
+              {{ $labels.namespace }} is {{ $value | humanizePercentage }} full.
+            summary: CNPG PVC is filling up (> 80%)
+          expr: |-
+            (
+              kubelet_volume_stats_used_bytes{namespace="cnpg-clusters"}
+              /
+              kubelet_volume_stats_capacity_bytes{namespace="cnpg-clusters"}
+            ) > 0.8
+          for: 10m
+          labels:
+            severity: warning
+
+        - alert: CNPGPVCCriticallyFull
+          annotations:
+            description: >-
+              PVC {{ $labels.persistentvolumeclaim }} in namespace
+              {{ $labels.namespace }} is {{ $value | humanizePercentage }} full.
+              PostgreSQL may stop accepting writes imminently.
+            summary: CNPG PVC is critically full (> 90%)
+          expr: |-
+            (
+              kubelet_volume_stats_used_bytes{namespace="cnpg-clusters"}
+              /
+              kubelet_volume_stats_capacity_bytes{namespace="cnpg-clusters"}
+            ) > 0.9
+          for: 5m
+          labels:
+            severity: critical

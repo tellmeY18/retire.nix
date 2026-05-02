@@ -14,6 +14,12 @@
 #     These are installed by helmfile from
 #     k8s/apps/kube-prometheus-stack/values.yaml + secrets.yaml.
 #
+# Also lives here (standalone monitoring resources for CNPG):
+#   - CNPG cluster PodMonitor (replaces deprecated Cluster CR monitoring).
+#   - CNPG pooler PodMonitor (replaces deprecated Pooler CR monitoring).
+#   - CNPG PrometheusRule (upstream-recommended alert rules).
+#   See: https://cloudnative-pg.io/documentation/current/monitoring/
+#
 # These resources are kustomize-managed because they are either
 # infrastructure-wide (Namespace) or front-end glue not expressed by the
 # upstream chart (Tailscale Service).
@@ -37,3 +43,9 @@ resources:
   # Tailscale LoadBalancer Service exposing Grafana on the tailnet under
   # MagicDNS name `grafana`.
   - tailscale-grafana-service.yaml
+  # CNPG standalone monitoring resources — CNPG 1.28+ deprecates the
+  # Cluster CR's `.spec.monitoring` section. We create PodMonitors and
+  # PrometheusRules manually per upstream guidance.
+  - cnpg-cluster-podmonitor.yaml
+  - cnpg-pooler-podmonitor.yaml
+  - cnpg-prometheusrules.yaml

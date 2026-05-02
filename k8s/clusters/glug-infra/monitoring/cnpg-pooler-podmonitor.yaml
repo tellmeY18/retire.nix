@@ -1,0 +1,28 @@
+---
+# cnpg-pooler-podmonitor.yaml — Standalone PodMonitor for CNPG PgBouncer pooler pods.
+#
+# Targets the PgBouncer pods created by the CNPG Pooler CR. These pods
+# expose PgBouncer exporter metrics on port 9127.
+#
+# Reference:
+#   https://cloudnative-pg.io/documentation/current/monitoring/
+
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: cnpg-pooler-rw
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: cloudnative-pg
+    app.kubernetes.io/component: pgbouncer
+    app.kubernetes.io/part-of: cloudnative-pg
+    app.kubernetes.io/managed-by: kustomize
+spec:
+  namespaceSelector:
+    matchNames:
+      - cnpg-clusters
+  selector:
+    matchLabels:
+      cnpg.io/poolerName: postgres-cluster-pooler-rw
+  podMetricsEndpoints:
+    - port: metrics
