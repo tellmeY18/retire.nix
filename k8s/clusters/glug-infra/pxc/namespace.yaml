@@ -8,17 +8,22 @@
 # `pxc-clusters` and are created by kustomize.
 #
 # Labels:
-#   pod-security.kubernetes.io/enforce=restricted
-#     Enforce the PodSecurity "restricted" profile. PXC operator pods
-#     comply with this profile out of the box (non-root UID, no privilege
-#     escalation, seccomp). Note: PXC 8.0 images run as mysql user (UID 1001).
+#   pod-security.kubernetes.io/enforce=privileged
+#     PXC init containers (pxc-init, haproxy-init) and sidecars (logs,
+#     logrotate, pxc-monit) do NOT set allowPrivilegeEscalation=false,
+#     capabilities.drop=["ALL"], runAsNonRoot=true, or seccompProfile.
+#     The upstream Percona images are not built for the "restricted"
+#     PSA profile. We enforce "privileged" to let them schedule, and
+#     audit/warn at "baseline" to catch any truly dangerous pods.
+#     Revisit if Percona adds restricted-compatible security contexts
+#     in a future operator release.
 apiVersion: v1
 kind: Namespace
 metadata:
   name: pxc-clusters
   labels:
-    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce: privileged
     pod-security.kubernetes.io/enforce-version: latest
-    pod-security.kubernetes.io/audit: restricted
-    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/audit: baseline
+    pod-security.kubernetes.io/warn: baseline
     app.kubernetes.io/part-of: percona-xtradb-cluster
