@@ -65,18 +65,31 @@ clean:
 #   2. kustomize applies the namespace, network policies, and Tailscale
 #      LoadBalancer Service.
 #
+# We `cd k8s` before invoking helmfile because the `secrets://` URLs in
+# helmfile.yaml are resolved by the helm-secrets plugin relative to the
+# *current working directory*, not relative to helmfile.yaml itself.
+# Running from anywhere other than `k8s/` would otherwise look for
+# `./apps/postgres/secrets.yaml` and fail with "values file matching
+# secrets://... does not exist".
+#
 # Helm-side secrets (S3 access keys for backups) live in
 # k8s/apps/postgres/secrets.yaml as a sops-encrypted helm values file and
-# are merged in by helm-secrets at install time — we no longer need a
-# separate sops --decrypt | kubectl apply step.
+# are merged in by helm-secrets at install time — no separate
+# `sops --decrypt | kubectl apply` step is needed.
 k8s-apply:
-    helmfile sync --file k8s/helmfile.yaml
+    cd k8s && helmfile sync
     kubectl apply -k k8s/clusters/glug-infra
 
 # Preview k8s changes without applying.
 k8s-diff:
-    helmfile diff --file k8s/helmfile.yaml
+    cd k8s && helmfile diff
     kubectl diff -k k8s/clusters/glug-infra || true
+
+# Render the fully-merged helm output (values.yaml + decrypted secrets.yaml)
+# without touching the cluster. Useful to confirm sensitive overrides are
+# coming through before the first apply.
+k8s-template:
+    cd k8s && helmfile template
 
 # Edit a sops-encrypted secret file.
 # Examples:
