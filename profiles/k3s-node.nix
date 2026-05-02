@@ -18,9 +18,8 @@
 #         sudo k3s kubectl get nodes
 #         KUBECONFIG=/etc/rancher/k3s/k3s.yaml kubectl get nodes
 #
-# helm-secrets plugin is NOT a nixpkgs package. Install it manually once after
-# bootstrapping (helmfile picks it up via the helm plugins directory):
-#   helm plugin install https://github.com/jkroepke/helm-secrets --version v4.6.0
+# helm-secrets and helm-diff are provided via home-manager (dev-k8s.nix) using
+# wrapHelm + helmfile-wrapped — no manual `helm plugin install` needed.
 { pkgs, ... }:
 {
   imports = [ ../modules/services/k3s.nix ];

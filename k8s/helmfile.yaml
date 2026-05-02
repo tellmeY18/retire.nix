@@ -6,8 +6,8 @@
 #   helmfile diff  --file k8s/helmfile.yaml   # preview changes
 #
 # Prerequisites:
-#   helm plugin install https://github.com/jkroepke/helm-secrets
-#   (helm-secrets is not in nixpkgs; one-time install per workstation.)
+#   helm-secrets and helm-diff are Nix-managed via wrapHelm in dev-k8s.nix.
+#   No manual `helm plugin install` step needed.
 #
 # Layered model:
 #   1. cnpg/cloudnative-pg → the operator (CRDs + controller + webhooks).
