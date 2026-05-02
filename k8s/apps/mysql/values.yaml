@@ -38,7 +38,7 @@ pxc:
 
   image:
     repository: percona/percona-xtradb-cluster
-    tag: "8.0.40-31.63"
+    tag: "8.0.45-36.1"
 
   imagePullPolicy: IfNotPresent
 
@@ -118,9 +118,11 @@ haproxy:
   enabled: true
   size: 2
 
-  image:
-    repository: percona/haproxy
-    tag: "2.8.11"
+  # The upstream chart expects haproxy.image as a plain string (unlike
+  # pxc.image which accepts repository+tag). Using the structured form
+  # produces `map[repository:... tag:...]` in the pod spec, causing
+  # InvalidImageName errors.
+  image: "percona/haproxy:2.8.11"
 
   imagePullPolicy: IfNotPresent
 
@@ -164,8 +166,8 @@ backup:
   enabled: true
 
   image:
-    repository: percona/percona-xtradb-cluster-operator
-    tag: "1.19.1-pxc8.0-backup-pxb8.0.35-31"
+    repository: percona/percona-xtrabackup
+    tag: "8.0.35-35.1"
 
   imagePullPolicy: IfNotPresent
 
