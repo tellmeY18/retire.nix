@@ -7,8 +7,12 @@
 # contacting the database without an explicit allow rule.
 #
 # Label reference (from `kubectl get pods --show-labels`):
-#   PXC instances:     app.kubernetes.io/component=pxc, app.kubernetes.io/instance=mysql
-#   HAProxy pods:      app.kubernetes.io/component=haproxy, app.kubernetes.io/instance=mysql
+#   PXC instances:     app.kubernetes.io/component=pxc, app.kubernetes.io/instance=mysql-pxc-db
+#   HAProxy pods:      app.kubernetes.io/component=haproxy, app.kubernetes.io/instance=mysql-pxc-db
+#
+# NOTE: The Helm release name is `mysql`, but the pxc-db chart uses
+# `<release>-pxc-db` as the full name, so the instance label is
+# `mysql-pxc-db` (not just `mysql`).
 
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -36,7 +40,7 @@ spec:
   podSelector:
     matchLabels:
       app.kubernetes.io/component: haproxy
-      app.kubernetes.io/instance: mysql
+      app.kubernetes.io/instance: mysql-pxc-db
   policyTypes:
     - Ingress
   ingress:
@@ -75,7 +79,7 @@ spec:
   podSelector:
     matchLabels:
       app.kubernetes.io/component: pxc
-      app.kubernetes.io/instance: mysql
+      app.kubernetes.io/instance: mysql-pxc-db
   policyTypes:
     - Ingress
   ingress:
@@ -84,14 +88,14 @@ spec:
         - podSelector:
             matchLabels:
               app.kubernetes.io/component: haproxy
-              app.kubernetes.io/instance: mysql
+              app.kubernetes.io/instance: mysql-pxc-db
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: pxc-system
         - podSelector:
             matchLabels:
               app.kubernetes.io/component: pxc
-              app.kubernetes.io/instance: mysql
+              app.kubernetes.io/instance: mysql-pxc-db
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: monitoring
