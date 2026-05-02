@@ -34,6 +34,7 @@ in
     helmfile-with-plugins
     k9s
     sops
+    kubectl-cnpg # `kubectl cnpg status`, `kubectl cnpg backup`, etc.
     cmctl # cert-manager CLI — see note above if attribute not found
   ];
 
