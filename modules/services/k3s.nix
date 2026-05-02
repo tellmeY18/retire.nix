@@ -452,16 +452,59 @@ in
     ];
 
     # -------------------------------------------------------------------------
-    # Firewall note
+    # Kernel modules
     #
-    # We do NOT open any ports here. The host's network module should set:
-    #   networking.firewall.trustedInterfaces = [ "tailscale0" ];
-    # which unconditionally allows all traffic arriving on the tailscale0
-    # interface (already WireGuard-authenticated). k3s ports (6443, 2379/2380,
-    # 10250, flannel 8472 UDP) must remain closed on the physical interface.
-    #
-    # See hosts/chopper/parts/network.nix.
+    # br_netfilter — required so that bridged (same-node pod-to-pod) traffic
+    #   passes through iptables. Without this module loaded,
+    #   net.bridge.bridge-nf-call-iptables has no effect and kube-proxy's
+    #   ClusterIP DNAT rules won't apply to intra-bridge traffic.
+    # overlay      — required by containerd's default snapshotter.
     # -------------------------------------------------------------------------
+    boot.kernelModules = [
+      "br_netfilter"
+      "overlay"
+    ];
+
+    # -------------------------------------------------------------------------
+    # Sysctl — network forwarding & bridge netfilter
+    #
+    # k3s sets these at runtime, but declaring them in NixOS ensures they
+    # are applied early at boot and survive firewall reloads during
+    # `nixos-rebuild switch` (which flushes and rebuilds iptables rules,
+    # potentially before k3s re-inserts its own).
+    # -------------------------------------------------------------------------
+    boot.kernel.sysctl = {
+      "net.ipv4.ip_forward" = 1;
+      "net.ipv6.conf.all.forwarding" = 1;
+      "net.bridge.bridge-nf-call-iptables" = 1;
+      "net.bridge.bridge-nf-call-ip6tables" = 1;
+    };
+
+    # -------------------------------------------------------------------------
+    # Firewall — trust CNI interfaces
+    #
+    # The NixOS iptables-based firewall manages the INPUT chain; it does NOT
+    # filter FORWARD by default. Adding cni0 and flannel.1 to
+    # trustedInterfaces ensures pods can reach host-level services (kubelet
+    # on 10250, apiserver on 6443, node-local DNS, etc.) without opening
+    # those ports globally.
+    #
+    #   cni0      — flannel's local bridge (same-node pod ↔ host traffic)
+    #   flannel.1 — VXLAN device (cross-node pod ↔ host traffic)
+    #
+    # Pod-to-pod FORWARD traffic is managed by k3s's embedded kube-proxy
+    # iptables rules, not by the NixOS firewall. The kernel modules and
+    # sysctl settings above ensure those rules apply correctly to bridged
+    # traffic.
+    #
+    # k3s inter-node ports (6443, 2379/2380, 10250, flannel 8472 UDP) are
+    # covered by the host trusting tailscale0 (set in the host's network
+    # module) — they must NOT be opened on the physical interface.
+    # -------------------------------------------------------------------------
+    networking.firewall.trustedInterfaces = [
+      "cni0"
+      "flannel.1"
+    ];
 
   };
 }
