@@ -145,16 +145,24 @@ cluster:
   # -------------------------------------------------------------------------
   # Monitoring
   # -------------------------------------------------------------------------
-  # CNPG exposes Prometheus metrics on port 9187 of every instance. The
-  # chart creates a PodMonitor when monitoring.enabled=true.
-  # kube-prometheus-stack is installed (helmfile orders it before this chart)
-  # and provides the PodMonitor/PrometheusRule CRDs.
+  # CNPG 1.28+ deprecates `.spec.monitoring.enablePodMonitor` and the
+  # entire `.spec.monitoring` section on the Cluster CR. It will be removed
+  # in CNPG 1.30. The official recommendation is to create standalone
+  # PodMonitor and PrometheusRule resources manually.
+  #
+  # We follow the upstream guidance: all monitoring resources live in the
+  # kustomize layer at k8s/clusters/glug-infra/monitoring/:
+  #   - cnpg-cluster-podmonitor.yaml  (PodMonitor for Postgres instances)
+  #   - cnpg-pooler-podmonitor.yaml   (PodMonitor for PgBouncer pooler)
+  #   - cnpg-prometheusrules.yaml     (PrometheusRule with CNPG alerts)
+  #
+  # See: https://cloudnative-pg.io/documentation/current/monitoring/
   monitoring:
-    enabled: true
+    enabled: false
     podMonitor:
-      enabled: true
+      enabled: false
     prometheusRule:
-      enabled: true
+      enabled: false
 
   # -------------------------------------------------------------------------
   # Resource requests
@@ -187,9 +195,9 @@ poolers:
       log_connections: "1"
       log_disconnections: "1"
     monitoring:
-      enabled: true
+      enabled: false
       podMonitor:
-        enabled: true
+        enabled: false
     # Pod template: keep PgBouncer pods on different nodes when possible.
     template:
       spec:
