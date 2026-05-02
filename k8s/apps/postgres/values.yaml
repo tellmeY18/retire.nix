@@ -1,0 +1,294 @@
+# values.yaml — Plain Helm values for the cnpg/cluster chart 0.6.x.
+#
+# Renders a CNPG `Cluster` + `ScheduledBackup` + `Pooler` (PgBouncer) from a
+# single source of truth. This file is the place to tune every knob that
+# does NOT contain secrets. Credentials (S3 access keys) live in
+# `secrets.yaml` (sops-encrypted) and are merged in by helmfile via the
+# `secrets://` prefix.
+#
+# Reference for all available keys:
+#   helm show values cnpg/cluster --version 0.6.0
+#
+# Source:  https://github.com/cloudnative-pg/charts/tree/main/charts/cluster
+#
+# Naming policy:
+#   The Helm release is `postgres` (defined in helmfile.yaml). The chart
+#   names every object after the release: `Cluster/postgres`,
+#   `Service/postgres-rw`, `Secret/postgres-app`, `Secret/postgres-backup`,
+#   `Pooler/postgres-pooler-rw`, etc. Nothing here is host-specific — the
+#   same values work whether the cluster runs on one node or many.
+#   To run multiple Postgres clusters in parallel, define a second release
+#   in helmfile.yaml with a different release name (e.g. `analytics`).
+
+# ---------------------------------------------------------------------------
+# Database engine type — plain PostgreSQL (not PostGIS / TimescaleDB).
+# ---------------------------------------------------------------------------
+type: postgresql
+
+version:
+  postgresql: "17"
+
+# ---------------------------------------------------------------------------
+# Cluster — the heart of the configuration.
+# ---------------------------------------------------------------------------
+cluster:
+  # Three instances: one primary + two synchronous standbys.
+  #
+  # Phase 1 (single k3s node): all three pods land on the same node — no HA
+  # at the node level, but the topology is already correct for when more
+  # nodes are added. The pod anti-affinity below is `preferred` in this
+  # phase; flip to `required` once a second untainted node joins
+  # (see docs/runbooks/add-node.md).
+  instances: 3
+
+  # Pin the PostgreSQL minor version explicitly. CNPG ships purpose-built
+  # PostgreSQL container images that include all the operator-side tooling
+  # (barman-cloud, pgaudit, etc.). Bump deliberately, never with `:latest`.
+  imageName: ghcr.io/cloudnative-pg/postgresql:17.2-bookworm
+
+  imagePullPolicy: IfNotPresent
+
+  # Lock the postgres superuser. All app access goes through the `app` user
+  # (see initdb below); DBA access uses operator-mediated paths.
+  # https://cloudnative-pg.io/documentation/current/postgresql_conf/#superuser-access
+  enableSuperuserAccess: false
+
+  # Cluster description (shows up in `kubectl cnpg status`).
+  description: "Production PostgreSQL for cloud webservices (glug-infra)"
+
+  # -------------------------------------------------------------------------
+  # Storage — OpenEBS ZFS LocalPV.
+  #
+  # The StorageClass `zfs-localpv` is created cluster-wide by the
+  # NixOS-bootstrapped manifest in modules/services/k3s.nix. Each node
+  # contributes its own ZFS pool (default `rpool/openebs`, configurable
+  # per-host via services.k3s-cluster.openebsZfsPool). Both volumes
+  # (data + WAL) use the same SC; ZFS handles placement and compression.
+  # -------------------------------------------------------------------------
+  storage:
+    storageClass: zfs-localpv
+    size: 20Gi
+
+  walStorage:
+    storageClass: zfs-localpv
+    # Separate volume for pg_wal so a runaway WAL fill cannot fill the
+    # data volume.
+    size: 5Gi
+
+  # -------------------------------------------------------------------------
+  # PostgreSQL configuration
+  # -------------------------------------------------------------------------
+  postgresql:
+    # Quorum-based synchronous replication: at least 1 of the 2 standbys
+    # must acknowledge before commit. With 3 instances this gives RPO ≈ 0
+    # for a single replica loss (once the cluster spans ≥2 nodes).
+    synchronous:
+      method: any
+      number: 1
+
+    # Conservative parameter set tuned for laptop-class hardware. All values
+    # are strings as required by the CNPG API.
+    parameters:
+      # Memory
+      shared_buffers: "256MB"
+      effective_cache_size: "768MB"
+      work_mem: "8MB"
+      maintenance_work_mem: "64MB"
+
+      # WAL / checkpoint
+      wal_compression: "on"
+      max_wal_size: "2GB"
+      min_wal_size: "512MB"
+      checkpoint_completion_target: "0.9"
+
+      # Logging — emit slow queries and lock waits, but not every statement.
+      log_min_duration_statement: "500ms"
+      log_lock_waits: "on"
+      log_temp_files: "0"
+      log_checkpoints: "on"
+      # PgBouncer logs connect/disconnect; avoid duplication at the PG layer.
+      log_connections: "off"
+      log_disconnections: "off"
+
+      # Autovacuum — slightly more aggressive than defaults for OLTP.
+      autovacuum_vacuum_scale_factor: "0.1"
+      autovacuum_analyze_scale_factor: "0.05"
+
+    # shared_preload_libraries the chart appends to the operator's defaults.
+    shared_preload_libraries:
+      - pg_stat_statements
+
+  # -------------------------------------------------------------------------
+  # initdb — bootstrap parameters for the very first creation only.
+  # Recovery into a NEW cluster from S3 backups uses `mode: recovery` instead
+  # (see docs/runbooks/restore-pitr.md).
+  # -------------------------------------------------------------------------
+  initdb:
+    database: app
+    owner: app
+    encoding: UTF8
+    # Locale matters for collation: pin it so backup/restore between hosts
+    # cannot end up with mismatched collations and silently corrupt indexes.
+    localeCollate: C.UTF-8
+    localeCType: C.UTF-8
+
+  # -------------------------------------------------------------------------
+  # Pod scheduling
+  # -------------------------------------------------------------------------
+  # Phase 1 (single node): preferred — all three pods will end up on one
+  # node but the field is in place. Flip to `required` once a second
+  # untainted node joins the cluster.
+  affinity:
+    podAntiAffinityType: preferred
+    topologyKey: kubernetes.io/hostname
+
+  # -------------------------------------------------------------------------
+  # Monitoring
+  # -------------------------------------------------------------------------
+  # CNPG exposes Prometheus metrics on port 9187 of every instance. The
+  # chart creates a PodMonitor when monitoring.enabled=true; picked up
+  # automatically by kube-prometheus-stack if installed. Harmless if not.
+  monitoring:
+    enabled: true
+    podMonitor:
+      enabled: true
+    prometheusRule:
+      enabled: true
+
+  # -------------------------------------------------------------------------
+  # Resource requests
+  # -------------------------------------------------------------------------
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "100m"
+    limits:
+      memory: "1.5Gi"
+      cpu: "1000m"
+
+# ---------------------------------------------------------------------------
+# PgBouncer (Pooler) — sits in front of the cluster's -rw Service.
+# ---------------------------------------------------------------------------
+# The chart materialises one CNPG `Pooler` CR per entry in this list. The
+# Tailscale LoadBalancer Service (k8s/clusters/glug-infra/tailscale-pg-
+# service.yaml) targets the pods of `postgres-pooler-rw` by selector.
+poolers:
+  - name: rw
+    type: rw
+    poolMode: transaction
+    instances: 2
+    parameters:
+      max_client_conn: "1000"
+      default_pool_size: "25"
+      reserve_pool_size: "5"
+      client_idle_timeout: "600"
+      server_idle_timeout: "600"
+      log_connections: "1"
+      log_disconnections: "1"
+    monitoring:
+      enabled: true
+      podMonitor:
+        enabled: true
+    # Pod template: keep PgBouncer pods on different nodes when possible.
+    template:
+      spec:
+        affinity:
+          podAntiAffinity:
+            preferredDuringSchedulingIgnoredDuringExecution:
+              - weight: 100
+                podAffinityTerm:
+                  labelSelector:
+                    matchLabels:
+                      cnpg.io/poolerName: postgres-pooler-rw
+                  topologyKey: kubernetes.io/hostname
+        containers:
+          - name: pgbouncer
+            resources:
+              requests:
+                cpu: "50m"
+                memory: "32Mi"
+              limits:
+                cpu: "200m"
+                memory: "128Mi"
+
+# ---------------------------------------------------------------------------
+# Backups — Barman Cloud → S3-compatible bucket.
+# ---------------------------------------------------------------------------
+# Single source of truth for the backup destination. The chart materialises
+# both the inline `spec.backup.barmanObjectStore` on the Cluster and the
+# `ScheduledBackup` CR from these values.
+#
+# What lives here vs. in secrets.yaml:
+#   here (plaintext)        path, retention, schedule, compression
+#   secrets.yaml (sops)      bucket, accessKey, secretKey, endpointURL
+#
+# We keep `bucket` and `endpointURL` in secrets.yaml because together they
+# can leak the cloud account hosting our backups (R2 endpoints embed the
+# account ID; bucket names are namespaced under that account). They are
+# not credentials per se but are sensitive enough not to commit in
+# plaintext to a public repo. helm-secrets deep-merges secrets.yaml over
+# this file, so any field below can be overridden there.
+# ---------------------------------------------------------------------------
+backups:
+  enabled: true
+
+  # ---- Destination ---------------------------------------------------------
+  provider: s3
+
+  s3:
+    # bucket is OVERRIDDEN by secrets.yaml. Empty here is the safe fallback
+    # — if secrets.yaml is missing or unreadable the chart will fail loudly
+    # rather than silently writing to a wrong path. Set the real value under
+    # `backups.s3.bucket` in secrets.yaml; do not edit it here.
+    bucket: ""
+    # The chart concatenates `s3://<bucket><path>` to form the final
+    # destinationPath. `path` is non-sensitive (just a prefix inside the
+    # bucket) so it stays here.
+    path: "/postgres"
+    region: "" # ignored for non-AWS endpoints
+    # accessKey / secretKey are supplied by secrets.yaml (sops).
+
+  # endpointURL is OVERRIDDEN by secrets.yaml. The empty string here is the
+  # safe fallback (= use AWS S3 default endpoint) for the rare case where
+  # secrets.yaml is missing or unreadable. Set the real value under
+  # `backups.endpointURL` in secrets.yaml; do not edit it here.
+  endpointURL: ""
+
+  # If the endpoint uses a privately-signed certificate, set its CA bundle
+  # here and the chart will create a Secret + reference it.
+  endpointCA:
+    create: false
+
+  # ---- Credential Secret ---------------------------------------------------
+  # By default the chart creates a Secret named `<release>-backup` from
+  # backups.s3.accessKey/secretKey. We let it do exactly that, then set
+  # those keys in secrets.yaml so the plaintext file in git contains no
+  # credentials.
+  secret:
+    create: true
+    name: "" # empty → chart auto-generates `<release>-backup`
+
+  # ---- WAL archiving -------------------------------------------------------
+  wal:
+    compression: gzip
+    # No bucket-side encryption opinion — most homelab S3 endpoints
+    # (R2, B2, Garage) ignore this header. Leave empty for defaults.
+    encryption: ""
+    maxParallel: 4
+
+  data:
+    compression: gzip
+    encryption: ""
+    jobs: 2
+
+  # ---- Schedule ------------------------------------------------------------
+  scheduledBackups:
+    - name: daily-backup
+      # 6-field cron: <sec> <min> <hour> <day> <month> <weekday>
+      # 02:00 UTC every day. Adjust to your tailnet's quietest hour.
+      schedule: "0 0 2 * * *"
+      backupOwnerReference: self
+      method: barmanObjectStore
+
+  # Keep base backups + just-enough WAL for 14 days of PITR.
+  retentionPolicy: "14d"

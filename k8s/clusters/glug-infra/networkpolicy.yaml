@@ -46,7 +46,7 @@ metadata:
 spec:
   podSelector:
     matchLabels:
-      cnpg.io/poolerName: chopper-pg-pooler-rw
+      cnpg.io/poolerName: postgres-pooler-rw
   policyTypes:
     - Ingress
   ingress:
@@ -74,7 +74,7 @@ metadata:
 spec:
   podSelector:
     matchLabels:
-      cnpg.io/cluster: chopper-pg
+      cnpg.io/cluster: postgres
   policyTypes:
     - Ingress
   ingress:
@@ -82,7 +82,7 @@ spec:
         # PgBouncer pods (the only intended SQL clients of the primary).
         - podSelector:
             matchLabels:
-              cnpg.io/poolerName: chopper-pg-pooler-rw
+              cnpg.io/poolerName: postgres-pooler-rw
         # CNPG operator namespace — operator probes, status reconciliation.
         - namespaceSelector:
             matchLabels:
@@ -91,7 +91,7 @@ spec:
         # CNPG instance pods to reach each other on the replication port.
         - podSelector:
             matchLabels:
-              cnpg.io/cluster: chopper-pg
+              cnpg.io/cluster: postgres
       ports:
         - protocol: TCP
           port: 5432 # Postgres

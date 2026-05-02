@@ -13,13 +13,13 @@
 #   webservice
 #     → pg-rw.<tailnet>.ts.net:5432    (Tailscale MagicDNS)
 #     → ts-proxy pod                    (this Service, ts-managed)
-#     → chopper-pg-pooler-rw Service    (created by CNPG Pooler CR)
+#     → postgres-pooler-rw Service    (created by CNPG Pooler CR)
 #     → PgBouncer pods (transaction mode)
-#     → chopper-pg-rw Service           (always points at current primary)
+#     → postgres-rw Service           (always points at current primary)
 #     → PostgreSQL primary pod
 #
 # Why not let this Service directly select PgBouncer pods?
-#   The CNPG Pooler creates its own Service (`chopper-pg-pooler-rw`) with
+#   The CNPG Pooler creates its own Service (`postgres-pooler-rw`) with
 #   the precise selector and session-affinity defaults that PgBouncer needs.
 #   The Tailscale operator's `ExternalName` mode (annotation
 #   `tailscale.com/proxy-class` is unrelated; we use the loadBalancerClass
@@ -41,7 +41,7 @@ metadata:
   name: pg-rw-tailscale
   namespace: cnpg-clusters
   labels:
-    app.kubernetes.io/name: chopper-pg
+    app.kubernetes.io/name: postgres
     app.kubernetes.io/component: tailnet-frontend
     app.kubernetes.io/part-of: cloudnative-pg
     app.kubernetes.io/managed-by: kustomize
@@ -59,13 +59,13 @@ spec:
   type: LoadBalancer
   loadBalancerClass: tailscale
 
-  # Select the PgBouncer pods managed by the chopper-pg-pooler-rw Pooler CR.
+  # Select the PgBouncer pods managed by the postgres-pooler-rw Pooler CR.
   # CNPG stamps `cnpg.io/poolerName=<pooler-name>` on every PgBouncer pod.
-  # The selector goes here (not on a separate ExternalName) because the
-  # Tailscale operator's ts-proxy pod uses iptables DNAT directly to the
-  # selected pod IPs.
+  # The Pooler CR itself is rendered by the cnpg/cluster Helm chart from
+  # `k8s/apps/postgres/values.yaml` (poolers[0].name=rw → release-prefixed
+  # name `postgres-pooler-rw`).
   selector:
-    cnpg.io/poolerName: chopper-pg-pooler-rw
+    cnpg.io/poolerName: postgres-pooler-rw
 
   ports:
     - name: postgres

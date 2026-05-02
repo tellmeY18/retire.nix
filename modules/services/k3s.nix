@@ -163,6 +163,31 @@ in
       '';
     };
 
+    openebsZfsPool = mkOption {
+      type = types.str;
+      default = "rpool/openebs";
+      example = "tank/k8s-volumes";
+      description = ''
+        Name of the ZFS dataset that the OpenEBS ZFS LocalPV provisioner will
+        carve PVs out of, on this node. Used as the `poolname` parameter on
+        the cluster-wide `zfs-localpv` StorageClass manifest.
+
+        The dataset must be pre-created on every node that hosts CNPG
+        instances; the provisioner will not create it. Recommended
+        properties:
+          recordsize=8K  logbias=throughput  compression=zstd
+          xattr=sa  atime=off
+
+        IMPORTANT: this value is rendered into a *single* cluster-wide
+        StorageClass. All k3s nodes that participate in CNPG storage MUST
+        therefore use the same dataset NAME (the actual zpool can differ,
+        e.g. one node uses `rpool/openebs` and another uses `tank/openebs`,
+        only if both nodes' datasets are renamed to a single common name
+        before joining the cluster). When in doubt, keep the default and
+        create `rpool/openebs` on every node.
+      '';
+    };
+
   };
 
   config = mkIf cfg.enable {
@@ -331,7 +356,7 @@ in
           reclaimPolicy = "Delete";
           volumeBindingMode = "WaitForFirstConsumer";
           parameters = {
-            poolname = "rpool/openebs";
+            poolname = cfg.openebsZfsPool;
             fstype = "zfs";
             recordsize = "8k";
             compression = "zstd";

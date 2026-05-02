@@ -281,28 +281,28 @@ See `docs/secrets.md` for the full workflow.
 
 ### Tier 2 — Cluster-side (laptop apply)
 
-These are decrypted by the operator's laptop and applied via `just k8s-apply`.
-Cluster nodes never hold the decrypt keys for these.
+These are sops-encrypted Helm values files that the operator's laptop
+decrypts at apply time. Cluster nodes never hold the decrypt keys.
 
-#### `k8s/clusters/chopper/secrets/cnpg-backup-s3.enc.yaml`
-
-```
-Git (sops-encrypted Kubernetes Secret manifest)
-  → just k8s-apply
-  → sops --decrypt | kubectl apply -f -
-  → Secret in cluster: cnpg-backup-s3-creds
-  → CNPG ObjectStore references it as secretRef
-  → Barman Cloud uses it to push WAL + base backups to B2/R2
-```
-
-#### `k8s/apps/*/secrets.yaml` (Helm values)
+#### `k8s/apps/postgres/secrets.yaml` (and any `k8s/apps/*/secrets.yaml`)
 
 ```
 Git (sops-encrypted Helm values)
-  → helmfile (helm-secrets plugin)
-  → sops --decrypt inline during helm install/upgrade
-  → values injected into Helm chart
+  → just k8s-apply
+  → helmfile sync
+  → helm-secrets plugin: sops --decrypt inline
+  → values merged on top of values.yaml
+  → Helm chart renders the Kubernetes Secret
+  → Secret in cluster: e.g. `postgres-backup`
+  → CNPG Cluster's barmanObjectStore references it as secretRef
+  → Barman Cloud uses it to push WAL + base backups to S3
 ```
+
+There is intentionally **no separate `*.enc.yaml` Secret manifest** in this
+repo — every cluster-side secret flows through a Helm chart's values
+schema. This avoids two parallel decrypt paths (one for raw Secrets, one
+for chart values) and keeps `kubectl diff` honest about Secret contents
+(it will show changes only when the underlying values do).
 
 ### CNPG-managed secrets (no operator input required)
 
@@ -317,7 +317,7 @@ the cluster:
 Fetch the connection string once at webservice deploy time:
 
 ```sh
-kubectl get secret chopper-pg-app -n cnpg \
+kubectl get secret postgres-app -n cnpg \
   -o jsonpath='{.data.uri}' | base64 -d
 ```
 
@@ -335,10 +335,10 @@ kubectl get nodes -o wide
 kubectl get pods -A
 
 # CNPG cluster overview (requires kubectl-cnpg plugin)
-kubectl cnpg status chopper-pg -n cnpg
+kubectl cnpg status postgres -n cnpg
 
 # Check CNPG cluster events
-kubectl describe cluster chopper-pg -n cnpg
+kubectl describe cluster postgres -n cnpg
 
 # Check etcd health (on a server node)
 # k3s bundles etcdctl:
@@ -349,14 +349,14 @@ k3s etcd-snapshot list
 
 ```sh
 # Via kubectl-cnpg
-kubectl cnpg status chopper-pg -n cnpg | grep -A5 "Streaming Replication"
+kubectl cnpg status postgres -n cnpg | grep -A5 "Streaming Replication"
 
 # Directly in PostgreSQL
-kubectl exec -it chopper-pg-1 -n cnpg -- \
+kubectl exec -it postgres-1 -n cnpg -- \
   psql -U postgres -c "SELECT * FROM pg_stat_replication;"
 
 # Replica-side lag
-kubectl exec -it chopper-pg-2 -n cnpg -- \
+kubectl exec -it postgres-2 -n cnpg -- \
   psql -U postgres -c "SELECT now() - pg_last_xact_replay_timestamp() AS lag;"
 ```
 
@@ -366,8 +366,8 @@ A switchover gracefully promotes a replica to primary. Use this for planned
 maintenance (node reboot, k3s upgrade, etc.):
 
 ```sh
-# Promote chopper-pg-2 to primary
-kubectl cnpg promote chopper-pg chopper-pg-2 -n cnpg
+# Promote postgres-2 to primary
+kubectl cnpg promote postgres postgres-2 -n cnpg
 
 # Watch progress (the old primary demotes, new one accepts writes)
 kubectl get pods -n cnpg -w
@@ -623,7 +623,7 @@ kubectl uncordon chopper
 Always trigger a CNPG switchover before draining the node hosting the primary:
 
 ```sh
-kubectl cnpg promote chopper-pg <replica-pod-name> -n cnpg
+kubectl cnpg promote postgres <replica-pod-name> -n cnpg
 # Wait for switchover confirmation, then drain
 ```
 
@@ -663,17 +663,17 @@ moment the primary's node dies.
 kubectl get backup -n cnpg
 
 # Check the last scheduled backup status
-kubectl describe scheduledbackup chopper-pg-daily -n cnpg
+kubectl describe scheduledbackup postgres-daily-backup -n cnpg
 
 # Trigger a manual backup immediately
-kubectl cnpg backup chopper-pg -n cnpg
+kubectl cnpg backup postgres -n cnpg
 
 # Check Barman status (inside the primary pod)
-kubectl exec -it chopper-pg-1 -n cnpg -- \
+kubectl exec -it postgres-1 -n cnpg -- \
   barman-cloud-check-wal-archive \
   --cloud-provider aws-s3 \
   --endpoint-url https://s3.garage.chopper.local \
-  s3://cnpg-backups chopper-pg
+  s3://cnpg-backups postgres
 ```
 
 ### Point-in-time recovery (PITR)
@@ -690,7 +690,7 @@ All local data (ZFS pool) is lost. Off-site backup (B2/R2) is the only copy.
 Recovery procedure:
 
 1. Bootstrap a new k3s cluster on fresh hardware.
-2. Create the `cnpg-backup-s3-creds` Secret manually (from the master age key
+2. Create the `postgres-backup` Secret manually (from the master age key
    and the sops-encrypted file in git).
 3. Deploy the CNPG operator.
 4. Create a new `Cluster` CR with `bootstrap.recovery` pointing at the B2/R2
@@ -724,7 +724,7 @@ When moving from Phase 1 (1 node) to Phase 3 (3 nodes), update the CNPG
 `Cluster` CR:
 
 ```yaml
-# k8s/clusters/chopper/cnpg-cluster.yaml
+# k8s/clusters/glug-infra/cnpg-cluster.yaml
 spec:
   instances: 3
   affinity:
@@ -907,7 +907,7 @@ k8s/
 │       ├── cnpg-backup.yaml           # ScheduledBackup + ObjectStore CRs
 │       ├── tailscale-pg-service.yaml  # tailscale LoadBalancer for the pooler
 │       └── secrets/
-│           └── cnpg-backup-s3.enc.yaml  # sops-encrypted Secret manifest
+│           └── apps/postgres/secrets.yaml  # sops-encrypted Secret manifest
 └── docs/
     └── runbooks/
         ├── add-node.md

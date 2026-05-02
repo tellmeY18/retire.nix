@@ -125,73 +125,70 @@ kubectl taint nodes <quorum-node-name> \
 
 ---
 
-## Step 5 — Flip CNPG Cluster affinity to required
+## Step 5 — Flip CNPG Cluster + Pooler affinity to required
 
 Once you have **≥ 2 nodes that can run workloads** (i.e. 2 untainted nodes),
-update `k8s/clusters/chopper/cnpg-cluster.yaml`:
+edit the Helm values in `k8s/apps/postgres/values.yaml`:
 
 ```yaml
 # BEFORE (Phase 1 — single node):
-affinity:
-  podAntiAffinityType: preferred
-  topologyKey: kubernetes.io/hostname
+cluster:
+  affinity:
+    podAntiAffinityType: preferred
+    topologyKey: kubernetes.io/hostname
+
+poolers:
+  - name: rw
+    template:
+      spec:
+        affinity:
+          podAntiAffinity:
+            preferredDuringSchedulingIgnoredDuringExecution:
+              - weight: 100
+                podAffinityTerm:
+                  labelSelector: { matchLabels: { cnpg.io/poolerName: postgres-pooler-rw } }
+                  topologyKey: kubernetes.io/hostname
 
 # AFTER (Phase 2+ — multiple nodes):
-affinity:
-  podAntiAffinityType: required
-  topologyKey: kubernetes.io/hostname
+cluster:
+  affinity:
+    podAntiAffinityType: required
+    topologyKey: kubernetes.io/hostname
+
+poolers:
+  - name: rw
+    template:
+      spec:
+        affinity:
+          podAntiAffinity:
+            requiredDuringSchedulingIgnoredDuringExecution:
+              - labelSelector: { matchLabels: { cnpg.io/poolerName: postgres-pooler-rw } }
+                topologyKey: kubernetes.io/hostname
 ```
 
-Apply the change:
+Apply the change. helmfile diff first, then sync:
 
 ```shell
-kubectl apply -k k8s/clusters/chopper
-# CNPG will perform a rolling restart to respect the new scheduling constraint.
-kubectl get pods -n cnpg-clusters -w
+just k8s-diff           # preview the rolling-restart impact
+just k8s-apply          # CNPG performs a rolling restart respecting PDBs
+kubectl get pods -n cnpg-clusters -o wide -w
 ```
 
 ---
 
-## Step 6 — Flip CNPG Pooler affinity to required
-
-Similarly, update `k8s/clusters/chopper/cnpg-pooler.yaml`.
-
-Change `preferredDuringSchedulingIgnoredDuringExecution` to
-`requiredDuringSchedulingIgnoredDuringExecution`:
-
-```yaml
-# AFTER:
-affinity:
-  podAntiAffinity:
-    requiredDuringSchedulingIgnoredDuringExecution:
-      - labelSelector:
-          matchLabels:
-            cnpg.io/poolerName: chopper-pg-pooler-rw
-        topologyKey: kubernetes.io/hostname
-```
-
-Apply:
-
-```shell
-kubectl apply -k k8s/clusters/chopper
-kubectl rollout status deployment/chopper-pg-pooler-rw -n cnpg-clusters
-```
-
----
-
-## Step 7 — Verify CNPG pod distribution
+## Step 6 — Verify CNPG pod distribution
 
 ```shell
 # Each CNPG pod should be on a different node.
 kubectl get pods -n cnpg-clusters -o wide
 
 # Cluster should be healthy with all instances Running.
-kubectl cnpg status chopper-pg -n cnpg-clusters
+kubectl cnpg status postgres -n cnpg-clusters
 ```
 
 ---
 
-## Step 8 — Update kubeconfig TLS SANs (if needed)
+## Step 7 — Update kubeconfig TLS SANs (if needed)
 
 If you want `kubectl` to reach the apiserver via the second node's FQDN when
 chopper is down, ensure both FQDNs are in the k3s TLS SANs.  Add the new
@@ -214,7 +211,7 @@ to list both server addresses.
 - [ ] `kubectl get nodes` shows all nodes as `Ready`.
 - [ ] etcd member list shows all members as `started` / not learner.
 - [ ] CNPG pods spread across nodes (`kubectl get pods -n cnpg-clusters -o wide`).
-- [ ] `kubectl cnpg status chopper-pg -n cnpg-clusters` is healthy.
+- [ ] `kubectl cnpg status postgres -n cnpg-clusters` is healthy.
 - [ ] WAL archiving still active.
 - [ ] Tailscale `pg-rw` device is registered and reachable.
 - [ ] Affinity updated from `preferred` → `required` in both Cluster and Pooler.
