@@ -23,9 +23,11 @@ kind: Kustomization
 
 namespace: cnpg-clusters
 
-commonLabels:
-  app.kubernetes.io/part-of: cloudnative-pg
-  app.kubernetes.io/managed-by: kustomize
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: cloudnative-pg
+      app.kubernetes.io/managed-by: kustomize
+    includeSelectors: false
 
 resources:
   # Namespace declaration — must be applied first.
