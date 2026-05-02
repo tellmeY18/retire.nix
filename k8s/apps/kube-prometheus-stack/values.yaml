@@ -273,10 +273,30 @@ grafana:
       check_for_plugin_updates: false
 
 # ===========================================================================
-# Node Exporter — host-level metrics (CPU, memory, disk, network).
+# Node Exporter — host-level metrics (CPU, memory, disk, network, ZFS).
 # ===========================================================================
 # Runs as a DaemonSet with hostNetwork and hostPID. The monitoring namespace
 # must have PodSecurity enforce=privileged for this to schedule.
+#
+# ZFS monitoring architecture (two complementary data paths):
+#
+#   Path 1 — Built-in ZFS collector (automatic, no config needed):
+#     node_exporter reads /proc/spl/kstat/zfs/ via the mounted host procfs
+#     and exposes metrics for ARC stats, ZIL, DMU TX, zfetch, per-pool I/O,
+#     pool state (online/degraded/faulted), and per-dataset I/O.
+#     Prefixes: node_zfs_arc_*, node_zfs_zil_*, node_zfs_zpool_*, etc.
+#
+#   Path 2 — Textfile collector (for metrics NOT in /proc/spl/kstat):
+#     A NixOS systemd timer (modules/services/zfs-exporter.nix) runs on the
+#     host every 60s and writes .prom files to /var/lib/node-exporter/textfile/.
+#     node_exporter picks them up via --collector.textfile.directory and
+#     exposes them as regular Prometheus metrics. This covers:
+#       - zpool capacity (used/available/size/fragmentation/capacity%)
+#       - zfs dataset sizes (used/available/referenced/logicalused)
+#       - scrub status (last scrub timestamp, errors, duration)
+#       - snapshot count and oldest snapshot age per dataset
+#     Prefix: node_zfs_* (textfile-sourced metrics carry no automatic prefix;
+#     the NixOS script uses the node_zfs_ prefix for consistency).
 nodeExporter:
   enabled: true
 
@@ -288,6 +308,23 @@ prometheus-node-exporter:
     limits:
       cpu: "200m"
       memory: "128Mi"
+
+  # -------------------------------------------------------------------------
+  # Extra args — enable textfile collector for ZFS supplementary metrics.
+  # -------------------------------------------------------------------------
+  extraArgs:
+    - --collector.textfile.directory=/host/textfile
+
+  # -------------------------------------------------------------------------
+  # Host path mounts — textfile directory written by NixOS systemd timer.
+  # -------------------------------------------------------------------------
+  # The timer writes .prom files to /var/lib/node-exporter/textfile/ on the
+  # host. We mount it read-only into the node-exporter pod.
+  extraHostPathMounts:
+    - name: textfile
+      hostPath: /var/lib/node-exporter/textfile
+      mountPath: /host/textfile
+      readOnly: true
 
 # ===========================================================================
 # kube-state-metrics — Kubernetes object state metrics.

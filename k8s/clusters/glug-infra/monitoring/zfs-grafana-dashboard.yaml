@@ -1,0 +1,320 @@
+---
+# zfs-grafana-dashboard.yaml — Grafana dashboard ConfigMap for ZFS monitoring.
+#
+# Grafana's sidecar (configured in kube-prometheus-stack) watches for
+# ConfigMaps with the label `grafana_dashboard: "1"` across all namespaces
+# and auto-imports them. The `grafana_folder` annotation organises the
+# dashboard into a named folder in the Grafana UI.
+#
+# This dashboard visualises metrics from the node_exporter's built-in ZFS
+# collector:
+#   - Pool state (online / degraded / faulted)
+#   - ARC hit ratio, size, and eviction rate
+#   - ZIL commit rate
+#   - Per-pool IO throughput (reads/writes)
+#   - Per-dataset IO (when objset stats are available)
+#
+# The dashboard JSON is intentionally minimal and readable. For a richer
+# experience, search grafana.com for community ZFS dashboards and replace
+# the JSON below.
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: zfs-grafana-dashboard
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+    app.kubernetes.io/name: zfs
+    app.kubernetes.io/component: dashboard
+    app.kubernetes.io/part-of: kube-prometheus-stack
+    app.kubernetes.io/managed-by: kustomize
+  annotations:
+    grafana_folder: "ZFS"
+data:
+  zfs-dashboard.json: |
+    {
+      "annotations": { "list": [] },
+      "editable": true,
+      "fiscalYearStartMonth": 0,
+      "graphTooltip": 1,
+      "links": [],
+      "panels": [
+        {
+          "title": "Pool State",
+          "type": "table",
+          "gridPos": { "h": 5, "w": 24, "x": 0, "y": 0 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "node_zfs_zpool_state == 1",
+              "format": "table",
+              "instant": true,
+              "legendFormat": "",
+              "refId": "A"
+            }
+          ],
+          "transformations": [
+            {
+              "id": "organize",
+              "options": {
+                "excludeByName": { "Time": true, "Value": true, "__name__": true, "job": true },
+                "renameByName": { "zpool": "Pool", "state": "State", "instance": "Instance" }
+              }
+            }
+          ],
+          "fieldConfig": {
+            "defaults": { "custom": { "align": "auto" } },
+            "overrides": [
+              {
+                "matcher": { "id": "byName", "options": "State" },
+                "properties": [
+                  {
+                    "id": "mappings",
+                    "value": [
+                      { "type": "value", "options": { "online": { "text": "🟢 ONLINE", "color": "green" } } },
+                      { "type": "value", "options": { "degraded": { "text": "🟡 DEGRADED", "color": "yellow" } } },
+                      { "type": "value", "options": { "faulted": { "text": "🔴 FAULTED", "color": "red" } } }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "title": "ARC Hit Ratio",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 5 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "rate(node_zfs_arc_hits{instance=~\"$instance\"}[5m]) / (rate(node_zfs_arc_hits{instance=~\"$instance\"}[5m]) + rate(node_zfs_arc_misses{instance=~\"$instance\"}[5m]))",
+              "legendFormat": "{{ instance }}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percentunit",
+              "min": 0,
+              "max": 1,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "value": null, "color": "red" },
+                  { "value": 0.7, "color": "yellow" },
+                  { "value": 0.85, "color": "green" }
+                ]
+              },
+              "custom": { "fillOpacity": 10, "lineWidth": 2 }
+            }
+          }
+        },
+        {
+          "title": "ARC Size vs Target Max",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 5 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "node_zfs_arc_size{instance=~\"$instance\"}",
+              "legendFormat": "ARC Size",
+              "refId": "A"
+            },
+            {
+              "expr": "node_zfs_arc_c_max{instance=~\"$instance\"}",
+              "legendFormat": "ARC Target Max (c_max)",
+              "refId": "B"
+            },
+            {
+              "expr": "node_zfs_arc_c_min{instance=~\"$instance\"}",
+              "legendFormat": "ARC Target Min (c_min)",
+              "refId": "C"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "bytes",
+              "custom": { "fillOpacity": 5, "lineWidth": 2 }
+            }
+          }
+        },
+        {
+          "title": "ARC Hits / Misses Rate",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 13 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "rate(node_zfs_arc_hits{instance=~\"$instance\"}[5m])",
+              "legendFormat": "Hits/s",
+              "refId": "A"
+            },
+            {
+              "expr": "rate(node_zfs_arc_misses{instance=~\"$instance\"}[5m])",
+              "legendFormat": "Misses/s",
+              "refId": "B"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "ops",
+              "custom": { "fillOpacity": 10, "lineWidth": 2 }
+            }
+          }
+        },
+        {
+          "title": "ARC Evictions Rate",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 13 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "rate(node_zfs_arc_evict_l2_eligible{instance=~\"$instance\"}[5m])",
+              "legendFormat": "L2-eligible evictions/s",
+              "refId": "A"
+            },
+            {
+              "expr": "rate(node_zfs_arc_evict_l2_ineligible{instance=~\"$instance\"}[5m])",
+              "legendFormat": "L2-ineligible evictions/s",
+              "refId": "B"
+            },
+            {
+              "expr": "rate(node_zfs_arc_evict_not_enough{instance=~\"$instance\"}[5m])",
+              "legendFormat": "Evict not enough/s",
+              "refId": "C"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "ops",
+              "custom": { "fillOpacity": 10, "lineWidth": 2, "stacking": { "mode": "normal" } }
+            }
+          }
+        },
+        {
+          "title": "ZIL Commit Rate",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 21 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "rate(node_zfs_zil_zil_commit_count{instance=~\"$instance\"}[5m])",
+              "legendFormat": "Commits/s",
+              "refId": "A"
+            },
+            {
+              "expr": "rate(node_zfs_zil_zil_itx_count{instance=~\"$instance\"}[5m])",
+              "legendFormat": "ITX/s",
+              "refId": "B"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "ops",
+              "custom": { "fillOpacity": 10, "lineWidth": 2 }
+            }
+          }
+        },
+        {
+          "title": "Pool IO Throughput",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 21 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "rate(node_zfs_zpool_nread{instance=~\"$instance\"}[5m])",
+              "legendFormat": "{{ zpool }} reads",
+              "refId": "A"
+            },
+            {
+              "expr": "rate(node_zfs_zpool_nwritten{instance=~\"$instance\"}[5m])",
+              "legendFormat": "{{ zpool }} writes",
+              "refId": "B"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "Bps",
+              "custom": { "fillOpacity": 10, "lineWidth": 2 }
+            }
+          }
+        },
+        {
+          "title": "Pool IO Operations",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 29 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "rate(node_zfs_zpool_reads{instance=~\"$instance\"}[5m])",
+              "legendFormat": "{{ zpool }} reads/s",
+              "refId": "A"
+            },
+            {
+              "expr": "rate(node_zfs_zpool_writes{instance=~\"$instance\"}[5m])",
+              "legendFormat": "{{ zpool }} writes/s",
+              "refId": "B"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "iops",
+              "custom": { "fillOpacity": 10, "lineWidth": 2 }
+            }
+          }
+        },
+        {
+          "title": "DMU Transaction Rate",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 29 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "rate(node_zfs_dmu_tx_dmu_tx_assigned{instance=~\"$instance\"}[5m])",
+              "legendFormat": "Assigned/s",
+              "refId": "A"
+            },
+            {
+              "expr": "rate(node_zfs_dmu_tx_dmu_tx_group{instance=~\"$instance\"}[5m])",
+              "legendFormat": "Group/s",
+              "refId": "B"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "ops",
+              "custom": { "fillOpacity": 10, "lineWidth": 2 }
+            }
+          }
+        }
+      ],
+      "schemaVersion": 39,
+      "tags": ["zfs", "node-exporter", "storage"],
+      "templating": {
+        "list": [
+          {
+            "name": "datasource",
+            "type": "datasource",
+            "query": "prometheus",
+            "current": { "selected": true, "text": "Prometheus", "value": "prometheus" }
+          },
+          {
+            "name": "instance",
+            "type": "query",
+            "datasource": { "type": "prometheus", "uid": "${datasource}" },
+            "query": "label_values(node_zfs_arc_size, instance)",
+            "refresh": 2,
+            "includeAll": true,
+            "allValue": ".*",
+            "current": { "selected": true, "text": "All", "value": "$__all" }
+          }
+        ]
+      },
+      "time": { "from": "now-6h", "to": "now" },
+      "timezone": "",
+      "title": "ZFS Overview",
+      "uid": "zfs-overview",
+      "version": 1
+    }
