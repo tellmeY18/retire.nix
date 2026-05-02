@@ -1,0 +1,39 @@
+---
+# kustomization.yaml — kustomize entry point for the glug-infra cluster.
+#
+# `kubectl apply -k k8s/clusters/glug-infra`
+#
+# What lives here:
+#   - The `cnpg-clusters` Namespace (with PodSecurity labels).
+#   - NetworkPolicies guarding the namespace.
+#   - The Tailscale LoadBalancer Service that exposes the PgBouncer pooler
+#     as `pg-rw.<tailnet>.ts.net:5432`.
+#
+# What does NOT live here (managed by helmfile instead):
+#   - The CNPG operator chart (cnpg-system namespace).
+#   - The Postgres `Cluster`, `ScheduledBackup`, and `Pooler` CRs — these
+#     are rendered by the cnpg/cluster Helm chart from
+#     k8s/apps/postgres/values.yaml + secrets.yaml.
+#
+# These resources are kustomize-managed because they are either
+# infrastructure-wide (Namespace, NetworkPolicy) or front-end glue not
+# expressed by the upstream chart (Tailscale Service).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: cnpg-clusters
+
+commonLabels:
+  app.kubernetes.io/part-of: cloudnative-pg
+  app.kubernetes.io/managed-by: kustomize
+
+resources:
+  # Namespace declaration — must be applied first.
+  - namespace.yaml
+  # NetworkPolicies — applied before workloads so they are in place when
+  # pods start. (Flannel CNI does not enforce these; documentary until a
+  # NetworkPolicy-aware CNI is in place. See file header.)
+  - networkpolicy.yaml
+  # Tailscale LoadBalancer Service exposing the postgres-pooler-rw pods on
+  # the tailnet under MagicDNS name `pg-rw`.
+  - tailscale-pg-service.yaml

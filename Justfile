@@ -57,30 +57,31 @@ clean:
 # Kubernetes / k8s recipes
 # ---------------------------------------------------------------------------
 
-# Apply all k8s cluster resources (helmfile + kustomize + sops secrets).
+# Apply all k8s cluster resources (helmfile + kustomize).
 # Order matters:
 #   1. helmfile installs/upgrades the CNPG operator (and its CRDs) first.
-#      The Cluster CR in step 2 will fail apply if the CRD is not yet present.
-#   2. kustomize applies the namespace, network policies, Cluster, Pooler,
-#      ScheduledBackup, and Tailscale Service.
-#   3. sops decrypts each *.enc.yaml secret and pipes it into kubectl apply.
-#      The for-loop uses `nullglob` so a missing /empty secrets dir is a
-#      no-op rather than an error (the literal pattern would otherwise be
-#      passed to sops verbatim).
+#      The cnpg/cluster release in step 1 (declared via `needs:`) waits
+#      for the operator to be ready before applying the Cluster CR.
+#   2. kustomize applies the namespace, network policies, and Tailscale
+#      LoadBalancer Service.
+#
+# Helm-side secrets (S3 access keys for backups) live in
+# k8s/apps/postgres/secrets.yaml as a sops-encrypted helm values file and
+# are merged in by helm-secrets at install time — we no longer need a
+# separate sops --decrypt | kubectl apply step.
 k8s-apply:
     helmfile sync --file k8s/helmfile.yaml
-    kubectl apply -k k8s/clusters/chopper
-    @echo "Applying sops-encrypted secrets..."
-    @bash -c 'shopt -s nullglob; for f in k8s/clusters/chopper/secrets/*.enc.yaml; do echo "  $f"; sops --decrypt "$f" | kubectl apply -f -; done'
+    kubectl apply -k k8s/clusters/glug-infra
 
 # Preview k8s changes without applying.
 k8s-diff:
     helmfile diff --file k8s/helmfile.yaml
-    kubectl diff -k k8s/clusters/chopper || true
+    kubectl diff -k k8s/clusters/glug-infra || true
 
 # Edit a sops-encrypted secret file.
-# Example:
-#   just k8s-edit-secret k8s/clusters/chopper/secrets/cnpg-backup-s3.enc.yaml
+# Examples:
+#   just k8s-edit-secret k8s/apps/postgres/secrets.yaml
+#   just k8s-edit-secret k8s/apps/cnpg-operator/secrets.yaml
 k8s-edit-secret path:
     sops {{path}}
 
@@ -88,7 +89,7 @@ k8s-edit-secret path:
 # Install the plugin once with:
 #   kubectl krew install cnpg
 k8s-cnpg-status:
-    kubectl cnpg status chopper-pg -n cnpg-clusters
+    kubectl cnpg status postgres -n cnpg-clusters
 
 # Tail logs from the CNPG operator.
 k8s-cnpg-operator-logs:
@@ -96,11 +97,11 @@ k8s-cnpg-operator-logs:
 
 # Tail logs from the current CNPG primary.
 k8s-cnpg-primary-logs:
-    kubectl logs -n cnpg-clusters -l cnpg.io/cluster=chopper-pg,role=primary -f --tail=200
+    kubectl logs -n cnpg-clusters -l cnpg.io/cluster=postgres,role=primary -f --tail=200
 
 # Trigger an on-demand backup.
 k8s-cnpg-backup-now:
-    kubectl cnpg backup chopper-pg -n cnpg-clusters
+    kubectl cnpg backup postgres -n cnpg-clusters
 
 # List Backup objects with their phase.
 k8s-cnpg-backup-list:

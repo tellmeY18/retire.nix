@@ -22,21 +22,21 @@ This runbook covers two scenarios:
 
 ```shell
 # Overview: primary, replicas, phase, continuous archiving status.
-kubectl cnpg status chopper-pg -n cnpg-clusters
+kubectl cnpg status postgres -n cnpg-clusters
 
 # Live streaming-replication lag for each standby.
-kubectl exec -n cnpg-clusters -it chopper-pg-1 -- \
+kubectl exec -n cnpg-clusters -it postgres-1 -- \
   psql -U postgres -c \
   "SELECT application_name, state, sent_lsn, write_lsn, flush_lsn, replay_lsn,
           (sent_lsn - replay_lsn) AS replication_lag
    FROM pg_stat_replication;"
 
 # Check WAL archiving — last archived segment and any failures.
-kubectl exec -n cnpg-clusters -it chopper-pg-1 -- \
+kubectl exec -n cnpg-clusters -it postgres-1 -- \
   psql -U postgres -c "SELECT * FROM pg_stat_archiver;"
 ```
 
-Pod naming convention: `chopper-pg-1` is typically the primary (index may
+Pod naming convention: `postgres-1` is typically the primary (index may
 vary after failovers).  Use `kubectl cnpg status` to identify the current
 primary by name.
 
@@ -49,17 +49,17 @@ before a maintenance window.
 
 ```shell
 # 1. Confirm which pod is currently the primary.
-kubectl cnpg status chopper-pg -n cnpg-clusters
+kubectl cnpg status postgres -n cnpg-clusters
 
 # 2. Initiate a graceful switchover to a target replica.
-#    Replace 'chopper-pg-2' with the actual target pod name.
-kubectl cnpg promote chopper-pg chopper-pg-2 -n cnpg-clusters
+#    Replace 'postgres-2' with the actual target pod name.
+kubectl cnpg promote postgres postgres-2 -n cnpg-clusters
 
 # 3. Watch the cluster transition.  The old primary will restart as a standby.
-kubectl get pods -n cnpg-clusters -l cnpg.io/cluster=chopper-pg -w
+kubectl get pods -n cnpg-clusters -l cnpg.io/cluster=postgres -w
 
 # 4. Confirm the new primary.
-kubectl cnpg status chopper-pg -n cnpg-clusters
+kubectl cnpg status postgres -n cnpg-clusters
 ```
 
 **Expected timeline:** ~10–30 seconds for a graceful switchover.
@@ -78,7 +78,7 @@ up-to-date synchronous standby when the primary is unreachable.
 1. Detects primary pod failure (liveness probe timeout, ~30 s).
 2. Selects the synchronous standby with the highest `replay_lsn`.
 3. Promotes it to primary (fences the old primary to prevent split-brain).
-4. Updates the `chopper-pg-rw` Service endpoints.
+4. Updates the `postgres-rw` Service endpoints.
 5. PgBouncer reconnects to the new primary; Tailscale Service follows.
 
 ### What you need to do
@@ -86,10 +86,10 @@ up-to-date synchronous standby when the primary is unreachable.
 ```shell
 # 1. Check cluster phase — should transition to "Failover in progress"
 #    then "Cluster in healthy state".
-kubectl get cluster chopper-pg -n cnpg-clusters -o wide -w
+kubectl get cluster postgres -n cnpg-clusters -o wide -w
 
 # 2. Once healthy, confirm the new primary.
-kubectl cnpg status chopper-pg -n cnpg-clusters
+kubectl cnpg status postgres -n cnpg-clusters
 
 # 3. Confirm WAL archiving resumed on the new primary.
 kubectl exec -n cnpg-clusters -it <new-primary-pod> -- \
@@ -99,7 +99,7 @@ kubectl exec -n cnpg-clusters -it <new-primary-pod> -- \
 #    automatically — no manual intervention needed.
 ```
 
-### If the node running chopper-pg-1 is gone and CNPG does NOT auto-promote
+### If the node running postgres-1 is gone and CNPG does NOT auto-promote
 
 This can happen if the `synchronous` quorum is not satisfied (e.g. all
 standbys were also on the dead node).  In that case:
@@ -107,7 +107,7 @@ standbys were also on the dead node).  In that case:
 ```shell
 # Force-promote the most recent standby (use with care — possible data loss
 # if the old primary had uncommitted sync writes).
-kubectl cnpg promote chopper-pg <standby-pod-name> -n cnpg-clusters --force
+kubectl cnpg promote postgres <standby-pod-name> -n cnpg-clusters --force
 ```
 
 ---
@@ -128,10 +128,10 @@ Recovery steps when chopper comes back:
 kubectl get pods -n cnpg-clusters -w
 
 # 2. Check cluster phase.
-kubectl cnpg status chopper-pg -n cnpg-clusters
+kubectl cnpg status postgres -n cnpg-clusters
 
 # 3. Check archiving resumed.
-kubectl exec -n cnpg-clusters -it chopper-pg-1 -- \
+kubectl exec -n cnpg-clusters -it postgres-1 -- \
   psql -U postgres -c "SELECT last_archived_wal FROM pg_stat_archiver;"
 ```
 

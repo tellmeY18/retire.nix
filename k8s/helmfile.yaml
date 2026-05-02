@@ -1,5 +1,5 @@
 ---
-# helmfile.yaml — Helm chart declarations for the chopper k3s cluster.
+# helmfile.yaml — Helm releases for the glug-infra k3s cluster.
 #
 # Run from the repo root:
 #   helmfile sync  --file k8s/helmfile.yaml   # install / upgrade
@@ -9,24 +9,22 @@
 #   helm plugin install https://github.com/jkroepke/helm-secrets
 #   (helm-secrets is not in nixpkgs; one-time install per workstation.)
 #
+# Layered model:
+#   1. cnpg/cloudnative-pg → the operator (CRDs + controller + webhooks).
+#   2. cnpg/cluster        → one release per Postgres cluster, renders the
+#                             Cluster + ScheduledBackup + Pooler CRs from
+#                             values files in apps/<release>/.
+#
+# Adding a second Postgres cluster (e.g. for analytics):
+#   - Create k8s/apps/analytics/{values,secrets}.yaml.
+#   - Add another release block below with `name: analytics`.
+#   - `just k8s-apply`.
+#
 # Version policy:
 #   - Always pin chart versions explicitly. Never use "*" or floating tags.
-#   - Cross-check the latest version at:
+#   - Cross-check the latest at:
 #       https://cloudnative-pg.github.io/charts/index.yaml
-#   - When bumping, read the chart CHANGELOG and check whether any of:
-#       * CRD schema changes
-#       * Default-values changes
-#       * Operator RBAC changes
-#     could affect the running Cluster. CNPG follows semver-ish on the chart
-#     (0.x) but appVersion (the operator) is independent — see the chart's
-#     Chart.yaml for the appVersion -> operator-version mapping.
-#
-# Chart 0.28.0 ships CNPG operator 1.28.x, which:
-#   - Supports the ObjectStore CRD (used by k8s/clusters/chopper/cnpg-backup.yaml).
-#   - Supports the `monitoring.enablePodMonitor` field on Cluster.
-#   - Supports the `enableSuperuserAccess: false` Cluster field.
-#   - Removes deprecated barmanObjectStore inline config in favour of the
-#     ObjectStore CR + `backup.objectStore` reference. We use the new style.
+#   - When bumping, read the chart CHANGELOG for breaking changes.
 
 repositories:
   - name: cnpg
@@ -40,22 +38,40 @@ helmDefaults:
   # last-known-good state rather than half-upgraded.
   atomic: true
   # Verify TLS on all chart pulls.
-  verify: false # cnpg charts are unsigned upstream; flip to true once they sign.
+  verify: false # cnpg charts are unsigned upstream; flip when they sign.
 
 releases:
+  # ---------------------------------------------------------------------------
+  # 1. CNPG operator (CRDs + controller + admission webhooks).
+  # ---------------------------------------------------------------------------
+  # Chart 0.28.0 ships CNPG operator 1.28.x. The operator runs in
+  # `cnpg-system`; CRDs are cluster-scoped.
   - name: cloudnative-pg
     namespace: cnpg-system
     createNamespace: true
     chart: cnpg/cloudnative-pg
     version: "0.28.0"
-    # Skip CRD upgrade through Helm's hook; CNPG documents that CRDs should be
-    # applied separately for major version bumps to avoid a half-applied state.
-    # The `crds.create=true` value below tells the chart to install/upgrade
-    # CRDs as managed resources rather than via Helm's --install-crds hook,
-    # so day-2 `helmfile sync` upgrades them in lock-step with the operator.
     values:
-      # Plain values — safe to commit.
       - apps/cnpg-operator/values.yaml
-      # Encrypted values — decrypted at apply time by helm-secrets.
-      # File must be sops-encrypted; see k8s/README.md.
       - secrets://apps/cnpg-operator/secrets.yaml
+
+  # ---------------------------------------------------------------------------
+  # 2. Postgres cluster — `Cluster` + `ScheduledBackup` + `Pooler`.
+  # ---------------------------------------------------------------------------
+  # Chart 0.6.0 maps cleanly onto operator 1.28.x. Renders all CRs from the
+  # values file. The release name `postgres` is what every generated object
+  # is prefixed with (Cluster/postgres, Service/postgres-rw,
+  # Secret/postgres-app, etc.) — picked to be cluster-scoped, not
+  # host-scoped, so the workload identity does not change as nodes come
+  # and go.
+  - name: postgres
+    namespace: cnpg-clusters
+    createNamespace: false # namespace is created by kustomize (PSA labels)
+    chart: cnpg/cluster
+    version: "0.6.0"
+    # Apply only after the operator + CRDs are in place.
+    needs:
+      - cnpg-system/cloudnative-pg
+    values:
+      - apps/postgres/values.yaml
+      - secrets://apps/postgres/secrets.yaml
