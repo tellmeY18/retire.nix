@@ -1,0 +1,73 @@
+---
+# tailscale-grafana-service.yaml — Expose Grafana on the tailnet as a stable
+# MagicDNS endpoint via the Tailscale Kubernetes operator.
+#
+# The Tailscale operator watches Services with `spec.loadBalancerClass:
+# tailscale` and provisions a ts-proxy StatefulSet that registers a device
+# on the tailnet. The annotation drives the device's MagicDNS hostname,
+# giving anyone on the tailnet a stable URL:
+#
+#   http://grafana.<tailnet>.ts.net:3000
+#
+# Traffic path:
+#   browser / API client
+#     -> grafana.<tailnet>.ts.net:3000   (Tailscale MagicDNS)
+#     -> ts-proxy pod                     (this Service, ts-managed)
+#     -> Grafana pod :3000                (kube-prometheus-stack Deployment)
+#
+# Why a separate Tailscale Service instead of setting Grafana's own Service
+# to LoadBalancer?
+#   The kube-prometheus-stack chart manages Grafana's Service. If we set its
+#   type to LoadBalancer + loadBalancerClass: tailscale directly in
+#   values.yaml, a chart upgrade could reset it. Keeping the Tailscale
+#   frontend as a standalone kustomize-managed Service decouples the tailnet
+#   exposure from the Helm release lifecycle — same pattern as the pg-rw
+#   Tailscale Service for CNPG.
+#
+# Prerequisites:
+#   - Tailscale Kubernetes operator installed (NixOS-bootstrapped via
+#     services.k3s.charts in modules/services/k3s.nix).
+#   - Tailscale operator OAuth credentials applied as a Secret in the
+#     `tailscale` namespace by sops-nix (see modules/services/
+#     k3s-bootstrap-manifests.nix and docs/k3s-cnpg.md §10).
+#   - Tailscale ACL allows tag:k8s devices to accept connections on
+#     port 3000, and the OAuth client has tag:k8s in its allowed-tags list.
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana-tailscale
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/component: tailnet-frontend
+    app.kubernetes.io/part-of: kube-prometheus-stack
+    app.kubernetes.io/managed-by: kustomize
+  annotations:
+    # MagicDNS hostname registered on the tailnet. Must be a valid DNS label
+    # (lowercase, alphanumeric+hyphen). The fully-qualified hostname is
+    # `grafana.<tailnet>.ts.net`.
+    tailscale.com/hostname: "grafana"
+    # Add the device to the cluster's tag namespace. The OAuth client used
+    # by the operator MUST have this tag in its allowed-tags list, and the
+    # tailnet ACL MUST declare it under tagOwners. See docs/k3s-cnpg.md §10
+    # for the exact ACL JSON snippet.
+    tailscale.com/tags: "tag:k8s"
+spec:
+  type: LoadBalancer
+  loadBalancerClass: tailscale
+
+  # Select the Grafana pods deployed by kube-prometheus-stack.
+  # The chart labels Grafana pods with:
+  #   app.kubernetes.io/name: grafana
+  #   app.kubernetes.io/instance: <release-name>
+  # The release name in helmfile.yaml is `kube-prometheus-stack`.
+  selector:
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/instance: kube-prometheus-stack
+
+  ports:
+    - name: http-web
+      protocol: TCP
+      port: 3000
+      targetPort: 3000
