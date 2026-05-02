@@ -31,6 +31,7 @@
       kubernetes-helm
       helmfile
       k9s
+      just
       sops
     ];
 
