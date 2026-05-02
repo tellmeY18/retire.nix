@@ -1,0 +1,416 @@
+# laptop-battery-grafana-dashboard.yaml — Grafana dashboard ConfigMap for
+# laptop battery monitoring across all k3s cluster nodes.
+#
+# Grafana's sidecar (configured in kube-prometheus-stack) watches for
+# ConfigMaps with the label `grafana_dashboard: "1"` across all namespaces
+# and auto-imports them. The `grafana_folder` annotation organises the
+# dashboard into a named folder in the Grafana UI (same "Infrastructure"
+# folder as other infra dashboards).
+#
+# This dashboard visualises metrics from the node_exporter's power-supply
+# collector (--collector.powersupplyclass):
+#   - AC power status (mains online / offline)
+#   - Battery charge level as a percentage of full capacity
+#   - Battery health (current full charge vs design capacity)
+#   - Remaining energy in watt-hours
+#   - Battery voltage
+#   - Historical trends for charge level and AC power state
+#
+# Only nodes that expose battery metrics will appear in the panels.
+# Non-laptop nodes (desktops, VMs, VPS) do not emit
+# `node_power_supply_online` or `node_power_supply_energy_watthours`,
+# so no data is rendered for them — no hardcoded node names anywhere.
+#
+# The `instance` template variable auto-discovers all battery-equipped
+# nodes via `label_values(node_power_supply_online, instance)`. It
+# supports multi-select with an "All" option, so you can view a single
+# node or all laptops at once.
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: laptop-battery-grafana-dashboard
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+    app.kubernetes.io/name: laptop-battery
+    app.kubernetes.io/component: dashboard
+    app.kubernetes.io/part-of: kube-prometheus-stack
+    app.kubernetes.io/managed-by: kustomize
+  annotations:
+    grafana_folder: "Infrastructure"
+data:
+  laptop-battery-dashboard.json: |
+    {
+      "annotations": { "list": [] },
+      "description": "Laptop battery status, charge level, health, and power source for all battery-equipped k3s nodes. Metrics from node_exporter powersupplyclass collector.",
+      "editable": true,
+      "fiscalYearStartMonth": 0,
+      "graphTooltip": 1,
+      "links": [],
+      "panels": [
+        {
+          "id": 1,
+          "title": "Power Status Overview",
+          "type": "row",
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+          "collapsed": false,
+          "panels": []
+        },
+        {
+          "id": 2,
+          "title": "AC Power Status",
+          "description": "Whether each node is on mains power or running on battery. Green = plugged in, Red = on battery.",
+          "type": "stat",
+          "gridPos": { "h": 4, "w": 6, "x": 0, "y": 1 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "node_power_supply_online{type=\"Mains\",instance=~\"$instance\"}",
+              "legendFormat": "{{ instance }}",
+              "instant": true,
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "mappings": [
+                {
+                  "type": "value",
+                  "options": {
+                    "1": { "text": "On AC \u2713", "color": "green" },
+                    "0": { "text": "ON BATTERY \u26a0", "color": "red" }
+                  }
+                }
+              ],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "value": null, "color": "red" },
+                  { "value": 1, "color": "green" }
+                ]
+              }
+            }
+          },
+          "options": {
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "graphMode": "none",
+            "colorMode": "background",
+            "textMode": "auto",
+            "justifyMode": "auto",
+            "orientation": "auto"
+          },
+          "repeat": "instance",
+          "repeatDirection": "v",
+          "maxPerRow": 4
+        },
+        {
+          "id": 3,
+          "title": "Battery Level %",
+          "description": "Current battery charge as a percentage of full capacity (energy_now / energy_full * 100).",
+          "type": "gauge",
+          "gridPos": { "h": 4, "w": 6, "x": 6, "y": 1 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "(node_power_supply_energy_watthours{type=\"Battery\",instance=~\"$instance\"} / node_power_supply_energy_full_watthours{type=\"Battery\",instance=~\"$instance\"}) * 100",
+              "legendFormat": "{{ instance }}",
+              "instant": true,
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "min": 0,
+              "max": 100,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "value": null, "color": "red" },
+                  { "value": 15, "color": "orange" },
+                  { "value": 30, "color": "green" }
+                ]
+              }
+            }
+          },
+          "options": {
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "showThresholdLabels": false,
+            "showThresholdMarkers": true,
+            "orientation": "auto"
+          }
+        },
+        {
+          "id": 4,
+          "title": "Battery Health %",
+          "description": "Battery wear level: current full-charge capacity vs original design capacity (energy_full / energy_full_design * 100). Lower values mean a worn battery.",
+          "type": "gauge",
+          "gridPos": { "h": 4, "w": 6, "x": 12, "y": 1 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "(node_power_supply_energy_full_watthours{type=\"Battery\",instance=~\"$instance\"} / node_power_supply_energy_full_design_watthours{type=\"Battery\",instance=~\"$instance\"}) * 100",
+              "legendFormat": "{{ instance }}",
+              "instant": true,
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "min": 0,
+              "max": 100,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "value": null, "color": "red" },
+                  { "value": 50, "color": "orange" },
+                  { "value": 80, "color": "green" }
+                ]
+              }
+            }
+          },
+          "options": {
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "showThresholdLabels": false,
+            "showThresholdMarkers": true,
+            "orientation": "auto"
+          }
+        },
+        {
+          "id": 5,
+          "title": "Estimated Energy Remaining",
+          "description": "Absolute energy currently stored in the battery, in watt-hours.",
+          "type": "stat",
+          "gridPos": { "h": 4, "w": 6, "x": 18, "y": 1 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "node_power_supply_energy_watthours{type=\"Battery\",instance=~\"$instance\"}",
+              "legendFormat": "{{ instance }}",
+              "instant": true,
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "watth",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "value": null, "color": "text" }
+                ]
+              }
+            }
+          },
+          "options": {
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "graphMode": "area",
+            "colorMode": "value",
+            "textMode": "auto",
+            "justifyMode": "auto",
+            "orientation": "auto"
+          }
+        },
+        {
+          "id": 6,
+          "title": "Battery Trends",
+          "type": "row",
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 },
+          "collapsed": false,
+          "panels": []
+        },
+        {
+          "id": 7,
+          "title": "Battery Level Over Time",
+          "description": "Battery charge percentage over time. Red threshold at 15%, orange at 30%.",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "(node_power_supply_energy_watthours{type=\"Battery\",instance=~\"$instance\"} / node_power_supply_energy_full_watthours{type=\"Battery\",instance=~\"$instance\"}) * 100",
+              "legendFormat": "{{ instance }}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "min": 0,
+              "max": 100,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "value": null, "color": "red" },
+                  { "value": 15, "color": "orange" },
+                  { "value": 30, "color": "green" }
+                ]
+              },
+              "custom": {
+                "fillOpacity": 10,
+                "lineWidth": 2,
+                "thresholdsStyle": { "mode": "line" }
+              }
+            }
+          },
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom", "calcs": [] },
+            "tooltip": { "mode": "multi", "sort": "none" }
+          }
+        },
+        {
+          "id": 8,
+          "title": "AC Power State Over Time",
+          "description": "Whether nodes are on AC power (1) or battery (0) over time. Filled area makes power outages visually obvious.",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "node_power_supply_online{type=\"Mains\",instance=~\"$instance\"}",
+              "legendFormat": "{{ instance }}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "min": 0,
+              "max": 1,
+              "mappings": [
+                {
+                  "type": "value",
+                  "options": {
+                    "0": { "text": "On Battery" },
+                    "1": { "text": "On AC" }
+                  }
+                }
+              ],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "value": null, "color": "red" },
+                  { "value": 1, "color": "green" }
+                ]
+              },
+              "custom": {
+                "fillOpacity": 50,
+                "lineWidth": 2,
+                "lineInterpolation": "stepAfter",
+                "showPoints": "never"
+              }
+            }
+          },
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom", "calcs": [] },
+            "tooltip": { "mode": "multi", "sort": "none" }
+          }
+        },
+        {
+          "id": 9,
+          "title": "Battery Health",
+          "type": "row",
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 14 },
+          "collapsed": false,
+          "panels": []
+        },
+        {
+          "id": 10,
+          "title": "Battery Voltage",
+          "description": "Current battery voltage. Useful for spotting voltage sag under load or identifying a degrading cell.",
+          "type": "timeseries",
+          "gridPos": { "h": 6, "w": 12, "x": 0, "y": 15 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "node_power_supply_voltage_volt{type=\"Battery\",instance=~\"$instance\"}",
+              "legendFormat": "{{ instance }}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "volt",
+              "custom": {
+                "fillOpacity": 10,
+                "lineWidth": 2
+              }
+            }
+          },
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom", "calcs": [] },
+            "tooltip": { "mode": "multi", "sort": "none" }
+          }
+        },
+        {
+          "id": 11,
+          "title": "Battery Health Trend",
+          "description": "Battery health (energy_full / energy_full_design) over time. A downward trend means the battery is wearing out. Best viewed over weeks or months.",
+          "type": "timeseries",
+          "gridPos": { "h": 6, "w": 12, "x": 12, "y": 15 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "(node_power_supply_energy_full_watthours{type=\"Battery\",instance=~\"$instance\"} / node_power_supply_energy_full_design_watthours{type=\"Battery\",instance=~\"$instance\"}) * 100",
+              "legendFormat": "{{ instance }}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "min": 0,
+              "max": 100,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "value": null, "color": "red" },
+                  { "value": 50, "color": "orange" },
+                  { "value": 80, "color": "green" }
+                ]
+              },
+              "custom": {
+                "fillOpacity": 10,
+                "lineWidth": 2,
+                "thresholdsStyle": { "mode": "line" }
+              }
+            }
+          },
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom", "calcs": [] },
+            "tooltip": { "mode": "multi", "sort": "none" }
+          }
+        }
+      ],
+      "refresh": "30s",
+      "schemaVersion": 39,
+      "tags": ["infrastructure", "laptop", "battery", "node-exporter"],
+      "templating": {
+        "list": [
+          {
+            "name": "datasource",
+            "type": "datasource",
+            "query": "prometheus",
+            "current": { "selected": true, "text": "Prometheus", "value": "prometheus" }
+          },
+          {
+            "name": "instance",
+            "label": "Instance",
+            "type": "query",
+            "datasource": { "type": "prometheus", "uid": "${datasource}" },
+            "query": "label_values(node_power_supply_online, instance)",
+            "refresh": 2,
+            "multi": true,
+            "includeAll": true,
+            "allValue": ".*",
+            "current": { "selected": true, "text": "All", "value": "$__all" }
+          }
+        ]
+      },
+      "time": { "from": "now-24h", "to": "now" },
+      "timezone": "browser",
+      "title": "Laptop Battery Status",
+      "uid": "laptop-battery",
+      "version": 1
+    }

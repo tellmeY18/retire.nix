@@ -111,40 +111,7 @@ spec:
           labels:
             severity: warning
 
-    # =======================================================================
-    # Custom storage alerts (not in the upstream sample)
-    # =======================================================================
-    - name: cnpg-storage.rules
-      rules:
-        - alert: CNPGPVCFillingUp
-          annotations:
-            description: >-
-              PVC {{ $labels.persistentvolumeclaim }} in namespace
-              {{ $labels.namespace }} is {{ $value | humanizePercentage }} full.
-            summary: CNPG PVC is filling up (> 80%)
-          expr: |-
-            (
-              kubelet_volume_stats_used_bytes{namespace="cnpg-clusters"}
-              /
-              kubelet_volume_stats_capacity_bytes{namespace="cnpg-clusters"}
-            ) > 0.8
-          for: 10m
-          labels:
-            severity: warning
-
-        - alert: CNPGPVCCriticallyFull
-          annotations:
-            description: >-
-              PVC {{ $labels.persistentvolumeclaim }} in namespace
-              {{ $labels.namespace }} is {{ $value | humanizePercentage }} full.
-              PostgreSQL may stop accepting writes imminently.
-            summary: CNPG PVC is critically full (> 90%)
-          expr: |-
-            (
-              kubelet_volume_stats_used_bytes{namespace="cnpg-clusters"}
-              /
-              kubelet_volume_stats_capacity_bytes{namespace="cnpg-clusters"}
-            ) > 0.9
-          for: 5m
-          labels:
-            severity: critical
+    # NOTE: Per-namespace PVC storage alerts (cnpg-storage.rules) have been
+    # removed from this file. They are replaced by the cluster-wide
+    # pvc-storage-prometheusrules.yaml which monitors ALL PVCs in ALL
+    # namespaces without hardcoded namespace strings.

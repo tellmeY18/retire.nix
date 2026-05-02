@@ -659,3 +659,112 @@ just k8s::pxc-backup-list     # list backup objects
 just k8s::pxc-backup-now      # trigger on-demand backup
 just k8s::pxc-shell           # MySQL CLI via HAProxy
 ```
+
+---
+
+## 9. Monitoring Architecture — Reusability & Laptop Battery
+
+This section documents how monitoring is structured for **zero-effort
+scale-out** (adding nodes requires no monitoring config changes) and
+**laptop-specific concerns** (battery level, AC power loss).
+
+### 9.1 Reusability guarantees (what happens when you add a node)
+
+Every monitoring component is designed so that adding a new k3s node
+(whether it's a second laptop, a Pi, or a VPS) requires **zero changes**
+to monitoring configuration:
+
+| Component | Why it auto-discovers new nodes |
+|---|---|
+| **node-exporter** | DaemonSet — k8s schedules one pod per node automatically. |
+| **ZFS PrometheusRules** | PromQL uses generic `node_zfs_*` metrics with `$labels.instance` — no hostnames. |
+| **ZFS Grafana dashboard** | Template variable `$instance` from `label_values()` — new nodes appear in the dropdown. |
+| **Battery PrometheusRules** | PromQL uses `node_power_supply_*` metrics with `$labels.instance` — no hostnames. On non-laptop nodes the metrics simply don't exist (harmless no-op). |
+| **Battery Grafana dashboard** | Template variable `$instance` from `label_values(node_power_supply_online, instance)` — only battery-equipped nodes appear. |
+| **PVC storage alerts** | Cluster-wide — `kubelet_volume_stats_*` has no namespace filter. ANY PVC in ANY namespace is monitored. |
+| **CNPG PrometheusRules** | PromQL uses generic `cnpg_*` metrics — fires on any CNPG pod regardless of node. |
+| **PXC Galera PrometheusRules** | PromQL uses generic `mysql_global_status_wsrep_*` — fires on any PXC pod regardless of node. |
+| **Prometheus itself** | `*SelectorNilUsesHelmValues: false` + `*NamespaceSelector: {}` — discovers monitors in ALL namespaces. |
+
+**What IS per-deployment (not per-node):** PodMonitors and ServiceMonitors
+reference specific Helm release names / CR names (`postgres-cluster`,
+`mysql`). These are per-deployment, not per-node — they don't need
+changing when nodes are added. They only need updating if you deploy a
+*second instance* of CNPG or PXC with a different name.
+
+### 9.2 Laptop battery monitoring
+
+The k3s nodes are old laptops. Running on battery is abnormal (they're
+servers), so battery monitoring is treated as **infrastructure alerting**,
+not just nice-to-have dashboards.
+
+**How it works:**
+
+1. **node-exporter** (DaemonSet, hostNetwork, hostPID) reads
+   `/sys/class/power_supply/` via host filesystem mounts. The
+   `powersupply` collector is enabled by default.
+2. **PrometheusRules** (`laptop-battery-prometheusrules.yaml`) fire
+   alerts based on these metrics.
+3. **Grafana dashboard** (`laptop-battery-grafana-dashboard.yaml`)
+   provides visual status.
+4. **Justfile recipes** (`just k8s::battery-*`) for quick CLI checks.
+
+**Alert escalation ladder:**
+
+| Alert | Severity | Fires when | `for` |
+|---|---|---|---|
+| `NodeOnBattery` | warning | AC power lost | 2m |
+| `NodeBatteryLow` | warning | < 30% AND on battery | 5m |
+| `NodeBatteryCritical` | critical | < 15% AND on battery | 2m |
+| `NodeBatteryEmergency` | critical | < 5% AND on battery | immediate |
+| `NodeBatteryHealthDegraded` | warning | Full capacity < 50% of design | 1h |
+
+Key design decisions:
+- Battery level alerts use `and on (instance)` to join with AC status —
+  a plugged-in laptop with a depleted battery does NOT trigger level alerts
+  (only the health alert, if applicable).
+- Battery % is computed from `energy_watthours / energy_full_watthours`
+  (coulomb-counter based) rather than the raw sysfs `capacity` attribute
+  (firmware estimate, often inaccurate).
+- On non-laptop nodes, all `node_power_supply_*` metrics are absent, so
+  every rule evaluates to empty — zero noise.
+
+**Day-2 operations:**
+
+```sh
+just k8s::battery-ac-status   # AC power status per node (1=AC, 0=battery)
+just k8s::battery-level       # battery charge % per node
+just k8s::battery-health      # battery health % per node (full vs design)
+just k8s::battery-energy      # remaining Wh per node
+```
+
+### 9.3 PVC storage monitoring (cluster-wide)
+
+PVC storage alerts were refactored from per-namespace rules (hardcoded
+`namespace="cnpg-clusters"` / `namespace="pxc-clusters"`) into a single
+`pvc-storage-prometheusrules.yaml` that monitors **all PVCs in all
+namespaces** without any namespace filter.
+
+This means:
+- Adding a new service with PVCs → automatically monitored.
+- Adding a new namespace → automatically monitored.
+- No copy-paste of alert groups required.
+
+The inode alert includes a `kubelet_volume_stats_inodes > 0` guard
+because ZFS volumes may not report inode statistics.
+
+### 9.4 Files summary
+
+| File | Purpose | Node-agnostic? |
+|---|---|---|
+| `monitoring/laptop-battery-prometheusrules.yaml` | Battery level + AC power alerts | ✅ |
+| `monitoring/laptop-battery-grafana-dashboard.yaml` | Battery status dashboard | ✅ |
+| `monitoring/pvc-storage-prometheusrules.yaml` | Cluster-wide PVC capacity alerts | ✅ |
+| `monitoring/zfs-prometheusrules.yaml` | ZFS pool health + ARC alerts | ✅ |
+| `monitoring/zfs-grafana-dashboard.yaml` | ZFS metrics dashboard | ✅ |
+| `monitoring/cnpg-prometheusrules.yaml` | CNPG replication/health alerts | ✅ |
+| `monitoring/pxc-prometheusrules.yaml` | Galera health alerts | ✅ |
+| `monitoring/cnpg-cluster-podmonitor.yaml` | Scrapes CNPG pods | per-deployment |
+| `monitoring/cnpg-pooler-podmonitor.yaml` | Scrapes PgBouncer pods | per-deployment |
+| `monitoring/pxc-cluster-servicemonitor.yaml` | Scrapes mysqld_exporter | per-deployment |
+| `monitoring/pxc-haproxy-servicemonitor.yaml` | Scrapes HAProxy stats | per-deployment |

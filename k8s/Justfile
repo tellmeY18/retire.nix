@@ -219,3 +219,31 @@ zfs-arc-hit-ratio:
 zfs-arc-size:
     kubectl -n monitoring exec -it svc/kube-prometheus-stack-prometheus -- \
       promtool query instant http://localhost:9090 '{__name__=~"node_zfs_arc_size|node_zfs_arc_c_max"}'
+
+# ---------------------------------------------------------------------------
+# Laptop battery monitoring helpers
+# ---------------------------------------------------------------------------
+
+# Show AC power status for all nodes (1 = on AC, 0 = on battery).
+[doc('Query AC power status for all nodes')]
+battery-ac-status:
+    kubectl -n monitoring exec -it svc/kube-prometheus-stack-prometheus -- \
+      promtool query instant http://localhost:9090 'node_power_supply_online{type="Mains"}'
+
+# Show battery charge percentage for all nodes.
+[doc('Query battery charge level (%) for all nodes')]
+battery-level:
+    kubectl -n monitoring exec -it svc/kube-prometheus-stack-prometheus -- \
+      promtool query instant http://localhost:9090 '(node_power_supply_energy_watthours{type="Battery"} / node_power_supply_energy_full_watthours{type="Battery"}) * 100'
+
+# Show battery health (current full capacity vs design capacity).
+[doc('Query battery health (%) for all nodes')]
+battery-health:
+    kubectl -n monitoring exec -it svc/kube-prometheus-stack-prometheus -- \
+      promtool query instant http://localhost:9090 '(node_power_supply_energy_full_watthours{type="Battery"} / node_power_supply_energy_full_design_watthours{type="Battery"}) * 100'
+
+# Show remaining battery energy in watt-hours.
+[doc('Query remaining battery energy (Wh) for all nodes')]
+battery-energy:
+    kubectl -n monitoring exec -it svc/kube-prometheus-stack-prometheus -- \
+      promtool query instant http://localhost:9090 'node_power_supply_energy_watthours{type="Battery"}'
