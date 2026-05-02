@@ -311,6 +311,8 @@ in
             valuesContent = ''
               zfsNode:
                 kubeletDir: /var/lib/kubelet
+              zfs:
+                bin: /run/current-system/sw/bin/zfs
             '';
           };
         };
