@@ -26,6 +26,7 @@
     tree
     unzip
     ripgrep
+    just
     fd
     jq
   ];
