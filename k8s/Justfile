@@ -41,21 +41,21 @@ default:
 # time — no separate `sops --decrypt | kubectl apply` step needed.
 [doc('Apply helmfile + kustomize to the cluster')]
 apply:
-    helmfile sync
-    kubectl apply -k clusters/glug-infra
+    cd k8s && helmfile sync
+    kubectl apply -k k8s/clusters/glug-infra
 
 # Preview k8s changes without applying.
 [doc('Preview helmfile + kustomize changes (no apply)')]
 diff:
-    helmfile diff
-    kubectl diff -k clusters/glug-infra || true
+    cd k8s && helmfile diff
+    kubectl diff -k k8s/clusters/glug-infra || true
 
 # Render the fully-merged helm output (values.yaml + decrypted secrets.yaml)
 # without touching the cluster. Useful to confirm sensitive overrides are
 # coming through before the first apply.
 [doc('Render merged helm output (values + decrypted secrets)')]
 template:
-    helmfile template
+    cd k8s && helmfile template
 
 # ---------------------------------------------------------------------------
 # Secrets
@@ -67,7 +67,7 @@ template:
 #   just k8s::edit-secret apps/cnpg-operator/secrets.yaml
 [doc('Open a sops-encrypted file in $EDITOR')]
 edit-secret path:
-    sops {{ path }}
+    cd k8s && sops {{ path }}
 
 # Encrypt a plaintext values file in place (first-time setup only).
 # After this runs, use `edit-secret` for subsequent edits.
@@ -75,7 +75,7 @@ edit-secret path:
 #   just k8s::encrypt-secret apps/cnpg-operator/secrets.yaml
 [doc('Encrypt a plaintext values file in place (first-time)')]
 encrypt-secret path:
-    sops --encrypt --in-place {{ path }}
+    cd k8s && sops --encrypt --in-place {{ path }}
 
 # ---------------------------------------------------------------------------
 # CNPG day-2 helpers
