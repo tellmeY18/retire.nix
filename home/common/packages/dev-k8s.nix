@@ -4,21 +4,34 @@
 # this module. Shell aliases are defined via home.shellAliases so they work
 # across both zsh and bash without duplicating configuration.
 #
-# NOTE: helm-secrets is NOT a nixpkgs package — it is a helm plugin.
-# Install it once after bootstrapping:
-#   helm plugin install https://github.com/jkroepke/helm-secrets --version v4.6.0
-# helmfile picks it up automatically from the helm plugins directory.
-# TODO: automate this with a home.activation script once the install is idempotent.
+# Helm plugins (helm-secrets, helm-diff) are baked into the helm binary via
+# wrapHelm, and helmfile is configured to use the same plugin directory.
+# No manual `helm plugin install` step is needed.
 #
 # NOTE: cmctl is packaged as pkgs.cmctl in nixpkgs (>= 24.05).  If the build
 # fails, check nixpkgs for the correct attribute name (it was briefly
 # pkgs.cert-manager in some branches).
 { pkgs, ... }:
+let
+  # Wrap helm with plugins so `helm secrets` and `helm diff` Just Work.
+  helm-with-plugins = pkgs.wrapHelm pkgs.kubernetes-helm {
+    plugins = with pkgs.kubernetes-helmPlugins; [
+      helm-secrets
+      helm-diff
+    ];
+  };
+
+  # Point helmfile at the same plugin directory so `helmfile sync` can call
+  # `helm secrets decrypt` / `helm diff` transparently.
+  helmfile-with-plugins = pkgs.helmfile-wrapped.override {
+    inherit (helm-with-plugins) pluginsDir;
+  };
+in
 {
   home.packages = with pkgs; [
     kubectl
-    kubernetes-helm
-    helmfile
+    helm-with-plugins
+    helmfile-with-plugins
     k9s
     sops
     cmctl # cert-manager CLI — see note above if attribute not found
