@@ -12,5 +12,6 @@
     BROWSER = "firefox";
     TERM = "xterm-256color";
     PAGER = "less -R";
+    SOPS_AGE_KEY_FILE = "/var/lib/sops-nix/key.txt";
   };
 }
