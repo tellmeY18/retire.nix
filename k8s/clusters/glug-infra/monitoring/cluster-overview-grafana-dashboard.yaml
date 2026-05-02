@@ -1,0 +1,947 @@
+# cluster-overview-grafana-dashboard.yaml — The primary "single pane of glass"
+# Grafana dashboard for the entire k3s homelab cluster.
+#
+# This is the ONE dashboard you open first. It answers "is everything OK?"
+# in under 5 seconds by exploiting visual priority through color-coded
+# thresholds: panels turn red or orange when something needs attention,
+# naturally drawing the eye to what matters. When everything is green,
+# you're done — close the tab.
+#
+# The Active Alerts table (Row 1) is the core dynamic priority mechanism.
+# It surfaces whatever is currently broken — battery, PVC, Galera, ZFS,
+# replication lag — without needing separate sections for each failure
+# mode. The stat panels above give instant status; the table tells you
+# *why* something is red.
+#
+# All queries are fully node-agnostic and auto-discover new nodes,
+# namespaces, PVCs, and database instances. Adding a k3s node or a new
+# CNPG/PXC cluster requires zero changes to this dashboard.
+#
+# Metric sources:
+#   - kube-state-metrics:   kube_node_*, kube_pod_*, kubelet_volume_stats_*
+#   - node-exporter:        node_cpu_*, node_memory_*, node_zfs_*,
+#                           node_power_supply_*
+#   - cnpg:                 cnpg_collector_up, cnpg_pg_replication_lag,
+#                           cnpg_backends_total
+#   - percona/mysqld_exporter: mysql_global_status_wsrep_*,
+#                              mysql_global_status_threads_connected
+#   - prometheus:           ALERTS{alertstate="firing"}
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cluster-overview-grafana-dashboard
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+    app.kubernetes.io/name: cluster-overview
+    app.kubernetes.io/component: dashboard
+    app.kubernetes.io/part-of: kube-prometheus-stack
+    app.kubernetes.io/managed-by: kustomize
+  annotations:
+    grafana_folder: "Overview"
+data:
+  cluster-overview-dashboard.json: |
+    {
+      "annotations": { "list": [] },
+      "description": "Single pane of glass for the entire k3s homelab cluster. Color-coded thresholds provide instant visual priority \u2014 red panels draw the eye to what matters. The Active Alerts table dynamically surfaces the most urgent problems regardless of source.",
+      "editable": true,
+      "fiscalYearStartMonth": 0,
+      "graphTooltip": 1,
+      "links": [],
+      "panels": [
+        {
+          "id": 1,
+          "title": "Cluster Status",
+          "type": "row",
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+          "collapsed": false,
+          "panels": []
+        },
+        {
+          "id": 2,
+          "title": "Firing Alerts",
+          "description": "Total number of currently firing alerts across the entire cluster. The #1 eye-catcher \u2014 if this is not zero, something needs attention.",
+          "type": "stat",
+          "gridPos": { "h": 4, "w": 3, "x": 0, "y": 1 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "count(ALERTS{alertstate=\"firing\"}) or vector(0)",
+              "instant": true,
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "value": null, "color": "green" },
+                  { "value": 1, "color": "orange" },
+                  { "value": 3, "color": "red" }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "graphMode": "none",
+            "colorMode": "background",
+            "textMode": "auto",
+            "justifyMode": "auto",
+            "orientation": "auto"
+          }
+        },
+        {
+          "id": 3,
+          "title": "Cluster Nodes",
+          "description": "Number of k3s nodes in Ready state. Red if zero nodes are ready.",
+          "type": "stat",
+          "gridPos": { "h": 4, "w": 3, "x": 3, "y": 1 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "sum(kube_node_status_condition{condition=\"Ready\",status=\"true\"})",
+              "legendFormat": "Ready",
+              "instant": true,
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "value": null, "color": "red" },
+                  { "value": 1, "color": "green" }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "graphMode": "none",
+            "colorMode": "background",
+            "textMode": "auto",
+            "justifyMode": "auto",
+            "orientation": "auto"
+          }
+        },
+        {
+          "id": 4,
+          "title": "Pod Status",
+          "description": "Count of pods currently in Running phase across all namespaces.",
+          "type": "stat",
+          "gridPos": { "h": 4, "w": 3, "x": 6, "y": 1 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "count(kube_pod_status_phase{phase=\"Running\"})",
+              "legendFormat": "Running",
+              "instant": true,
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "value": null, "color": "red" },
+                  { "value": 1, "color": "green" }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "graphMode": "none",
+            "colorMode": "value",
+            "textMode": "auto",
+            "justifyMode": "auto",
+            "orientation": "auto"
+          }
+        },
+        {
+          "id": 5,
+          "title": "AC Power",
+          "description": "Worst-case AC power status across all nodes. Uses min() so if ANY node loses AC power, this turns red immediately.",
+          "type": "stat",
+          "gridPos": { "h": 4, "w": 3, "x": 9, "y": 1 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "min(node_power_supply_online{power_supply=\"AC0\"})",
+              "legendFormat": "AC Power",
+              "instant": true,
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "mappings": [
+                {
+                  "type": "value",
+                  "options": {
+                    "1": { "text": "All on AC \u2713", "color": "green" },
+                    "0": { "text": "ON BATTERY \u26a0", "color": "red" }
+                  }
+                }
+              ],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "value": null, "color": "red" },
+                  { "value": 1, "color": "green" }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "graphMode": "none",
+            "colorMode": "background",
+            "textMode": "auto",
+            "justifyMode": "auto",
+            "orientation": "auto"
+          }
+        },
+        {
+          "id": 6,
+          "title": "Battery Level",
+          "description": "Lowest battery charge percentage across all nodes. Computed from energy_watthour / energy_full (coulomb-counter based, more accurate than firmware estimate).",
+          "type": "gauge",
+          "gridPos": { "h": 4, "w": 3, "x": 12, "y": 1 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "min((node_power_supply_energy_watthour{power_supply=\"BAT0\"} / node_power_supply_energy_full{power_supply=\"BAT0\"}) * 100)",
+              "legendFormat": "Lowest Battery",
+              "instant": true,
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "min": 0,
+              "max": 100,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "value": null, "color": "red" },
+                  { "value": 15, "color": "orange" },
+                  { "value": 30, "color": "green" }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "showThresholdLabels": false,
+            "showThresholdMarkers": true,
+            "orientation": "auto"
+          }
+        },
+        {
+          "id": 7,
+          "title": "Battery Health",
+          "description": "Worst battery health across all nodes (current full-charge capacity vs original design capacity). A low value means the battery is worn out.",
+          "type": "gauge",
+          "gridPos": { "h": 4, "w": 3, "x": 15, "y": 1 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "min((node_power_supply_energy_full{power_supply=\"BAT0\"} / node_power_supply_energy_full_design{power_supply=\"BAT0\"}) * 100)",
+              "legendFormat": "Worst Health",
+              "instant": true,
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "min": 0,
+              "max": 100,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "value": null, "color": "red" },
+                  { "value": 50, "color": "orange" },
+                  { "value": 80, "color": "green" }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "showThresholdLabels": false,
+            "showThresholdMarkers": true,
+            "orientation": "auto"
+          }
+        },
+        {
+          "id": 8,
+          "title": "PVC Most Full",
+          "description": "Usage percentage of the fullest PVC across all namespaces. Orange at 80%, red at 90%.",
+          "type": "gauge",
+          "gridPos": { "h": 4, "w": 3, "x": 18, "y": 1 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "max((kubelet_volume_stats_used_bytes / kubelet_volume_stats_capacity_bytes) * 100)",
+              "legendFormat": "Fullest PVC",
+              "instant": true,
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "min": 0,
+              "max": 100,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "value": null, "color": "green" },
+                  { "value": 80, "color": "orange" },
+                  { "value": 90, "color": "red" }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "showThresholdLabels": false,
+            "showThresholdMarkers": true,
+            "orientation": "auto"
+          }
+        },
+        {
+          "id": 9,
+          "title": "ZFS Pool",
+          "description": "ZFS pool health across all nodes. Uses min() so if ANY pool is not online, this turns red.",
+          "type": "stat",
+          "gridPos": { "h": 4, "w": 3, "x": 21, "y": 1 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "min(node_zfs_zpool_state{state=\"online\"})",
+              "legendFormat": "ZFS",
+              "instant": true,
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "mappings": [
+                {
+                  "type": "value",
+                  "options": {
+                    "1": { "text": "Online \u2713", "color": "green" },
+                    "0": { "text": "DEGRADED \u26a0", "color": "red" }
+                  }
+                }
+              ],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "value": null, "color": "red" },
+                  { "value": 1, "color": "green" }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "graphMode": "none",
+            "colorMode": "background",
+            "textMode": "auto",
+            "justifyMode": "auto",
+            "orientation": "auto"
+          }
+        },
+        {
+          "id": 10,
+          "title": "Active Alerts",
+          "type": "row",
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 },
+          "collapsed": false,
+          "panels": []
+        },
+        {
+          "id": 11,
+          "title": "Firing Alerts",
+          "description": "All currently firing alerts across the cluster. This is the CORE dynamic priority panel \u2014 whatever is broken shows up here automatically. When battery is low, battery alerts appear; when PVC is filling, PVC alerts appear; when Galera is degraded, those alerts appear. An empty table is the ideal state.",
+          "type": "table",
+          "gridPos": { "h": 6, "w": 24, "x": 0, "y": 6 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "ALERTS{alertstate=\"firing\"}",
+              "instant": true,
+              "format": "table",
+              "refId": "A"
+            }
+          ],
+          "transformations": [
+            {
+              "id": "organize",
+              "options": {
+                "excludeByName": {
+                  "Time": true,
+                  "__name__": true,
+                  "alertstate": true,
+                  "Value": true
+                },
+                "indexByName": {
+                  "alertname": 0,
+                  "severity": 1,
+                  "instance": 2,
+                  "namespace": 3,
+                  "pod": 4,
+                  "description": 5
+                },
+                "renameByName": {}
+              }
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "align": "auto",
+                "cellOptions": { "type": "auto" },
+                "inspect": false
+              }
+            },
+            "overrides": [
+              {
+                "matcher": { "id": "byName", "options": "severity" },
+                "properties": [
+                  {
+                    "id": "custom.cellOptions",
+                    "value": { "type": "color-background" }
+                  },
+                  {
+                    "id": "mappings",
+                    "value": [
+                      {
+                        "type": "value",
+                        "options": {
+                          "critical": { "text": "critical", "color": "red" },
+                          "warning": { "text": "warning", "color": "orange" }
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          "options": {
+            "showHeader": true,
+            "sortBy": [{ "displayName": "severity", "desc": true }],
+            "footer": { "show": false }
+          }
+        },
+        {
+          "id": 12,
+          "title": "Databases",
+          "type": "row",
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 12 },
+          "collapsed": false,
+          "panels": []
+        },
+        {
+          "id": 13,
+          "title": "Postgres Instances",
+          "description": "Number of CNPG-managed PostgreSQL instances reporting as up.",
+          "type": "stat",
+          "gridPos": { "h": 4, "w": 4, "x": 0, "y": 13 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "count(cnpg_collector_up == 1) or vector(0)",
+              "legendFormat": "PG Instances Up",
+              "instant": true,
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "value": null, "color": "red" },
+                  { "value": 1, "color": "green" }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "graphMode": "none",
+            "colorMode": "background",
+            "textMode": "auto",
+            "justifyMode": "auto",
+            "orientation": "auto"
+          }
+        },
+        {
+          "id": 14,
+          "title": "Postgres Replication Lag",
+          "description": "Maximum replication lag in seconds across all CNPG replicas. Orange at 10s, red at 300s (5 min).",
+          "type": "stat",
+          "gridPos": { "h": 4, "w": 4, "x": 4, "y": 13 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "max(cnpg_pg_replication_lag) or vector(0)",
+              "legendFormat": "Max Lag (s)",
+              "instant": true,
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "s",
+              "decimals": 1,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "value": null, "color": "green" },
+                  { "value": 10, "color": "orange" },
+                  { "value": 300, "color": "red" }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "graphMode": "none",
+            "colorMode": "value",
+            "textMode": "auto",
+            "justifyMode": "auto",
+            "orientation": "auto"
+          }
+        },
+        {
+          "id": 15,
+          "title": "Postgres Connections",
+          "description": "Total active backends across all CNPG instances. Orange at 150, red at 190 (assuming max_connections=200).",
+          "type": "stat",
+          "gridPos": { "h": 4, "w": 4, "x": 8, "y": 13 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "sum(cnpg_backends_total) or vector(0)",
+              "legendFormat": "Active Backends",
+              "instant": true,
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "value": null, "color": "green" },
+                  { "value": 150, "color": "orange" },
+                  { "value": 190, "color": "red" }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "graphMode": "none",
+            "colorMode": "value",
+            "textMode": "auto",
+            "justifyMode": "auto",
+            "orientation": "auto"
+          }
+        },
+        {
+          "id": 16,
+          "title": "MySQL Galera Ready",
+          "description": "Galera cluster readiness status. Uses min() so if ANY PXC node is not ready, this turns red.",
+          "type": "stat",
+          "gridPos": { "h": 4, "w": 4, "x": 12, "y": 13 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "min(mysql_global_status_wsrep_ready) or vector(0)",
+              "legendFormat": "Galera Ready",
+              "instant": true,
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "mappings": [
+                {
+                  "type": "value",
+                  "options": {
+                    "1": { "text": "Ready \u2713", "color": "green" },
+                    "0": { "text": "NOT READY \u26a0", "color": "red" }
+                  }
+                }
+              ],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "value": null, "color": "red" },
+                  { "value": 1, "color": "green" }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "graphMode": "none",
+            "colorMode": "background",
+            "textMode": "auto",
+            "justifyMode": "auto",
+            "orientation": "auto"
+          }
+        },
+        {
+          "id": 17,
+          "title": "Galera Cluster Size",
+          "description": "Minimum reported Galera cluster size. Red if 0, orange if less than 3 (expected quorum size), green at 3+.",
+          "type": "stat",
+          "gridPos": { "h": 4, "w": 4, "x": 16, "y": 13 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "min(mysql_global_status_wsrep_cluster_size) or vector(0)",
+              "legendFormat": "Cluster Size",
+              "instant": true,
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "value": null, "color": "red" },
+                  { "value": 1, "color": "orange" },
+                  { "value": 3, "color": "green" }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "graphMode": "none",
+            "colorMode": "background",
+            "textMode": "auto",
+            "justifyMode": "auto",
+            "orientation": "auto"
+          }
+        },
+        {
+          "id": 18,
+          "title": "MySQL Connections",
+          "description": "Total connected MySQL threads across all PXC nodes. Orange at 150, red at 190.",
+          "type": "stat",
+          "gridPos": { "h": 4, "w": 4, "x": 20, "y": 13 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "sum(mysql_global_status_threads_connected) or vector(0)",
+              "legendFormat": "MySQL Threads",
+              "instant": true,
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "value": null, "color": "green" },
+                  { "value": 150, "color": "orange" },
+                  { "value": 190, "color": "red" }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "graphMode": "none",
+            "colorMode": "value",
+            "textMode": "auto",
+            "justifyMode": "auto",
+            "orientation": "auto"
+          }
+        },
+        {
+          "id": 19,
+          "title": "Node Resources",
+          "type": "row",
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 17 },
+          "collapsed": false,
+          "panels": []
+        },
+        {
+          "id": 20,
+          "title": "CPU Usage",
+          "description": "Per-node CPU usage percentage (100% minus idle). Auto-discovers all nodes via the instance label.",
+          "type": "timeseries",
+          "gridPos": { "h": 7, "w": 8, "x": 0, "y": 18 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "100 - (avg by (instance) (rate(node_cpu_seconds_total{mode=\"idle\"}[5m])) * 100)",
+              "legendFormat": "{{instance}}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "min": 0,
+              "max": 100,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "value": null, "color": "green" },
+                  { "value": 80, "color": "orange" },
+                  { "value": 95, "color": "red" }
+                ]
+              },
+              "custom": {
+                "fillOpacity": 10,
+                "lineWidth": 2,
+                "thresholdsStyle": { "mode": "line" }
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom", "calcs": [] },
+            "tooltip": { "mode": "multi", "sort": "none" }
+          }
+        },
+        {
+          "id": 21,
+          "title": "Memory Usage",
+          "description": "Per-node memory usage percentage (used / total). Auto-discovers all nodes via the instance label.",
+          "type": "timeseries",
+          "gridPos": { "h": 7, "w": 8, "x": 8, "y": 18 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "(1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100",
+              "legendFormat": "{{instance}}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "min": 0,
+              "max": 100,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "value": null, "color": "green" },
+                  { "value": 85, "color": "orange" },
+                  { "value": 95, "color": "red" }
+                ]
+              },
+              "custom": {
+                "fillOpacity": 10,
+                "lineWidth": 2,
+                "thresholdsStyle": { "mode": "line" }
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom", "calcs": [] },
+            "tooltip": { "mode": "multi", "sort": "none" }
+          }
+        },
+        {
+          "id": 22,
+          "title": "ZFS ARC Hit Ratio",
+          "description": "ZFS Adaptive Replacement Cache hit ratio per node. Higher is better \u2014 green above 80%, orange 50\u201380%, red below 50%. A low hit ratio means the working set exceeds ARC size.",
+          "type": "timeseries",
+          "gridPos": { "h": 7, "w": 8, "x": 16, "y": 18 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "rate(node_zfs_arc_hits[5m]) / (rate(node_zfs_arc_hits[5m]) + rate(node_zfs_arc_misses[5m])) * 100",
+              "legendFormat": "{{instance}}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "min": 0,
+              "max": 100,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "value": null, "color": "red" },
+                  { "value": 50, "color": "orange" },
+                  { "value": 80, "color": "green" }
+                ]
+              },
+              "custom": {
+                "fillOpacity": 10,
+                "lineWidth": 2,
+                "thresholdsStyle": { "mode": "line" }
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom", "calcs": [] },
+            "tooltip": { "mode": "multi", "sort": "none" }
+          }
+        },
+        {
+          "id": 23,
+          "title": "Storage & Power Trends",
+          "type": "row",
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 25 },
+          "collapsed": false,
+          "panels": []
+        },
+        {
+          "id": 24,
+          "title": "PVC Usage",
+          "description": "Usage percentage of every PVC in the cluster. Auto-discovers all namespaces and PVCs. Green below 80%, orange 80\u201390%, red above 90%.",
+          "type": "bargauge",
+          "gridPos": { "h": 7, "w": 12, "x": 0, "y": 26 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "(kubelet_volume_stats_used_bytes / kubelet_volume_stats_capacity_bytes) * 100",
+              "legendFormat": "{{namespace}}/{{persistentvolumeclaim}}",
+              "instant": true,
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "min": 0,
+              "max": 100,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "value": null, "color": "green" },
+                  { "value": 80, "color": "orange" },
+                  { "value": 90, "color": "red" }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "orientation": "horizontal",
+            "displayMode": "gradient",
+            "showUnfilled": true
+          }
+        },
+        {
+          "id": 25,
+          "title": "Battery & Power Over Time",
+          "description": "Battery charge percentage and AC power state over time for all nodes. Battery % is the solid line; AC power state is the dashed line (100 = on AC, 0 = on battery). Threshold lines at 15% (red) and 30% (orange) mark the danger and warning zones.",
+          "type": "timeseries",
+          "gridPos": { "h": 7, "w": 12, "x": 12, "y": 26 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "(node_power_supply_energy_watthour{power_supply=\"BAT0\"} / node_power_supply_energy_full{power_supply=\"BAT0\"}) * 100",
+              "legendFormat": "Battery % {{instance}}",
+              "refId": "A"
+            },
+            {
+              "expr": "node_power_supply_online{power_supply=\"AC0\"} * 100",
+              "legendFormat": "AC Power {{instance}}",
+              "refId": "B"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "min": 0,
+              "max": 100,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "value": null, "color": "green" },
+                  { "value": 15, "color": "red" },
+                  { "value": 30, "color": "orange" }
+                ]
+              },
+              "custom": {
+                "fillOpacity": 10,
+                "lineWidth": 2,
+                "thresholdsStyle": { "mode": "line" }
+              }
+            },
+            "overrides": [
+              {
+                "matcher": { "id": "byFrameRefID", "options": "B" },
+                "properties": [
+                  {
+                    "id": "custom.lineStyle",
+                    "value": { "fill": "dash", "dash": [10, 10] }
+                  },
+                  {
+                    "id": "custom.fillOpacity",
+                    "value": 0
+                  }
+                ]
+              }
+            ]
+          },
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom", "calcs": [] },
+            "tooltip": { "mode": "multi", "sort": "none" }
+          }
+        }
+      ],
+      "refresh": "30s",
+      "schemaVersion": 39,
+      "tags": ["overview", "cluster", "sre"],
+      "templating": {
+        "list": [
+          {
+            "name": "datasource",
+            "type": "datasource",
+            "query": "prometheus",
+            "current": { "selected": true, "text": "Prometheus", "value": "prometheus" }
+          }
+        ]
+      },
+      "time": { "from": "now-1h", "to": "now" },
+      "timezone": "browser",
+      "title": "Cluster Overview",
+      "uid": "cluster-overview",
+      "version": 1
+    }

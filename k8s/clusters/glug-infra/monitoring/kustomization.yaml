@@ -79,3 +79,7 @@ resources:
   # Laptop battery Grafana dashboard — auto-imported by sidecar. Shows
   # AC status, charge level, health, voltage, and trends over time.
   - laptop-battery-grafana-dashboard.yaml
+  # Cluster Overview Grafana dashboard — the "single pane of glass" for
+  # the entire k3s cluster. Color-coded stat panels + Active Alerts table
+  # provide instant visual priority. Auto-discovers all nodes/services.
+  - cluster-overview-grafana-dashboard.yaml
