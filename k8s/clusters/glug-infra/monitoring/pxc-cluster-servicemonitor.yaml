@@ -26,5 +26,6 @@ spec:
     matchLabels:
       app.kubernetes.io/instance: mysql-pxc-db
   endpoints:
-    - port: metrics
+    - targetPort: 9104
       interval: 30s
+      path: /metrics

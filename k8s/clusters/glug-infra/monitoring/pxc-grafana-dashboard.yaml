@@ -1,0 +1,781 @@
+---
+# pxc-grafana-dashboard.yaml — Grafana dashboard ConfigMap for Percona
+# XtraDB Cluster (PXC) MySQL monitoring.
+#
+# Grafana's sidecar (configured in kube-prometheus-stack) watches for
+# ConfigMaps with the label `grafana_dashboard: "1"` across all namespaces
+# and auto-imports them. The `grafana_folder` annotation organises the
+# dashboard into a named folder in the Grafana UI.
+#
+# This dashboard visualises metrics from two sources:
+#   - mysqld_exporter sidecar (port 9104) on each PXC pod:
+#       mysql_global_status_wsrep_*  — Galera cluster health & replication
+#       mysql_global_status_innodb_* — InnoDB buffer pool & row operations
+#       mysql_global_status_threads_* — connection stats
+#       mysql_global_status_queries  — query throughput
+#       mysql_global_status_slow_queries — slow query rate
+#       mysql_global_variables_*     — server configuration values
+#   - HAProxy built-in exporter (port 8404) on each HAProxy pod:
+#       haproxy_frontend_*           — client-facing connection stats
+#       haproxy_backend_*            — backend PXC node health & traffic
+#
+# All queries auto-discover PXC pods — no hostnames or pod names are
+# hardcoded. Adding new PXC nodes or scaling the cluster requires zero
+# changes to this dashboard.
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pxc-grafana-dashboard
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+    app.kubernetes.io/name: percona-xtradb-cluster
+    app.kubernetes.io/component: dashboard
+    app.kubernetes.io/part-of: kube-prometheus-stack
+    app.kubernetes.io/managed-by: kustomize
+  annotations:
+    grafana_folder: "Databases"
+data:
+  pxc-dashboard.json: |
+    {
+      "annotations": { "list": [] },
+      "description": "Percona XtraDB Cluster (PXC) MySQL monitoring: Galera cluster health, InnoDB performance, connections, HAProxy traffic, and replication writesets. Metrics from mysqld_exporter (port 9104) and HAProxy exporter (port 8404).",
+      "editable": true,
+      "fiscalYearStartMonth": 0,
+      "graphTooltip": 1,
+      "links": [],
+      "panels": [
+        {
+          "id": 1,
+          "title": "Galera Cluster Health",
+          "type": "row",
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+          "collapsed": false,
+          "panels": []
+        },
+        {
+          "id": 2,
+          "title": "Galera Cluster Size",
+          "description": "Number of nodes currently in the Galera cluster. Should match the expected replica count.",
+          "type": "stat",
+          "gridPos": { "h": 4, "w": 4, "x": 0, "y": 1 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "mysql_global_status_wsrep_cluster_size",
+              "instant": true,
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "value": null, "color": "red" },
+                  { "value": 1, "color": "orange" },
+                  { "value": 3, "color": "green" }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "graphMode": "none",
+            "colorMode": "background",
+            "textMode": "auto",
+            "justifyMode": "auto",
+            "orientation": "auto"
+          }
+        },
+        {
+          "id": 3,
+          "title": "Galera Ready",
+          "description": "Whether the node is ready to accept queries. 1 = Ready, 0 = Not Ready.",
+          "type": "stat",
+          "gridPos": { "h": 4, "w": 4, "x": 4, "y": 1 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "mysql_global_status_wsrep_ready",
+              "instant": true,
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "mappings": [
+                {
+                  "type": "value",
+                  "options": {
+                    "1": { "text": "Ready \u2713", "color": "green" },
+                    "0": { "text": "NOT READY", "color": "red" }
+                  }
+                }
+              ],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "value": null, "color": "red" },
+                  { "value": 1, "color": "green" }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "graphMode": "none",
+            "colorMode": "background",
+            "textMode": "auto",
+            "justifyMode": "auto",
+            "orientation": "auto"
+          }
+        },
+        {
+          "id": 4,
+          "title": "Galera State",
+          "description": "Local node state: 4=Synced (normal), 2=Donor/Desynced, 1=Joining, 0=Disconnected.",
+          "type": "stat",
+          "gridPos": { "h": 4, "w": 4, "x": 8, "y": 1 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "mysql_global_status_wsrep_local_state",
+              "instant": true,
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "mappings": [
+                {
+                  "type": "value",
+                  "options": {
+                    "4": { "text": "Synced \u2713", "color": "green" },
+                    "2": { "text": "Donor/Desynced", "color": "orange" },
+                    "1": { "text": "Joining", "color": "orange" },
+                    "0": { "text": "Disconnected", "color": "red" }
+                  }
+                }
+              ],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "value": null, "color": "red" },
+                  { "value": 1, "color": "orange" },
+                  { "value": 4, "color": "green" }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "graphMode": "none",
+            "colorMode": "background",
+            "textMode": "auto",
+            "justifyMode": "auto",
+            "orientation": "auto"
+          }
+        },
+        {
+          "id": 5,
+          "title": "Flow Control Paused",
+          "description": "Fraction of time replication was paused due to flow control. High values indicate the node cannot keep up with the write load.",
+          "type": "stat",
+          "gridPos": { "h": 4, "w": 4, "x": 12, "y": 1 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "rate(mysql_global_status_wsrep_flow_control_paused_ns[5m]) / 1e9",
+              "instant": true,
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percentunit",
+              "decimals": 2,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "value": null, "color": "green" },
+                  { "value": 0.05, "color": "orange" },
+                  { "value": 0.1, "color": "red" }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "graphMode": "none",
+            "colorMode": "value",
+            "textMode": "auto",
+            "justifyMode": "auto",
+            "orientation": "auto"
+          }
+        },
+        {
+          "id": 6,
+          "title": "Replication Queue",
+          "description": "Average receive queue length. Values above 0 indicate the node is falling behind applying writesets.",
+          "type": "stat",
+          "gridPos": { "h": 4, "w": 4, "x": 16, "y": 1 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "mysql_global_status_wsrep_local_recv_queue_avg",
+              "instant": true,
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "decimals": 1,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "value": null, "color": "green" },
+                  { "value": 5, "color": "orange" },
+                  { "value": 20, "color": "red" }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "graphMode": "none",
+            "colorMode": "value",
+            "textMode": "auto",
+            "justifyMode": "auto",
+            "orientation": "auto"
+          }
+        },
+        {
+          "id": 7,
+          "title": "Cluster Status",
+          "description": "0=Primary (normal), 1=Non-Primary, 2=Disconnected. Only the Primary component can process writes.",
+          "type": "stat",
+          "gridPos": { "h": 4, "w": 4, "x": 20, "y": 1 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "mysql_global_status_wsrep_cluster_status",
+              "instant": true,
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "mappings": [
+                {
+                  "type": "value",
+                  "options": {
+                    "0": { "text": "Primary \u2713", "color": "green" },
+                    "1": { "text": "Non-Primary", "color": "red" },
+                    "2": { "text": "Disconnected", "color": "red" }
+                  }
+                }
+              ],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "value": null, "color": "green" },
+                  { "value": 1, "color": "red" }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "graphMode": "none",
+            "colorMode": "background",
+            "textMode": "auto",
+            "justifyMode": "auto",
+            "orientation": "auto"
+          }
+        },
+        {
+          "id": 8,
+          "title": "InnoDB Performance",
+          "type": "row",
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 },
+          "collapsed": false,
+          "panels": []
+        },
+        {
+          "id": 9,
+          "title": "InnoDB Buffer Pool Hit Ratio",
+          "description": "Percentage of read requests served from the buffer pool without disk IO. Values below 99% on a warmed-up system indicate the buffer pool is too small.",
+          "type": "gauge",
+          "gridPos": { "h": 5, "w": 6, "x": 0, "y": 6 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "(1 - (mysql_global_status_innodb_buffer_pool_reads / mysql_global_status_innodb_buffer_pool_read_requests)) * 100",
+              "instant": true,
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "min": 0,
+              "max": 100,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "value": null, "color": "red" },
+                  { "value": 90, "color": "orange" },
+                  { "value": 99, "color": "green" }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "showThresholdLabels": false,
+            "showThresholdMarkers": true
+          }
+        },
+        {
+          "id": 10,
+          "title": "InnoDB Buffer Pool Usage",
+          "description": "Percentage of buffer pool occupied by data pages. High values are normal for a warmed-up database.",
+          "type": "gauge",
+          "gridPos": { "h": 5, "w": 6, "x": 6, "y": 6 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "(mysql_global_status_innodb_buffer_pool_pages_data / mysql_global_status_innodb_buffer_pool_pages_total) * 100",
+              "instant": true,
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "min": 0,
+              "max": 100,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "value": null, "color": "green" }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "showThresholdLabels": false,
+            "showThresholdMarkers": true
+          }
+        },
+        {
+          "id": 11,
+          "title": "InnoDB Row Operations",
+          "description": "Rate of InnoDB row-level operations: reads, inserts, updates, and deletes.",
+          "type": "timeseries",
+          "gridPos": { "h": 5, "w": 12, "x": 12, "y": 6 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "rate(mysql_global_status_innodb_rows_read[5m])",
+              "legendFormat": "Reads",
+              "refId": "A"
+            },
+            {
+              "expr": "rate(mysql_global_status_innodb_rows_inserted[5m])",
+              "legendFormat": "Inserts",
+              "refId": "B"
+            },
+            {
+              "expr": "rate(mysql_global_status_innodb_rows_updated[5m])",
+              "legendFormat": "Updates",
+              "refId": "C"
+            },
+            {
+              "expr": "rate(mysql_global_status_innodb_rows_deleted[5m])",
+              "legendFormat": "Deletes",
+              "refId": "D"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "ops",
+              "custom": {
+                "fillOpacity": 10,
+                "lineWidth": 2,
+                "spanNulls": false,
+                "showPoints": "never"
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "tooltip": { "mode": "multi", "sort": "desc" },
+            "legend": { "displayMode": "list", "placement": "bottom", "calcs": [] }
+          }
+        },
+        {
+          "id": 12,
+          "title": "Connections & Queries",
+          "type": "row",
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 11 },
+          "collapsed": false,
+          "panels": []
+        },
+        {
+          "id": 13,
+          "title": "Active Connections",
+          "description": "Connected and running threads vs the configured max_connections limit. The Max Allowed line is dashed for visual separation.",
+          "type": "timeseries",
+          "gridPos": { "h": 6, "w": 8, "x": 0, "y": 12 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "mysql_global_status_threads_connected",
+              "legendFormat": "Connected",
+              "refId": "A"
+            },
+            {
+              "expr": "mysql_global_status_threads_running",
+              "legendFormat": "Running",
+              "refId": "B"
+            },
+            {
+              "expr": "mysql_global_variables_max_connections",
+              "legendFormat": "Max Allowed",
+              "refId": "C"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "fillOpacity": 10,
+                "lineWidth": 2,
+                "spanNulls": false,
+                "showPoints": "never"
+              }
+            },
+            "overrides": [
+              {
+                "matcher": { "id": "byName", "options": "Max Allowed" },
+                "properties": [
+                  {
+                    "id": "custom.lineStyle",
+                    "value": { "fill": "dash", "dash": [10, 10] }
+                  },
+                  {
+                    "id": "custom.fillOpacity",
+                    "value": 0
+                  }
+                ]
+              }
+            ]
+          },
+          "options": {
+            "tooltip": { "mode": "multi", "sort": "desc" },
+            "legend": { "displayMode": "list", "placement": "bottom", "calcs": [] }
+          }
+        },
+        {
+          "id": 14,
+          "title": "Queries Per Second",
+          "description": "Rate of all SQL statements executed by the server.",
+          "type": "timeseries",
+          "gridPos": { "h": 6, "w": 8, "x": 8, "y": 12 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "rate(mysql_global_status_queries[5m])",
+              "legendFormat": "QPS",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "ops",
+              "custom": {
+                "fillOpacity": 10,
+                "lineWidth": 2,
+                "spanNulls": false,
+                "showPoints": "never"
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "tooltip": { "mode": "multi", "sort": "desc" },
+            "legend": { "displayMode": "list", "placement": "bottom", "calcs": [] }
+          }
+        },
+        {
+          "id": 15,
+          "title": "Slow Queries",
+          "description": "Rate of queries exceeding long_query_time, expressed as queries per minute. The orange threshold line at 10/min helps spot regressions.",
+          "type": "timeseries",
+          "gridPos": { "h": 6, "w": 8, "x": 16, "y": 12 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "rate(mysql_global_status_slow_queries[5m]) * 60",
+              "legendFormat": "Slow Queries/min",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "fillOpacity": 10,
+                "lineWidth": 2,
+                "spanNulls": false,
+                "showPoints": "never",
+                "thresholdsStyle": { "mode": "line" }
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "value": null, "color": "green" },
+                  { "value": 10, "color": "orange" }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "tooltip": { "mode": "multi", "sort": "desc" },
+            "legend": { "displayMode": "list", "placement": "bottom", "calcs": [] }
+          }
+        },
+        {
+          "id": 16,
+          "title": "HAProxy",
+          "type": "row",
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 18 },
+          "collapsed": false,
+          "panels": []
+        },
+        {
+          "id": 17,
+          "title": "HAProxy Backend Connections",
+          "description": "Current sessions on the HAProxy frontend (client-facing) and backend (PXC node) sides.",
+          "type": "timeseries",
+          "gridPos": { "h": 6, "w": 8, "x": 0, "y": 19 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "haproxy_frontend_current_sessions{proxy=\"galera-in\"}",
+              "legendFormat": "Frontend Sessions",
+              "refId": "A"
+            },
+            {
+              "expr": "haproxy_backend_current_sessions{proxy=\"galera-nodes\"}",
+              "legendFormat": "Backend Sessions",
+              "refId": "B"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "fillOpacity": 10,
+                "lineWidth": 2,
+                "spanNulls": false,
+                "showPoints": "never"
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "tooltip": { "mode": "multi", "sort": "desc" },
+            "legend": { "displayMode": "list", "placement": "bottom", "calcs": [] }
+          }
+        },
+        {
+          "id": 18,
+          "title": "HAProxy Backend Status",
+          "description": "Number of active (healthy) backend PXC servers as seen by HAProxy. Should match the Galera cluster size.",
+          "type": "stat",
+          "gridPos": { "h": 6, "w": 4, "x": 8, "y": 19 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "haproxy_backend_active_servers{proxy=\"galera-nodes\"}",
+              "legendFormat": "Active Backends",
+              "instant": true,
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "value": null, "color": "red" },
+                  { "value": 1, "color": "orange" },
+                  { "value": 3, "color": "green" }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "graphMode": "none",
+            "colorMode": "background",
+            "textMode": "auto",
+            "justifyMode": "auto",
+            "orientation": "auto"
+          }
+        },
+        {
+          "id": 19,
+          "title": "HAProxy Traffic",
+          "description": "Byte throughput on the HAProxy frontend (galera-in proxy). HAProxy for MySQL uses TCP mode, so HTTP response codes are not available.",
+          "type": "timeseries",
+          "gridPos": { "h": 6, "w": 12, "x": 12, "y": 19 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "rate(haproxy_frontend_bytes_in_total{proxy=\"galera-in\"}[5m])",
+              "legendFormat": "Bytes In/s",
+              "refId": "A"
+            },
+            {
+              "expr": "rate(haproxy_frontend_bytes_out_total{proxy=\"galera-in\"}[5m])",
+              "legendFormat": "Bytes Out/s",
+              "refId": "B"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "Bps",
+              "custom": {
+                "fillOpacity": 10,
+                "lineWidth": 2,
+                "spanNulls": false,
+                "showPoints": "never"
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "tooltip": { "mode": "multi", "sort": "desc" },
+            "legend": { "displayMode": "list", "placement": "bottom", "calcs": [] }
+          }
+        },
+        {
+          "id": 20,
+          "title": "Galera Replication",
+          "type": "row",
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 25 },
+          "collapsed": false,
+          "panels": []
+        },
+        {
+          "id": 21,
+          "title": "Galera Writesets",
+          "description": "Rate of writesets sent (replicated to other nodes) and received (applied from other nodes). Asymmetry indicates unbalanced write load.",
+          "type": "timeseries",
+          "gridPos": { "h": 6, "w": 12, "x": 0, "y": 26 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "rate(mysql_global_status_wsrep_replicated[5m])",
+              "legendFormat": "Sent/s",
+              "refId": "A"
+            },
+            {
+              "expr": "rate(mysql_global_status_wsrep_received[5m])",
+              "legendFormat": "Received/s",
+              "refId": "B"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "ops",
+              "custom": {
+                "fillOpacity": 10,
+                "lineWidth": 2,
+                "spanNulls": false,
+                "showPoints": "never"
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "tooltip": { "mode": "multi", "sort": "desc" },
+            "legend": { "displayMode": "list", "placement": "bottom", "calcs": [] }
+          }
+        },
+        {
+          "id": 22,
+          "title": "Galera Queue Sizes",
+          "description": "Average send and receive queue lengths. Non-zero receive queue means the node is falling behind applying writesets. The orange threshold line at 5 marks the alert boundary.",
+          "type": "timeseries",
+          "gridPos": { "h": 6, "w": 12, "x": 12, "y": 26 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "mysql_global_status_wsrep_local_recv_queue_avg",
+              "legendFormat": "Recv Queue Avg",
+              "refId": "A"
+            },
+            {
+              "expr": "mysql_global_status_wsrep_local_send_queue_avg",
+              "legendFormat": "Send Queue Avg",
+              "refId": "B"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "fillOpacity": 10,
+                "lineWidth": 2,
+                "spanNulls": false,
+                "showPoints": "never",
+                "thresholdsStyle": { "mode": "line" }
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "value": null, "color": "green" },
+                  { "value": 5, "color": "orange" }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "tooltip": { "mode": "multi", "sort": "desc" },
+            "legend": { "displayMode": "list", "placement": "bottom", "calcs": [] }
+          }
+        }
+      ],
+      "refresh": "30s",
+      "schemaVersion": 39,
+      "tags": ["mysql", "pxc", "galera", "percona", "database"],
+      "templating": {
+        "list": [
+          {
+            "name": "datasource",
+            "type": "datasource",
+            "query": "prometheus",
+            "current": { "selected": true, "text": "Prometheus", "value": "prometheus" }
+          }
+        ]
+      },
+      "time": { "from": "now-1h", "to": "now" },
+      "timezone": "browser",
+      "title": "Percona XtraDB Cluster",
+      "uid": "pxc-mysql",
+      "version": 1
+    }

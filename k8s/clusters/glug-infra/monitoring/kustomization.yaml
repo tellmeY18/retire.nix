@@ -68,6 +68,10 @@ resources:
   - pxc-cluster-servicemonitor.yaml
   - pxc-haproxy-servicemonitor.yaml
   - pxc-prometheusrules.yaml
+  # PXC Grafana dashboard — auto-imported by Grafana's sidecar via the
+  # `grafana_dashboard: "1"` label. Shows Galera cluster health, InnoDB
+  # performance, connections, HAProxy traffic, and replication writesets.
+  - pxc-grafana-dashboard.yaml
   # Cluster-wide PVC storage alerts — replaces the per-namespace
   # cnpg-storage.rules and pxc-storage.rules with a single set of rules
   # that fire for ANY PVC in ANY namespace.
