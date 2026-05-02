@@ -1,0 +1,31 @@
+---
+# pxc-cluster-servicemonitor.yaml — ServiceMonitor for PXC MySQL instances.
+#
+# The Percona XtraDB Cluster operator runs a mysqld_exporter sidecar in each
+# PXC pod, exposing MySQL metrics on port 9104. This ServiceMonitor tells
+# Prometheus to scrape those endpoints.
+#
+# Reference:
+#   https://docs.percona.com/percona-operator-for-mysql/pxc/monitoring.html
+
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: pxc-cluster-instances
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: percona-xtradb-cluster
+    app.kubernetes.io/component: database
+    app.kubernetes.io/part-of: percona-xtradb-cluster
+    app.kubernetes.io/managed-by: kustomize
+spec:
+  namespaceSelector:
+    matchNames:
+      - pxc-clusters
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: mysql
+      app.kubernetes.io/component: pxc
+  endpoints:
+    - port: metrics
+      interval: 30s

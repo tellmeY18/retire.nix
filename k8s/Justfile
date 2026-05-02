@@ -38,6 +38,7 @@ default:
 [doc('Apply kustomize + helmfile to the cluster')]
 apply:
     kubectl apply -k clusters/glug-infra
+    kubectl apply -k clusters/glug-infra/pxc
     kubectl apply -k clusters/glug-infra/monitoring
     helmfile sync
 
@@ -45,6 +46,7 @@ apply:
 [doc('Preview kustomize + helmfile changes (no apply)')]
 diff:
     kubectl diff -k clusters/glug-infra || true
+    kubectl diff -k clusters/glug-infra/pxc || true
     kubectl diff -k clusters/glug-infra/monitoring || true
     helmfile diff
 
@@ -101,6 +103,58 @@ cnpg-backup-now:
 cnpg-backup-list:
     kubectl get backup -n cnpg-clusters \
       -o custom-columns=NAME:.metadata.name,PHASE:.status.phase,STARTED:.status.startedAt,STOPPED:.status.stoppedAt
+
+# ---------------------------------------------------------------------------
+# PXC (Percona XtraDB Cluster) day-2 helpers
+# ---------------------------------------------------------------------------
+
+# Show PXC cluster status.
+[doc('Show Percona XtraDB Cluster status')]
+pxc-status:
+    kubectl get pxc mysql -n pxc-clusters -o wide
+
+# Show detailed PXC cluster info.
+[doc('Show detailed PXC cluster description')]
+pxc-describe:
+    kubectl describe pxc mysql -n pxc-clusters
+
+# Tail logs from the PXC operator.
+[doc('Tail PXC operator logs')]
+pxc-operator-logs:
+    kubectl logs -n pxc-system -l app.kubernetes.io/name=pxc-operator -f --tail=200
+
+# Tail logs from the PXC primary (writer) node.
+[doc('Tail PXC primary node logs')]
+pxc-primary-logs:
+    kubectl logs -n pxc-clusters mysql-pxc-0 -c pxc -f --tail=200
+
+# Tail HAProxy logs.
+[doc('Tail PXC HAProxy logs')]
+pxc-haproxy-logs:
+    kubectl logs -n pxc-clusters -l app.kubernetes.io/component=haproxy,app.kubernetes.io/instance=mysql -f --tail=200
+
+# Show all PXC pods and their status.
+[doc('List all PXC pods')]
+pxc-pods:
+    kubectl -n pxc-clusters get pods -l app.kubernetes.io/instance=mysql -o wide
+
+# List PXC backup objects.
+[doc('List PXC backup objects')]
+pxc-backup-list:
+    kubectl get pxc-backup -n pxc-clusters \
+      -o custom-columns=NAME:.metadata.name,STATE:.status.state,COMPLETED:.status.completed
+
+# Trigger an on-demand PXC backup.
+[doc('Trigger an on-demand PXC backup')]
+pxc-backup-now:
+    @echo "Creating on-demand PXC backup..."
+    kubectl apply -n pxc-clusters -f - <<< '{"apiVersion":"pxc.percona.com/v1","kind":"PerconaXtraDBClusterBackup","metadata":{"generateName":"on-demand-","namespace":"pxc-clusters"},"spec":{"pxcCluster":"mysql","storageName":"s3-backup"}}'
+
+# Connect to MySQL via the HAProxy service (requires mysql client).
+[doc('Open a MySQL shell via HAProxy')]
+pxc-shell:
+    @echo "Connecting to MySQL via HAProxy..."
+    kubectl exec -n pxc-clusters -it mysql-haproxy-0 -- mysql -h 127.0.0.1 -u root -p
 
 # ---------------------------------------------------------------------------
 # Monitoring helpers

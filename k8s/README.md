@@ -32,11 +32,13 @@ nodes are present; the Tailscale `pg-rw` MagicDNS endpoint stays stable.
 
 | Layer | Managed by | What lives there |
 |---|---|---|
-| **NixOS bootstrap** | `nh os switch` | k3s itself; OpenEBS ZFS LocalPV CSI driver; the `zfs-localpv` StorageClass; Tailscale Kubernetes operator. Declared via `services.k3s.charts` in `modules/services/k3s.nix` and present on every node the moment k3s starts — no human intervention required after a reboot. |
+| **NixOS bootstrap** | `nh os switch` | k3s itself; OpenEBS ZFS LocalPV CSI driver; the `zfs-localpv` and `zfs-localpv-16k` StorageClasses; Tailscale Kubernetes operator. Declared via `services.k3s.charts` in `modules/services/k3s.nix` and present on every node the moment k3s starts — no human intervention required after a reboot. |
 | **CNPG operator** | `helmfile` | The `cloudnative-pg` chart in the `cnpg-system` namespace. Provides CRDs + the controller. |
 | **Postgres workloads** | `helmfile` (cnpg/cluster chart) | One Helm release per Postgres cluster. Renders the `Cluster`, `ScheduledBackup`, and `Pooler` CRs from values files in `apps/postgres/`. |
+| **PXC operator** | `helmfile` | The `pxc-operator` chart in the `pxc-system` namespace. Provides CRDs + the controller. |
+| **MySQL workloads** | `helmfile` (percona/pxc-db chart) | One Helm release per PXC cluster. Renders the `PerconaXtraDBCluster` CR (PXC nodes + HAProxy + backups) from values files in `apps/mysql/`. |
 | **Monitoring stack** | `helmfile` | `kube-prometheus-stack` chart in the `monitoring` namespace. Provides Prometheus + Alertmanager + Grafana + CRDs (PodMonitor, PrometheusRule, ServiceMonitor). |
-| **Cluster glue** | `kubectl apply -k` (kustomize) | Namespaces (with PSA labels), NetworkPolicies, and Tailscale LoadBalancer Services (pg-rw, grafana). |
+| **Cluster glue** | `kubectl apply -k` (kustomize) | Namespaces (with PSA labels), NetworkPolicies, and Tailscale LoadBalancer Services (pg-rw, mysql-rw, grafana). |
 | **Encrypted secrets** | `helm-secrets` (sops) | S3 backup credentials live in `apps/postgres/secrets.yaml` and the Grafana admin password in `apps/kube-prometheus-stack/secrets.yaml` — both sops-encrypted Helm values, merged by `helm-secrets` at install time. No raw `Secret` manifest ever touches git or the kustomize pipeline. |
 
 ---
@@ -47,6 +49,8 @@ nodes are present; the Tailscale `pg-rw` MagicDNS endpoint stays stable.
 |---|---|---|
 | `cnpg-system` | helmfile chart `createNamespace: true` | CNPG operator Deployment + webhooks |
 | `cnpg-clusters` | `namespace.yaml` (kustomize) | Postgres `Cluster`, `Pooler`, `ScheduledBackup`, `Service`, `NetworkPolicy`, `Secret` (rendered by chart) |
+| `pxc-system` | helmfile chart `createNamespace: true` | PXC operator Deployment |
+| `pxc-clusters` | `pxc/namespace.yaml` (kustomize) | `PerconaXtraDBCluster`, HAProxy, backup schedules, `NetworkPolicy`, Tailscale `Service` |
 | `monitoring` | `monitoring/namespace.yaml` (kustomize) | Prometheus, Alertmanager, Grafana, node-exporter, kube-state-metrics, Grafana Tailscale Service |
 
 The `cnpg-clusters` namespace carries `pod-security.kubernetes.io/enforce=restricted`
@@ -125,6 +129,20 @@ just k8s::cnpg-backup-now          # on-demand base backup
 just k8s::cnpg-backup-list         # list Backup objects with phase
 ```
 
+### PXC (Percona XtraDB Cluster)
+
+```sh
+just k8s::pxc-status               # show PerconaXtraDBCluster status
+just k8s::pxc-describe             # detailed cluster description
+just k8s::pxc-operator-logs        # tail operator logs
+just k8s::pxc-primary-logs         # tail writer node logs
+just k8s::pxc-haproxy-logs         # tail HAProxy logs
+just k8s::pxc-pods                 # list all PXC pods
+just k8s::pxc-backup-list          # list backup objects
+just k8s::pxc-backup-now           # trigger on-demand backup
+just k8s::pxc-shell                # MySQL CLI via HAProxy
+```
+
 ### Monitoring
 
 ```sh
@@ -149,6 +167,9 @@ Secrets live as sops-encrypted Helm values files:
 - `k8s/apps/cnpg-operator/secrets.yaml` — operator-side image-pull
   credentials (empty by default)
 - `k8s/apps/kube-prometheus-stack/secrets.yaml` — Grafana admin password
+- `k8s/apps/pxc-operator/secrets.yaml` — PXC operator-side values (empty
+  by default)
+- `k8s/apps/mysql/secrets.yaml` — S3 backup credentials for PXC
 
 To edit either:
 
@@ -176,6 +197,12 @@ in the `monitoring` namespace. Key integration points:
 - **CNPG operator metrics** — PodMonitor on the operator's `/metrics`
   endpoint (enabled via `monitoring.podMonitorEnabled: true` in
   `apps/cnpg-operator/values.yaml`)
+- **PXC instance metrics** — ServiceMonitor on port 9104 (mysqld_exporter
+  sidecar) in `pxc-clusters` namespace
+- **PXC HAProxy metrics** — ServiceMonitor on HAProxy stats port in
+  `pxc-clusters` namespace
+- **PXC PrometheusRules** — alerts for Galera health (wsrep_ready, cluster
+  size, flow control), slow queries, and PVC capacity
 - **Grafana dashboards** — the CNPG operator creates a ConfigMap with the
   CloudNativePG dashboard (ID 20417); Grafana's sidecar auto-imports it
 
@@ -192,7 +219,15 @@ Webservices connect to:
 pg-rw.<tailnet>.ts.net:5432
 ```
 
-The tailnet hostname is owned by the Tailscale operator and stays registered
+For MySQL (PXC):
+
+```
+mysql-rw.<tailnet>.ts.net:3306
+```
+
+### PostgreSQL traffic path
+
+The PostgreSQL tailnet hostname is owned by the Tailscale operator and stays registered
 as long as the cluster is running. Traffic flows:
 
 ```
@@ -214,6 +249,20 @@ stays pinned to one PgBouncer pod for the lifetime of its connection pool —
 purely a latency optimisation; PgBouncer is stateless across pods, so a sudden
 re-pinning is harmless.
 
+### MySQL traffic path
+
+```
+webservice
+  → mysql-rw.<tailnet>.ts.net:3306   (Tailscale MagicDNS)
+  → ts-proxy pod                      (LoadBalancer Service in pxc-clusters)
+  → mysql-haproxy Service             (created by PXC operator)
+  → HAProxy pods (connection routing)
+  → PXC writer node
+```
+
+When Galera promotes a new writer the HAProxy health checks detect the change
+and re-route within seconds. Webservices see at most a brief connection drop.
+
 ---
 
 ## Runbooks
@@ -231,7 +280,7 @@ re-pinning is harmless.
 ```
 k8s/
 ├── README.md                                # this file
-├── helmfile.yaml                            # kube-prometheus-stack + cnpg charts
+├── helmfile.yaml                            # kube-prometheus-stack + cnpg + pxc charts
 ├── apps/
 │   ├── cnpg-operator/
 │   │   ├── values.yaml                      # plain Helm values
@@ -239,19 +288,38 @@ k8s/
 │   ├── kube-prometheus-stack/
 │   │   ├── values.yaml                      # Prometheus + Grafana + Alertmanager config
 │   │   └── secrets.yaml                     # sops-encrypted Grafana admin password
-│   └── postgres/
-│       ├── values.yaml                      # Cluster + Pooler + Backup config
-│       └── secrets.yaml                     # sops-encrypted S3 credentials
+│   ├── mysql/
+│   │   ├── values.yaml                      # PXC cluster + HAProxy + Backup config
+│   │   └── secrets.yaml                     # sops-encrypted S3 credentials
+│   ├── postgres/
+│   │   ├── values.yaml                      # Cluster + Pooler + Backup config
+│   │   └── secrets.yaml                     # sops-encrypted S3 credentials
+│   └── pxc-operator/
+│       ├── values.yaml                      # plain Helm values
+│       └── secrets.yaml                     # sops-encrypted Helm values
 ├── clusters/
 │   └── glug-infra/
 │       ├── kustomization.yaml               # entry point (cnpg-clusters namespace)
 │       ├── namespace.yaml                   # cnpg-clusters + PSA labels
 │       ├── networkpolicy.yaml               # default-deny + allow rules
 │       ├── tailscale-pg-service.yaml        # Tailscale LB: pg-rw
+│       ├── pxc/
+│       │   ├── kustomization.yaml           # entry point (pxc-clusters namespace)
+│       │   ├── namespace.yaml               # pxc-clusters + PSA labels
+│       │   ├── networkpolicy.yaml           # default-deny + HAProxy + PXC rules
+│       │   └── tailscale-mysql-service.yaml # Tailscale LB: mysql-rw
 │       └── monitoring/
 │           ├── kustomization.yaml           # entry point (monitoring namespace)
 │           ├── namespace.yaml               # monitoring + PSA labels
-│           └── tailscale-grafana-service.yaml  # Tailscale LB: grafana
+│           ├── tailscale-grafana-service.yaml  # Tailscale LB: grafana
+│           ├── cnpg-cluster-podmonitor.yaml
+│           ├── cnpg-pooler-podmonitor.yaml
+│           ├── cnpg-prometheusrules.yaml
+│           ├── pxc-cluster-servicemonitor.yaml
+│           ├── pxc-haproxy-servicemonitor.yaml
+│           ├── pxc-prometheusrules.yaml
+│           ├── zfs-prometheusrules.yaml
+│           └── zfs-grafana-dashboard.yaml
 └── docs/
     └── runbooks/
         ├── failover.md

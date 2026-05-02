@@ -21,6 +21,9 @@
 #     See: https://cloudnative-pg.io/documentation/current/monitoring/
 #   - ZFS PrometheusRule (pool health, ARC efficiency, IO alerts).
 #     Uses node_exporter's built-in ZFS collector (enabled by default).
+#   - PXC ServiceMonitors (mysqld_exporter on port 9104 + HAProxy stats).
+#   - PXC PrometheusRule (Galera health, flow control, storage alerts).
+#     See: https://docs.percona.com/percona-operator-for-mysql/pxc/monitoring.html
 #
 # These resources are kustomize-managed because they are either
 # infrastructure-wide (Namespace) or front-end glue not expressed by the
@@ -60,3 +63,8 @@ resources:
   # ZFS Grafana dashboard — auto-imported by Grafana's sidecar via the
   # `grafana_dashboard: "1"` label. Shows pool state, ARC stats, IO, ZIL.
   - zfs-grafana-dashboard.yaml
+  # PXC standalone monitoring resources — ServiceMonitors and alerts for
+  # Percona XtraDB Cluster MySQL instances and HAProxy.
+  - pxc-cluster-servicemonitor.yaml
+  - pxc-haproxy-servicemonitor.yaml
+  - pxc-prometheusrules.yaml

@@ -1,0 +1,203 @@
+# values.yaml — Plain Helm values for the percona/pxc-db chart 1.19.x.
+#
+# Renders a PerconaXtraDBCluster CR + HAProxy + scheduled backups from a
+# single source of truth. This file is the place to tune every knob that
+# does NOT contain secrets. Credentials (S3 access keys, root password)
+# live in `secrets.yaml` (sops-encrypted) and are merged in by helmfile
+# via the `secrets://` prefix.
+#
+# Reference for all available keys:
+#   helm show values percona/pxc-db --version 1.19.2
+#
+# Naming policy:
+#   The Helm release is `mysql` (defined in helmfile.yaml). The chart
+#   names every object after the release: `PerconaXtraDBCluster/mysql`,
+#   `Service/mysql-haproxy`, etc. Nothing here is host-specific.
+
+# ---------------------------------------------------------------------------
+# Allow unsafe configurations — required for single-node phase 1.
+# Without this, the operator refuses to start a 3-node PXC cluster on a
+# single k8s node (it considers this unsafe for production).
+# ---------------------------------------------------------------------------
+allowUnsafeConfigurations: true
+
+# ---------------------------------------------------------------------------
+# Finalizers — ensure clean teardown of PVCs and backups on cluster deletion.
+# ---------------------------------------------------------------------------
+finalizers:
+  - percona.com/delete-pxc-pods-in-order
+
+# ---------------------------------------------------------------------------
+# PXC (Percona XtraDB Cluster) nodes
+# ---------------------------------------------------------------------------
+pxc:
+  # Three instances: one writer + two synchronous replicas via Galera.
+  # Phase 1 (single k3s node): all three pods land on the same node.
+  # Flip anti-affinity to required once a second untainted node joins.
+  size: 3
+
+  image:
+    repository: percona/percona-xtradb-cluster
+    tag: "8.0.40-31.63"
+
+  imagePullPolicy: IfNotPresent
+
+  # -------------------------------------------------------------------------
+  # Storage — OpenEBS ZFS LocalPV with 16K recordsize for InnoDB.
+  #
+  # The StorageClass `zfs-localpv-16k` is created cluster-wide by the
+  # NixOS-bootstrapped manifest in modules/services/k3s.nix. It uses
+  # recordsize=16k to match InnoDB's 16KB page size (vs 8k for PostgreSQL).
+  # -------------------------------------------------------------------------
+  persistence:
+    enabled: true
+    storageClass: zfs-localpv-16k
+    size: 20Gi
+
+  # -------------------------------------------------------------------------
+  # MySQL / InnoDB configuration — tuned for ZFS on NVMe laptop hardware.
+  # -------------------------------------------------------------------------
+  configuration: |
+    [mysqld]
+    # === InnoDB + ZFS optimisations ===
+    # ZFS is copy-on-write: doublewrite is redundant and wastes IOPS.
+    innodb_doublewrite=0
+    # Bypass the filesystem page cache; let ZFS ARC handle caching.
+    innodb_flush_method=O_DIRECT
+    # NVMe does not benefit from flushing neighbouring pages.
+    innodb_flush_neighbors=0
+    # NVMe IOPs budget — conservative for an old laptop.
+    innodb_io_capacity=2000
+    innodb_io_capacity_max=4000
+
+    # === Memory (laptop-class hardware) ===
+    innodb_buffer_pool_size=256M
+    innodb_log_file_size=64M
+
+    # === Logging ===
+    slow_query_log=ON
+    long_query_time=1
+    log_slow_admin_statements=ON
+
+    # === Character set ===
+    character-set-server=utf8mb4
+    collation-server=utf8mb4_unicode_ci
+
+    # === Connection limits ===
+    max_connections=200
+
+  # -------------------------------------------------------------------------
+  # Resources — conservative for laptop hardware.
+  # -------------------------------------------------------------------------
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "100m"
+    limits:
+      memory: "1.5Gi"
+      cpu: "1000m"
+
+  # -------------------------------------------------------------------------
+  # Pod scheduling — preferred anti-affinity (phase 1 single node).
+  # -------------------------------------------------------------------------
+  affinity:
+    antiAffinityTopologyKey: "kubernetes.io/hostname"
+
+  podDisruptionBudget:
+    maxUnavailable: 1
+
+  # Graceful shutdown timeout (seconds).
+  gracePeriod: 600
+
+# ---------------------------------------------------------------------------
+# HAProxy — connection router sitting in front of PXC writer node.
+# ---------------------------------------------------------------------------
+# The Tailscale LoadBalancer Service (k8s/clusters/glug-infra/pxc/
+# tailscale-mysql-service.yaml) targets the HAProxy pods.
+haproxy:
+  enabled: true
+  size: 2
+
+  image:
+    repository: percona/haproxy
+    tag: "2.8.11"
+
+  imagePullPolicy: IfNotPresent
+
+  resources:
+    requests:
+      cpu: "50m"
+      memory: "64Mi"
+    limits:
+      cpu: "300m"
+      memory: "256Mi"
+
+  affinity:
+    antiAffinityTopologyKey: "kubernetes.io/hostname"
+
+  podDisruptionBudget:
+    maxUnavailable: 1
+
+  # Expose MySQL (3306), MySQL replicas read (3309), and stats (33062).
+  # The Tailscale Service selects HAProxy pods on port 3306.
+  exposePrimary:
+    enabled: true
+    type: ClusterIP
+
+# ---------------------------------------------------------------------------
+# ProxySQL — disabled; HAProxy is simpler and sufficient for our use case.
+# ---------------------------------------------------------------------------
+proxysql:
+  enabled: false
+
+# ---------------------------------------------------------------------------
+# PMM (Percona Monitoring and Management) — disabled.
+# We use kube-prometheus-stack with standalone ServiceMonitors instead.
+# ---------------------------------------------------------------------------
+pmm:
+  enabled: false
+
+# ---------------------------------------------------------------------------
+# Backups — Percona XtraBackup to S3-compatible storage.
+# ---------------------------------------------------------------------------
+backup:
+  enabled: true
+
+  image:
+    repository: percona/percona-xtradb-cluster-operator
+    tag: "1.19.1-pxc8.0-backup-pxb8.0.35-31"
+
+  imagePullPolicy: IfNotPresent
+
+  # S3 storage destination. Credentials come from secrets.yaml.
+  storages:
+    s3-backup:
+      type: s3
+      verifyTLS: true
+      s3:
+        # bucket and credentials OVERRIDDEN by secrets.yaml.
+        bucket: ""
+        region: ""
+        # endpointUrl OVERRIDDEN by secrets.yaml.
+        endpointUrl: ""
+        credentialsSecret: ""
+
+  # Schedule a full backup daily at 03:00 UTC.
+  schedule:
+    - name: daily-backup
+      schedule: "0 3 * * *"
+      keep: 14
+      storageName: s3-backup
+
+# ---------------------------------------------------------------------------
+# Secrets — the chart can create secrets or reference existing ones.
+# We let the chart create them; override root password in secrets.yaml.
+# ---------------------------------------------------------------------------
+secrets: {}
+
+# ---------------------------------------------------------------------------
+# Upgrade options
+# ---------------------------------------------------------------------------
+upgradeOptions:
+  apply: disabled
+  versionServiceEndpoint: https://check.percona.com
