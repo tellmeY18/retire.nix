@@ -100,6 +100,8 @@ spec:
           port: 3306
         - protocol: TCP
           port: 33060
+        - protocol: TCP
+          port: 33062
         # Galera replication ports
         - protocol: TCP
           port: 4567
