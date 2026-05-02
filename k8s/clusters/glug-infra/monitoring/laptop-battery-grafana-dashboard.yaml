@@ -18,13 +18,24 @@
 #
 # Only nodes that expose battery metrics will appear in the panels.
 # Non-laptop nodes (desktops, VMs, VPS) do not emit
-# `node_power_supply_online` or `node_power_supply_energy_watthours`,
+# `node_power_supply_online` or `node_power_supply_energy_watthour`,
 # so no data is rendered for them — no hardcoded node names anywhere.
 #
-# The `instance` template variable auto-discovers all battery-equipped
-# nodes via `label_values(node_power_supply_online, instance)`. It
-# supports multi-select with an "All" option, so you can view a single
-# node or all laptops at once.
+# Metric naming (node_exporter conventions):
+#   node_power_supply_online{power_supply="AC0"}        — AC adapter online
+#   node_power_supply_energy_watthour{power_supply="BAT0"} — current Wh
+#   node_power_supply_energy_full{power_supply="BAT0"}  — full charge Wh
+#   node_power_supply_energy_full_design{power_supply="BAT0"} — design Wh
+#   node_power_supply_voltage_volt{power_supply="BAT0"} — voltage
+#   Note: the type= label ("Mains"/"Battery") only exists on
+#   node_power_supply_info, not on the numeric metrics. Use
+#   power_supply="AC0"/"BAT0" to filter instead.
+#
+# The `instance` template variable auto-discovers all nodes that expose
+# the AC online metric via
+# `label_values(node_power_supply_online, instance)`. It supports
+# multi-select with an "All" option, so you can view a single node or
+# all laptops at once.
 
 apiVersion: v1
 kind: ConfigMap
@@ -66,7 +77,7 @@ data:
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
           "targets": [
             {
-              "expr": "node_power_supply_online{type=\"Mains\",instance=~\"$instance\"}",
+              "expr": "node_power_supply_online{power_supply=\"AC0\",instance=~\"$instance\"}",
               "legendFormat": "{{ instance }}",
               "instant": true,
               "refId": "A"
@@ -107,13 +118,13 @@ data:
         {
           "id": 3,
           "title": "Battery Level %",
-          "description": "Current battery charge as a percentage of full capacity (energy_now / energy_full * 100).",
+          "description": "Current battery charge as a percentage of full capacity (energy_watthour / energy_full * 100).",
           "type": "gauge",
           "gridPos": { "h": 4, "w": 6, "x": 6, "y": 1 },
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
           "targets": [
             {
-              "expr": "(node_power_supply_energy_watthours{type=\"Battery\",instance=~\"$instance\"} / node_power_supply_energy_full_watthours{type=\"Battery\",instance=~\"$instance\"}) * 100",
+              "expr": "(node_power_supply_energy_watthour{power_supply=\"BAT0\",instance=~\"$instance\"} / node_power_supply_energy_full{power_supply=\"BAT0\",instance=~\"$instance\"}) * 100",
               "legendFormat": "{{ instance }}",
               "instant": true,
               "refId": "A"
@@ -150,7 +161,7 @@ data:
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
           "targets": [
             {
-              "expr": "(node_power_supply_energy_full_watthours{type=\"Battery\",instance=~\"$instance\"} / node_power_supply_energy_full_design_watthours{type=\"Battery\",instance=~\"$instance\"}) * 100",
+              "expr": "(node_power_supply_energy_full{power_supply=\"BAT0\",instance=~\"$instance\"} / node_power_supply_energy_full_design{power_supply=\"BAT0\",instance=~\"$instance\"}) * 100",
               "legendFormat": "{{ instance }}",
               "instant": true,
               "refId": "A"
@@ -187,7 +198,7 @@ data:
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
           "targets": [
             {
-              "expr": "node_power_supply_energy_watthours{type=\"Battery\",instance=~\"$instance\"}",
+              "expr": "node_power_supply_energy_watthour{power_supply=\"BAT0\",instance=~\"$instance\"}",
               "legendFormat": "{{ instance }}",
               "instant": true,
               "refId": "A"
@@ -230,7 +241,7 @@ data:
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
           "targets": [
             {
-              "expr": "(node_power_supply_energy_watthours{type=\"Battery\",instance=~\"$instance\"} / node_power_supply_energy_full_watthours{type=\"Battery\",instance=~\"$instance\"}) * 100",
+              "expr": "(node_power_supply_energy_watthour{power_supply=\"BAT0\",instance=~\"$instance\"} / node_power_supply_energy_full{power_supply=\"BAT0\",instance=~\"$instance\"}) * 100",
               "legendFormat": "{{ instance }}",
               "refId": "A"
             }
@@ -269,7 +280,7 @@ data:
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
           "targets": [
             {
-              "expr": "node_power_supply_online{type=\"Mains\",instance=~\"$instance\"}",
+              "expr": "node_power_supply_online{power_supply=\"AC0\",instance=~\"$instance\"}",
               "legendFormat": "{{ instance }}",
               "refId": "A"
             }
@@ -324,7 +335,7 @@ data:
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
           "targets": [
             {
-              "expr": "node_power_supply_voltage_volt{type=\"Battery\",instance=~\"$instance\"}",
+              "expr": "node_power_supply_voltage_volt{power_supply=\"BAT0\",instance=~\"$instance\"}",
               "legendFormat": "{{ instance }}",
               "refId": "A"
             }
@@ -352,7 +363,7 @@ data:
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
           "targets": [
             {
-              "expr": "(node_power_supply_energy_full_watthours{type=\"Battery\",instance=~\"$instance\"} / node_power_supply_energy_full_design_watthours{type=\"Battery\",instance=~\"$instance\"}) * 100",
+              "expr": "(node_power_supply_energy_full{power_supply=\"BAT0\",instance=~\"$instance\"} / node_power_supply_energy_full_design{power_supply=\"BAT0\",instance=~\"$instance\"}) * 100",
               "legendFormat": "{{ instance }}",
               "refId": "A"
             }
