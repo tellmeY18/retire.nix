@@ -16,20 +16,28 @@
 # them per-node.
 #
 # Key metrics (from the node_exporter powersupply collector, enabled by
-# default):
-#   - node_power_supply_online{type="Mains"}
-#       1 when AC is plugged in, 0 when running on battery.
-#   - node_power_supply_energy_watthours{type="Battery"}
-#       Current energy remaining (Wh).
-#   - node_power_supply_energy_full_watthours{type="Battery"}
-#       Full charge capacity of the battery (Wh). Degrades over time.
-#   - node_power_supply_energy_full_design_watthours{type="Battery"}
-#       Original design capacity (Wh). Fixed at manufacture time.
+# default). Note: node_exporter uses power_supply="AC0"/"BAT0" labels
+# to distinguish supplies, NOT type="Mains"/"Battery" (the type label
+# only appears on node_power_supply_info):
 #
-# Battery percentage is computed from energy_watthours / energy_full_watthours
-# rather than the raw "capacity" sysfs attribute. The energy-based calculation
-# is more reliable because it uses the kernel's coulomb-counter integration
-# instead of the firmware's often-inaccurate percentage estimate.
+#   - node_power_supply_online{power_supply="AC0"}
+#       1 when AC is plugged in, 0 when running on battery.
+#   - node_power_supply_energy_watthour{power_supply="BAT0"}
+#       Current energy remaining (Wh). Note: singular "watthour".
+#   - node_power_supply_energy_full{power_supply="BAT0"}
+#       Full charge capacity of the battery (Wh). Degrades over time.
+#   - node_power_supply_energy_full_design{power_supply="BAT0"}
+#       Original design capacity (Wh). Fixed at manufacture time.
+#   - node_power_supply_voltage_volt{power_supply="BAT0"}
+#       Current battery voltage (V).
+#   - node_power_supply_capacity{power_supply="BAT0"}
+#       Firmware-reported battery percentage (0–100).
+#
+# Battery percentage is computed from energy_watthour / energy_full
+# rather than the raw "capacity" sysfs attribute. The energy-based
+# calculation is more reliable because it uses the kernel's
+# coulomb-counter integration instead of the firmware's often-inaccurate
+# percentage estimate.
 
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
@@ -49,6 +57,10 @@ spec:
         # This is the most important alert. These are server laptops — they
         # should always be on mains power. Running on battery is abnormal
         # and means someone tripped over the cable or there's a power outage.
+        #
+        # node_power_supply_online only exists for the AC adapter
+        # (power_supply="AC0"). There is no type="Mains" label — that
+        # only appears on node_power_supply_info.
 
         - alert: NodeOnBattery
           annotations:
@@ -58,7 +70,7 @@ spec:
               investigate immediately.
             summary: Node is running on battery power
           expr: |-
-            node_power_supply_online{type="Mains"} == 0
+            node_power_supply_online{power_supply="AC0"} == 0
           for: 2m
           labels:
             severity: warning
@@ -67,6 +79,10 @@ spec:
         # These only fire when the node is actually on battery (AC offline).
         # A laptop that is plugged in with a depleted battery is fine — the
         # PSU powers the system regardless of charge level.
+        #
+        # The energy metrics use power_supply="BAT0" (not type="Battery").
+        # The `and on (instance)` join strips the power_supply label so we
+        # can correctly match BAT0 energy with AC0 online status.
 
         - alert: NodeBatteryLow
           annotations:
@@ -77,12 +93,12 @@ spec:
             summary: Node battery below 30% while on battery power
           expr: |-
             (
-              node_power_supply_energy_watthours{type="Battery"}
+              node_power_supply_energy_watthour{power_supply="BAT0"}
               /
-              node_power_supply_energy_full_watthours{type="Battery"}
+              node_power_supply_energy_full{power_supply="BAT0"}
             ) * 100 < 30
             and on (instance)
-            node_power_supply_online{type="Mains"} == 0
+            node_power_supply_online{power_supply="AC0"} == 0
           for: 5m
           labels:
             severity: warning
@@ -96,12 +112,12 @@ spec:
             summary: Node battery below 15% while on battery power
           expr: |-
             (
-              node_power_supply_energy_watthours{type="Battery"}
+              node_power_supply_energy_watthour{power_supply="BAT0"}
               /
-              node_power_supply_energy_full_watthours{type="Battery"}
+              node_power_supply_energy_full{power_supply="BAT0"}
             ) * 100 < 15
             and on (instance)
-            node_power_supply_online{type="Mains"} == 0
+            node_power_supply_online{power_supply="AC0"} == 0
           for: 2m
           labels:
             severity: critical
@@ -116,12 +132,12 @@ spec:
             summary: Node battery below 5% — imminent shutdown
           expr: |-
             (
-              node_power_supply_energy_watthours{type="Battery"}
+              node_power_supply_energy_watthour{power_supply="BAT0"}
               /
-              node_power_supply_energy_full_watthours{type="Battery"}
+              node_power_supply_energy_full{power_supply="BAT0"}
             ) * 100 < 5
             and on (instance)
-            node_power_supply_online{type="Mains"} == 0
+            node_power_supply_online{power_supply="AC0"} == 0
           labels:
             severity: critical
 
@@ -141,9 +157,9 @@ spec:
             summary: Node battery health below 50% of design capacity
           expr: |-
             (
-              node_power_supply_energy_full_watthours{type="Battery"}
+              node_power_supply_energy_full{power_supply="BAT0"}
               /
-              node_power_supply_energy_full_design_watthours{type="Battery"}
+              node_power_supply_energy_full_design{power_supply="BAT0"}
             ) * 100 < 50
           for: 1h
           labels:

@@ -702,7 +702,10 @@ not just nice-to-have dashboards.
 
 1. **node-exporter** (DaemonSet, hostNetwork, hostPID) reads
    `/sys/class/power_supply/` via host filesystem mounts. The
-   `powersupply` collector is enabled by default.
+   `powersupply` collector is enabled by default. Note: metrics use
+   `power_supply="AC0"` / `power_supply="BAT0"` labels (not
+   `type="Mains"` / `type="Battery"` — the `type` label only appears
+   on `node_power_supply_info`).
 2. **PrometheusRules** (`laptop-battery-prometheusrules.yaml`) fire
    alerts based on these metrics.
 3. **Grafana dashboard** (`laptop-battery-grafana-dashboard.yaml`)
@@ -723,7 +726,7 @@ Key design decisions:
 - Battery level alerts use `and on (instance)` to join with AC status —
   a plugged-in laptop with a depleted battery does NOT trigger level alerts
   (only the health alert, if applicable).
-- Battery % is computed from `energy_watthours / energy_full_watthours`
+- Battery % is computed from `energy_watthour / energy_full`
   (coulomb-counter based) rather than the raw sysfs `capacity` attribute
   (firmware estimate, often inaccurate).
 - On non-laptop nodes, all `node_power_supply_*` metrics are absent, so
