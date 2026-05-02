@@ -68,3 +68,14 @@ resources:
   - pxc-cluster-servicemonitor.yaml
   - pxc-haproxy-servicemonitor.yaml
   - pxc-prometheusrules.yaml
+  # Cluster-wide PVC storage alerts — replaces the per-namespace
+  # cnpg-storage.rules and pxc-storage.rules with a single set of rules
+  # that fire for ANY PVC in ANY namespace.
+  - pvc-storage-prometheusrules.yaml
+  # Laptop battery monitoring — alerts for AC power loss, battery level,
+  # and battery health degradation. Harmless no-ops on non-laptop nodes
+  # (metrics simply don't exist if there's no battery).
+  - laptop-battery-prometheusrules.yaml
+  # Laptop battery Grafana dashboard — auto-imported by sidecar. Shows
+  # AC status, charge level, health, voltage, and trends over time.
+  - laptop-battery-grafana-dashboard.yaml

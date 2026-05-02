@@ -1,0 +1,122 @@
+---
+# pvc-storage-prometheusrules.yaml — Cluster-wide PVC storage alerts.
+#
+# This PrometheusRule replaces the per-namespace PVC alerts that were
+# previously hardcoded in cnpg-prometheusrules.yaml (cnpg-storage.rules)
+# and pxc-prometheusrules.yaml (pxc-storage.rules). Those rules filtered
+# on a specific namespace (e.g. namespace="cnpg-clusters"), meaning every
+# new service with PVCs required a copy-pasted alert group with a different
+# namespace selector.
+#
+# This file takes a different approach: ALL PVCs in ALL namespaces are
+# monitored automatically. When a new service with PVCs is added — whether
+# it's another CNPG cluster, a Redis deployment, or anything else — it is
+# covered by these alerts with zero additional configuration.
+#
+# How it works:
+#   - The kubelet exposes volume stats for every bound PVC:
+#       kubelet_volume_stats_used_bytes
+#       kubelet_volume_stats_capacity_bytes
+#       kubelet_volume_stats_inodes_used
+#       kubelet_volume_stats_inodes
+#     These metrics carry {{ namespace }} and {{ persistentvolumeclaim }}
+#     labels, so the alert annotations identify the exact PVC.
+#
+#   - Inode alerts include a guard (kubelet_volume_stats_inodes > 0)
+#     because some volume drivers (notably OpenEBS ZFS LocalPV) may not
+#     report inode statistics. The metrics simply won't exist for those
+#     volumes, so the alert is safe to apply cluster-wide — it fires only
+#     when the data is actually available.
+#
+#   - Capacity alerts have no such guard because kubelet_volume_stats_
+#     used_bytes / capacity_bytes are reported by all CSI drivers that
+#     implement NodeGetVolumeStats (which OpenEBS ZFS LocalPV does).
+#
+# After deploying this file, the cnpg-storage.rules group in
+# cnpg-prometheusrules.yaml and the pxc-storage.rules group in
+# pxc-prometheusrules.yaml should be removed to avoid duplicate firings.
+
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: pvc-storage-alerts
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: pvc-storage
+    app.kubernetes.io/component: alerting
+    app.kubernetes.io/part-of: kube-prometheus-stack
+    app.kubernetes.io/managed-by: kustomize
+spec:
+  groups:
+    - name: pvc-storage.rules
+      rules:
+        # -------------------------------------------------------------------
+        # PVC filling up (> 80%) — warning
+        # -------------------------------------------------------------------
+        - alert: PVCFillingUp
+          annotations:
+            description: >-
+              PVC {{ $labels.persistentvolumeclaim }} in namespace
+              {{ $labels.namespace }} is {{ $value | humanizePercentage }}
+              full. Consider expanding the volume or cleaning up data
+              before it reaches critical levels.
+            summary: PVC is filling up (> 80%)
+          expr: |-
+            (
+              kubelet_volume_stats_used_bytes
+              /
+              kubelet_volume_stats_capacity_bytes
+            ) > 0.8
+          for: 10m
+          labels:
+            severity: warning
+
+        # -------------------------------------------------------------------
+        # PVC critically full (> 90%) — critical
+        # -------------------------------------------------------------------
+        - alert: PVCCriticallyFull
+          annotations:
+            description: >-
+              PVC {{ $labels.persistentvolumeclaim }} in namespace
+              {{ $labels.namespace }} is {{ $value | humanizePercentage }}
+              full. Write failures are imminent — the workload using this
+              volume (database, cache, or application) may crash or become
+              read-only at any moment. Expand the volume or free space
+              immediately.
+            summary: PVC is critically full (> 90%)
+          expr: |-
+            (
+              kubelet_volume_stats_used_bytes
+              /
+              kubelet_volume_stats_capacity_bytes
+            ) > 0.9
+          for: 5m
+          labels:
+            severity: critical
+
+        # -------------------------------------------------------------------
+        # PVC inode usage high (> 80%) — warning
+        # -------------------------------------------------------------------
+        # Guard: only fire when the kubelet actually reports inode stats
+        # (kubelet_volume_stats_inodes > 0). ZFS volumes and some other
+        # drivers may not report inodes at all — in that case the metric
+        # simply does not exist and this alert is a no-op for those PVCs.
+        - alert: PVCAlmostOutOfInodes
+          annotations:
+            description: >-
+              PVC {{ $labels.persistentvolumeclaim }} in namespace
+              {{ $labels.namespace }} has used {{ $value | humanizePercentage }}
+              of its available inodes. Running out of inodes prevents
+              creation of new files even if free space remains.
+            summary: PVC inode usage is high (> 80%)
+          expr: |-
+            (
+              kubelet_volume_stats_inodes_used
+              /
+              kubelet_volume_stats_inodes
+            ) > 0.8
+            and
+            kubelet_volume_stats_inodes > 0
+          for: 10m
+          labels:
+            severity: warning
