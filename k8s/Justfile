@@ -30,18 +30,22 @@ default:
 # Order matters:
 #   1. kustomize creates the cnpg-clusters namespace (with PSA labels),
 #      network policies, and the Tailscale LoadBalancer Service.
+#      It also creates the monitoring namespace and the Grafana Tailscale
+#      Service.
 #   2. helmfile installs/upgrades the CNPG operator first (CRDs + controller),
 #      then the postgres cluster release (which needs the namespace from step 1
 #      and the CRDs from the operator).
 [doc('Apply kustomize + helmfile to the cluster')]
 apply:
     kubectl apply -k clusters/glug-infra
+    kubectl apply -k clusters/glug-infra/monitoring
     helmfile sync
 
 # Preview k8s changes without applying.
 [doc('Preview kustomize + helmfile changes (no apply)')]
 diff:
     kubectl diff -k clusters/glug-infra || true
+    kubectl diff -k clusters/glug-infra/monitoring || true
     helmfile diff
 
 # Render the fully-merged helm output (values.yaml + decrypted secrets.yaml)
@@ -97,3 +101,45 @@ cnpg-backup-now:
 cnpg-backup-list:
     kubectl get backup -n cnpg-clusters \
       -o custom-columns=NAME:.metadata.name,PHASE:.status.phase,STARTED:.status.startedAt,STOPPED:.status.stoppedAt
+
+# ---------------------------------------------------------------------------
+# Monitoring helpers
+# ---------------------------------------------------------------------------
+
+# Open Grafana in the default browser (requires tailnet access).
+[doc('Open Grafana dashboard in browser')]
+grafana-open:
+    open "http://grafana.$(tailscale status --json | jq -r '.MagicDNSSuffix'):3000"
+
+# Show Prometheus targets and their health.
+[doc('List Prometheus scrape targets')]
+prom-targets:
+    kubectl -n monitoring exec -it svc/kube-prometheus-stack-prometheus -- \
+      promtool query instant http://localhost:9090 'up'
+
+# Port-forward Prometheus UI to localhost:9090 (for debugging).
+[doc('Port-forward Prometheus UI to localhost:9090')]
+prom-port-forward:
+    kubectl -n monitoring port-forward svc/kube-prometheus-stack-prometheus 9090:9090
+
+# Port-forward Grafana to localhost:3000 (fallback if tailnet is down).
+[doc('Port-forward Grafana to localhost:3000')]
+grafana-port-forward:
+    kubectl -n monitoring port-forward svc/kube-prometheus-stack-grafana 3000:80
+
+# Tail logs from the Prometheus operator.
+[doc('Tail Prometheus operator logs')]
+prom-operator-logs:
+    kubectl -n monitoring logs -l app.kubernetes.io/name=prometheus-operator -f --tail=200
+
+# Show all firing alerts.
+[doc('Show all firing Prometheus alerts')]
+alerts:
+    kubectl -n monitoring exec -it svc/kube-prometheus-stack-prometheus -- \
+      promtool query instant http://localhost:9090 'ALERTS{alertstate="firing"}'
+
+# Check CNPG replication lag via Prometheus.
+[doc('Query CNPG replication lag from Prometheus')]
+cnpg-replication-lag:
+    kubectl -n monitoring exec -it svc/kube-prometheus-stack-prometheus -- \
+      promtool query instant http://localhost:9090 'cnpg_pg_replication_lag'

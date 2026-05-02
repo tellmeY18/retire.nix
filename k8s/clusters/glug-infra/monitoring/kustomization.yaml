@@ -1,0 +1,39 @@
+---
+# kustomization.yaml — kustomize entry point for the monitoring namespace.
+#
+# `kubectl apply -k k8s/clusters/glug-infra/monitoring`
+#
+# What lives here:
+#   - The `monitoring` Namespace (with PodSecurity labels).
+#   - The Tailscale LoadBalancer Service that exposes Grafana on the tailnet
+#     as `grafana.<tailnet>.ts.net:3000`.
+#
+# What does NOT live here (managed by helmfile instead):
+#   - The kube-prometheus-stack chart (Prometheus, Alertmanager, Grafana,
+#     node-exporter, kube-state-metrics, and the Prometheus operator).
+#     These are installed by helmfile from
+#     k8s/apps/kube-prometheus-stack/values.yaml + secrets.yaml.
+#
+# These resources are kustomize-managed because they are either
+# infrastructure-wide (Namespace) or front-end glue not expressed by the
+# upstream chart (Tailscale Service).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# NOTE: We intentionally do NOT set `namespace:` here. The namespace field
+# is already explicit in each resource manifest. Setting it globally would
+# also override the namespace on the Namespace object itself, which is
+# redundant at best and confusing at worst.
+
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: kube-prometheus-stack
+      app.kubernetes.io/managed-by: kustomize
+    includeSelectors: false
+
+resources:
+  # Namespace declaration — must be applied first.
+  - namespace.yaml
+  # Tailscale LoadBalancer Service exposing Grafana on the tailnet under
+  # MagicDNS name `grafana`.
+  - tailscale-grafana-service.yaml

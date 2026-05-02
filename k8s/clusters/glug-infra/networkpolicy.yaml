@@ -16,9 +16,13 @@
 #        - the Tailscale operator's ts-proxy pods (namespace: tailscale).
 #        - other pods in cnpg-clusters (so the CNPG operator's probes /
 #          backup pods can connect).
+#      And on 9127 (PgBouncer exporter metrics) from:
+#        - Prometheus (namespace: monitoring) via PodMonitor.
 #   3. Allow ingress to the CNPG instance pods on 5432 from PgBouncer pods
-#      AND from the CNPG operator namespace (cnpg-system), and on 8000
-#      (instance manager health/status) from the operator namespace.
+#      AND from the CNPG operator namespace (cnpg-system), on 9187
+#      (CNPG metrics) from the monitoring namespace (Prometheus scrape),
+#      and on 8000 (instance manager health/status) from the operator
+#      namespace.
 #   4. Allow egress from PgBouncer pods to the postgres-cluster-rw Service
 #      and to the Kubernetes API (for auth-query lookups).
 #
@@ -58,6 +62,7 @@ spec:
   policyTypes:
     - Ingress
   ingress:
+    # Rule 1: Client SQL traffic (5432) from tailscale and intra-namespace.
     - from:
         # Tailscale ts-proxy pods (the LoadBalancer-mode operator targets).
         - namespaceSelector:
@@ -70,6 +75,15 @@ spec:
       ports:
         - protocol: TCP
           port: 5432
+    # Rule 2: Prometheus scrapes PgBouncer exporter metrics on port 9127
+    # via PodMonitor. Only the monitoring namespace needs access.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+      ports:
+        - protocol: TCP
+          port: 9127 # PgBouncer exporter metrics
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -103,6 +117,11 @@ spec:
         - podSelector:
             matchLabels:
               cnpg.io/cluster: postgres-cluster
+        # Prometheus (kube-prometheus-stack) scrapes CNPG instance and
+        # PgBouncer metrics on port 9187 via PodMonitor.
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
       ports:
         - protocol: TCP
           port: 5432 # Postgres

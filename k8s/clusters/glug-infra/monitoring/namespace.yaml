@@ -1,0 +1,37 @@
+---
+# namespace.yaml — Namespace declaration for the monitoring stack.
+#
+# kube-prometheus-stack deploys Prometheus, Alertmanager, Grafana,
+# node-exporter, kube-state-metrics, and the Prometheus operator into this
+# namespace. We declare it as a kustomize resource (rather than relying on
+# helmfile's `createNamespace: true`) so PodSecurity labels are in place
+# before any workload pod is scheduled.
+#
+# Labels:
+#   pod-security.kubernetes.io/enforce=privileged
+#     The `privileged` profile is required because prometheus-node-exporter
+#     runs with hostNetwork, hostPID, and hostPath volume mounts to collect
+#     host-level metrics. The `restricted` profile would block these pods
+#     from scheduling.
+#
+#     Only node-exporter needs privileged access; Prometheus, Alertmanager,
+#     Grafana, and kube-state-metrics all run as non-root with restricted
+#     capabilities. If you ever split node-exporter into its own namespace,
+#     this namespace can be tightened to `restricted`.
+#
+#   pod-security.kubernetes.io/audit=baseline
+#   pod-security.kubernetes.io/warn=baseline
+#     Audit and warn at `baseline` so that any future workload that tries
+#     to escalate beyond what node-exporter needs will surface warnings
+#     in audit logs and kubectl output, even though enforcement is
+#     permissive.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: monitoring
+  labels:
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/enforce-version: latest
+    pod-security.kubernetes.io/audit: baseline
+    pod-security.kubernetes.io/warn: baseline
+    app.kubernetes.io/part-of: kube-prometheus-stack

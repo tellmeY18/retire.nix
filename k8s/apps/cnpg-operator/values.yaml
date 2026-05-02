@@ -42,16 +42,15 @@ logLevel: "info"
 # automatically by kube-prometheus-stack if installed; harmless otherwise.
 # Per-instance metrics (Cluster pods) are exposed separately via the Cluster
 # CR's spec.monitoring.enablePodMonitor (set in cnpg-cluster.yaml).
-# NOTE: podMonitorEnabled requires the PodMonitor CRD from kube-prometheus-stack.
-# Set to true only AFTER installing the Prometheus operator, otherwise
-# `helm install` fails with "no matches for kind PodMonitor".
+# kube-prometheus-stack is installed (helmfile orders it before this chart)
+# and provides the PodMonitor CRD + Grafana sidecar discovery.
 monitoring:
-  podMonitorEnabled: false
-  # Default Grafana dashboard ConfigMap. Disable until kube-prometheus-stack
-  # is installed with sidecar discovery; otherwise the ConfigMap accumulates
-  # without consumer.
+  podMonitorEnabled: true
+  # Grafana dashboard ConfigMap — the kube-prometheus-stack Grafana sidecar
+  # auto-discovers ConfigMaps with the `grafana_dashboard` label and loads
+  # them into Grafana.
   grafanaDashboard:
-    create: false
+    create: true
 
 # ---------------------------------------------------------------------------
 # CRDs — install and upgrade them as managed chart resources.

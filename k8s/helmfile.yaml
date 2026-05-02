@@ -27,6 +27,8 @@
 #   - When bumping, read the chart CHANGELOG for breaking changes.
 
 repositories:
+  - name: prometheus-community
+    url: https://prometheus-community.github.io/helm-charts
   - name: cnpg
     url: https://cloudnative-pg.github.io/charts
 
@@ -42,7 +44,30 @@ helmDefaults:
 
 releases:
   # ---------------------------------------------------------------------------
-  # 1. CNPG operator (CRDs + controller + admission webhooks).
+  # 1. kube-prometheus-stack (Prometheus, Alertmanager, Grafana, CRDs).
+  # ---------------------------------------------------------------------------
+  # Must be installed BEFORE any release that creates PodMonitor or
+  # PrometheusRule CRs (i.e. the CNPG operator and cluster charts). Without
+  # the CRDs in place, `helm install` fails with:
+  #   "no matches for kind PodMonitor in version monitoring.coreos.com/v1"
+  #
+  # Chart 84.4.0 ships prometheus-operator 0.82.x, Prometheus 3.x,
+  # Alertmanager 0.28.x, and Grafana 8.x.
+  #
+  # The namespace `monitoring` is created by kustomize (with PSA labels)
+  # before helmfile runs — hence `createNamespace: false`.
+  - name: kube-prometheus-stack
+    namespace: monitoring
+    createNamespace: false
+    chart: prometheus-community/kube-prometheus-stack
+    version: "84.4.0"
+    values:
+      - apps/kube-prometheus-stack/values.yaml
+    secrets:
+      - apps/kube-prometheus-stack/secrets.yaml
+
+  # ---------------------------------------------------------------------------
+  # 2. CNPG operator (CRDs + controller + admission webhooks).
   # ---------------------------------------------------------------------------
   # Chart 0.28.0 ships CNPG operator 1.28.x. The operator runs in
   # `cnpg-system`; CRDs are cluster-scoped.
@@ -51,13 +76,17 @@ releases:
     createNamespace: true
     chart: cnpg/cloudnative-pg
     version: "0.28.0"
+    # PodMonitor CRDs must exist before the operator chart tries to create
+    # its PodMonitor resource.
+    needs:
+      - monitoring/kube-prometheus-stack
     values:
       - apps/cnpg-operator/values.yaml
     secrets:
       - apps/cnpg-operator/secrets.yaml
 
   # ---------------------------------------------------------------------------
-  # 2. Postgres cluster — `Cluster` + `ScheduledBackup` + `Pooler`.
+  # 3. Postgres cluster — `Cluster` + `ScheduledBackup` + `Pooler`.
   # ---------------------------------------------------------------------------
   # Chart 0.6.0 maps cleanly onto operator 1.28.x. Renders all CRs from the
   # values file. The release name `postgres` is what every generated object
@@ -70,9 +99,11 @@ releases:
     createNamespace: false # namespace is created by kustomize (PSA labels)
     chart: cnpg/cluster
     version: "0.6.0"
-    # Apply only after the operator + CRDs are in place.
+    # Apply only after the operator + CRDs are in place, and after
+    # kube-prometheus-stack provides PodMonitor/PrometheusRule CRDs.
     needs:
       - cnpg-system/cloudnative-pg
+      - monitoring/kube-prometheus-stack
     values:
       - apps/postgres/values.yaml
     secrets:

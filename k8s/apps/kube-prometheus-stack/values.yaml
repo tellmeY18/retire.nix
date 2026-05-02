@@ -1,0 +1,342 @@
+# values.yaml — Plain Helm values for kube-prometheus-stack chart 84.4.0.
+#
+# Encrypted / secret values belong in secrets.yaml (sops-encrypted, referenced
+# from helmfile.yaml via the `secrets://` prefix). Currently that is just the
+# Grafana admin password.
+#
+# Reference for all available keys:
+#   helm show values prometheus-community/kube-prometheus-stack --version 84.4.0
+#
+# When bumping the chart, diff this file against the upstream defaults to
+# catch newly-added important keys:
+#   helm show values prometheus-community/kube-prometheus-stack --version <new> > /tmp/upstream.yaml
+#   diff <(helm show values prometheus-community/kube-prometheus-stack --version 84.4.0) /tmp/upstream.yaml
+#
+# Design notes:
+#   - All resource requests/limits are tuned for an old laptop (chopper).
+#     If you observe OOMKills, raise limits in 256Mi increments and
+#     re-apply with `just k8s::apply`.
+#   - k3s with embedded etcd does NOT expose etcd metrics via standard
+#     client-cert endpoints, so kubeEtcd monitoring is disabled.
+#   - k3s bundles kube-scheduler, kube-controller-manager, and kube-proxy
+#     into the k3s binary; they do not expose standalone metrics endpoints.
+#     Their ServiceMonitors are disabled.
+#   - Prometheus is configured to discover PodMonitors, ServiceMonitors,
+#     and PrometheusRules from ALL namespaces (not just the release
+#     namespace). This is critical for CNPG, which creates PodMonitors in
+#     cnpg-clusters and cnpg-system namespaces.
+#   - Grafana sidecar auto-discovers dashboards from ConfigMaps across all
+#     namespaces. CNPG creates dashboard ConfigMaps when
+#     `monitoring.grafanaDashboard.create: true` is set on the operator.
+
+# ===========================================================================
+# CRDs — install and manage via the chart.
+# ===========================================================================
+# The chart installs PrometheusRule, ServiceMonitor, PodMonitor, Probe,
+# ScrapeConfig, AlertmanagerConfig, and Prometheus CRDs. Managing them as
+# chart resources ensures CRD upgrades happen in lock-step with the operator.
+crds:
+  enabled: true
+
+# ===========================================================================
+# Prometheus Operator
+# ===========================================================================
+prometheusOperator:
+  enabled: true
+
+  # Single replica — the operator does leader election so 2 is fine for HA,
+  # but pointless on a single-node cluster.
+  replicas: 1
+
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+    limits:
+      cpu: "500m"
+      memory: "256Mi"
+
+  # Admission webhooks — validate PrometheusRule resources on create/update.
+  # Uses a self-signed CA managed by the operator; no cert-manager needed.
+  admissionWebhooks:
+    enabled: true
+
+# ===========================================================================
+# Prometheus
+# ===========================================================================
+prometheus:
+  enabled: true
+
+  prometheusSpec:
+    # Single replica. Running 2 replicas on one node wastes memory for no
+    # HA benefit. Scale to 2 when a second schedulable node joins.
+    replicas: 1
+
+    # -----------------------------------------------------------------------
+    # Scrape configuration
+    # -----------------------------------------------------------------------
+    # 30-second global scrape interval is a reasonable middle ground between
+    # resolution and resource use on laptop hardware.
+    scrapeInterval: "30s"
+    scrapeTimeout: "10s"
+    evaluationInterval: "30s"
+
+    # -----------------------------------------------------------------------
+    # Retention
+    # -----------------------------------------------------------------------
+    # 7 days of local metrics. Enough for dashboards and recent alerting.
+    # For longer retention, ship to a remote-write target (Thanos, Mimir).
+    retention: "7d"
+    # Hard cap: if the PVC fills up, Prometheus will drop the oldest blocks.
+    retentionSize: "9GB"
+
+    # -----------------------------------------------------------------------
+    # Storage — OpenEBS ZFS LocalPV.
+    # -----------------------------------------------------------------------
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: zfs-localpv
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: 10Gi
+
+    # -----------------------------------------------------------------------
+    # Cross-namespace discovery — THE critical setting for CNPG.
+    # -----------------------------------------------------------------------
+    # By default, the chart restricts PodMonitor/ServiceMonitor/Rule
+    # discovery to objects that match the Helm release labels. Setting
+    # these to `false` tells Prometheus to discover ALL PodMonitors,
+    # ServiceMonitors, and PrometheusRules across ALL namespaces,
+    # regardless of labels. Without this, CNPG's PodMonitors in
+    # cnpg-clusters and cnpg-system would be invisible.
+    podMonitorSelectorNilUsesHelmValues: false
+    serviceMonitorSelectorNilUsesHelmValues: false
+    ruleSelectorNilUsesHelmValues: false
+    probeSelectorNilUsesHelmValues: false
+
+    # Discover monitors in every namespace (not just the release namespace).
+    podMonitorNamespaceSelector: {}
+    serviceMonitorNamespaceSelector: {}
+    ruleNamespaceSelector: {}
+    probeNamespaceSelector: {}
+
+    # -----------------------------------------------------------------------
+    # Resources — conservative for laptop hardware.
+    # -----------------------------------------------------------------------
+    resources:
+      requests:
+        cpu: "200m"
+        memory: "512Mi"
+      limits:
+        cpu: "1000m"
+        memory: "2Gi"
+
+    # -----------------------------------------------------------------------
+    # Security context — run as non-root.
+    # -----------------------------------------------------------------------
+    securityContext:
+      runAsNonRoot: true
+      runAsUser: 1000
+      runAsGroup: 1000
+      fsGroup: 2000
+
+# ===========================================================================
+# Alertmanager
+# ===========================================================================
+alertmanager:
+  enabled: true
+
+  alertmanagerSpec:
+    # Single replica, no persistent storage. Alertmanager state (silences,
+    # notification log) is ephemeral — acceptable for a homelab where we
+    # just want alerts to show up in Grafana and stdout for now.
+    replicas: 1
+
+    storage: {} # no PVC — stateless
+
+    resources:
+      requests:
+        cpu: "50m"
+        memory: "64Mi"
+      limits:
+        cpu: "200m"
+        memory: "256Mi"
+
+  # Default Alertmanager config: single null receiver that just logs.
+  # Replace with a real receiver (PagerDuty, Slack webhook, Pushover)
+  # when you are ready to act on alerts.
+  config:
+    global:
+      resolve_timeout: "5m"
+    route:
+      receiver: "null"
+      group_by:
+        - alertname
+        - namespace
+      group_wait: "30s"
+      group_interval: "5m"
+      repeat_interval: "12h"
+    receivers:
+      - name: "null"
+    # No inhibit_rules for now — every firing alert is visible.
+    inhibit_rules: []
+
+# ===========================================================================
+# Grafana
+# ===========================================================================
+grafana:
+  enabled: true
+
+  # Single replica, no persistent storage. All dashboards are provisioned
+  # from ConfigMaps via the sidecar — nothing needs to survive a pod restart.
+  replicas: 1
+
+  persistence:
+    enabled: false
+
+  # Admin credentials. The username is plain; the password comes from
+  # secrets.yaml (sops-encrypted, merged by helm-secrets).
+  adminUser: admin
+  # adminPassword: set in secrets.yaml
+
+  # -------------------------------------------------------------------------
+  # Sidecar — auto-discover dashboards and datasources from ConfigMaps.
+  # -------------------------------------------------------------------------
+  # The sidecar watches ConfigMaps across ALL namespaces for the label
+  # `grafana_dashboard: "1"` (dashboards) or `grafana_datasource: "1"`
+  # (datasources). CNPG creates dashboard ConfigMaps with exactly this
+  # label when `monitoring.grafanaDashboard.create: true` is set on the
+  # operator chart.
+  sidecar:
+    dashboards:
+      enabled: true
+      # Search across all namespaces (CNPG dashboards live in cnpg-system).
+      searchNamespace: ALL
+      # Label the sidecar watches for on ConfigMaps.
+      label: grafana_dashboard
+      labelValue: "1"
+      # Folder annotation: ConfigMaps can set
+      # `grafana_folder: "CloudNativePG"` to organize dashboards.
+      folderAnnotation: grafana_folder
+      provider:
+        foldersFromFilesStructure: true
+    datasources:
+      enabled: true
+      searchNamespace: ALL
+      label: grafana_datasource
+      labelValue: "1"
+
+  # -------------------------------------------------------------------------
+  # Default datasource — point at the in-cluster Prometheus.
+  # -------------------------------------------------------------------------
+  # The chart auto-creates a Prometheus datasource ConfigMap. This ensures
+  # Grafana comes up with Prometheus already configured, no manual setup.
+  datasources: {}
+
+  # -------------------------------------------------------------------------
+  # Grafana service — ClusterIP only.
+  # -------------------------------------------------------------------------
+  # External access is via the Tailscale LoadBalancer Service defined in
+  # k8s/clusters/glug-infra/monitoring/tailscale-grafana-service.yaml.
+  # We do NOT set Grafana's own service to LoadBalancer; the Tailscale
+  # Service selects Grafana pods directly.
+  service:
+    type: ClusterIP
+    port: 3000
+
+  # -------------------------------------------------------------------------
+  # Resources — conservative for laptop hardware.
+  # -------------------------------------------------------------------------
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+
+  # -------------------------------------------------------------------------
+  # Grafana.ini overrides
+  # -------------------------------------------------------------------------
+  grafana.ini:
+    server:
+      # Root URL matches the Tailscale hostname. Grafana uses this for
+      # redirects, OAuth callbacks, and link generation in alerts.
+      root_url: "http://grafana:3000"
+    analytics:
+      # Disable telemetry — homelab, no need to phone home.
+      reporting_enabled: false
+      check_for_updates: false
+      check_for_plugin_updates: false
+
+# ===========================================================================
+# Node Exporter — host-level metrics (CPU, memory, disk, network).
+# ===========================================================================
+# Runs as a DaemonSet with hostNetwork and hostPID. The monitoring namespace
+# must have PodSecurity enforce=privileged for this to schedule.
+nodeExporter:
+  enabled: true
+
+prometheus-node-exporter:
+  resources:
+    requests:
+      cpu: "50m"
+      memory: "32Mi"
+    limits:
+      cpu: "200m"
+      memory: "128Mi"
+
+# ===========================================================================
+# kube-state-metrics — Kubernetes object state metrics.
+# ===========================================================================
+kubeStateMetrics:
+  enabled: true
+
+kube-state-metrics:
+  resources:
+    requests:
+      cpu: "50m"
+      memory: "64Mi"
+    limits:
+      cpu: "200m"
+      memory: "256Mi"
+
+# ===========================================================================
+# Disabled ServiceMonitors — k3s does not expose these as separate processes.
+# ===========================================================================
+# k3s embeds kube-scheduler, kube-controller-manager, and kube-proxy into
+# the k3s binary. There are no standalone metrics endpoints for the chart's
+# ServiceMonitors to scrape. Leaving them enabled produces perpetually
+# "target down" alerts.
+#
+# etcd: k3s uses embedded etcd but does not expose the standard /metrics
+# endpoint with client-cert auth. The chart's etcd ServiceMonitor expects
+# `--listen-metrics-urls` and client TLS certs, neither of which k3s
+# provides out of the box.
+kubeEtcd:
+  enabled: false
+
+kubeControllerManager:
+  enabled: false
+
+kubeScheduler:
+  enabled: false
+
+kubeProxy:
+  enabled: false
+
+# ===========================================================================
+# kubelet and API server — these DO work on k3s.
+# ===========================================================================
+kubelet:
+  enabled: true
+
+kubeApiServer:
+  enabled: true
+
+# coreDNS metrics also work on k3s.
+coreDns:
+  enabled: true

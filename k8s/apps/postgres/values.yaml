@@ -146,15 +146,15 @@ cluster:
   # Monitoring
   # -------------------------------------------------------------------------
   # CNPG exposes Prometheus metrics on port 9187 of every instance. The
-  # chart creates a PodMonitor when monitoring.enabled=true. Requires the
-  # PodMonitor/PrometheusRule CRDs from kube-prometheus-stack.
-  # Set to true only AFTER installing the Prometheus operator.
+  # chart creates a PodMonitor when monitoring.enabled=true.
+  # kube-prometheus-stack is installed (helmfile orders it before this chart)
+  # and provides the PodMonitor/PrometheusRule CRDs.
   monitoring:
-    enabled: false
+    enabled: true
     podMonitor:
-      enabled: false
+      enabled: true
     prometheusRule:
-      enabled: false
+      enabled: true
 
   # -------------------------------------------------------------------------
   # Resource requests
@@ -187,9 +187,9 @@ poolers:
       log_connections: "1"
       log_disconnections: "1"
     monitoring:
-      enabled: false
+      enabled: true
       podMonitor:
-        enabled: false
+        enabled: true
     # Pod template: keep PgBouncer pods on different nodes when possible.
     template:
       spec:

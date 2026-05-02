@@ -35,8 +35,9 @@ nodes are present; the Tailscale `pg-rw` MagicDNS endpoint stays stable.
 | **NixOS bootstrap** | `nh os switch` | k3s itself; OpenEBS ZFS LocalPV CSI driver; the `zfs-localpv` StorageClass; Tailscale Kubernetes operator. Declared via `services.k3s.charts` in `modules/services/k3s.nix` and present on every node the moment k3s starts — no human intervention required after a reboot. |
 | **CNPG operator** | `helmfile` | The `cloudnative-pg` chart in the `cnpg-system` namespace. Provides CRDs + the controller. |
 | **Postgres workloads** | `helmfile` (cnpg/cluster chart) | One Helm release per Postgres cluster. Renders the `Cluster`, `ScheduledBackup`, and `Pooler` CRs from values files in `apps/postgres/`. |
-| **Cluster glue** | `kubectl apply -k` (kustomize) | Namespace (with PSA labels), NetworkPolicies, and the Tailscale LoadBalancer Service. |
-| **Encrypted secrets** | `helm-secrets` (sops) | S3 backup credentials live in `apps/postgres/secrets.yaml` as sops-encrypted Helm values, merged by `helm-secrets` at install time. No raw `Secret` manifest ever touches git or the kustomize pipeline. |
+| **Monitoring stack** | `helmfile` | `kube-prometheus-stack` chart in the `monitoring` namespace. Provides Prometheus + Alertmanager + Grafana + CRDs (PodMonitor, PrometheusRule, ServiceMonitor). |
+| **Cluster glue** | `kubectl apply -k` (kustomize) | Namespaces (with PSA labels), NetworkPolicies, and Tailscale LoadBalancer Services (pg-rw, grafana). |
+| **Encrypted secrets** | `helm-secrets` (sops) | S3 backup credentials live in `apps/postgres/secrets.yaml` and the Grafana admin password in `apps/kube-prometheus-stack/secrets.yaml` — both sops-encrypted Helm values, merged by `helm-secrets` at install time. No raw `Secret` manifest ever touches git or the kustomize pipeline. |
 
 ---
 
@@ -46,10 +47,15 @@ nodes are present; the Tailscale `pg-rw` MagicDNS endpoint stays stable.
 |---|---|---|
 | `cnpg-system` | helmfile chart `createNamespace: true` | CNPG operator Deployment + webhooks |
 | `cnpg-clusters` | `namespace.yaml` (kustomize) | Postgres `Cluster`, `Pooler`, `ScheduledBackup`, `Service`, `NetworkPolicy`, `Secret` (rendered by chart) |
+| `monitoring` | `monitoring/namespace.yaml` (kustomize) | Prometheus, Alertmanager, Grafana, node-exporter, kube-state-metrics, Grafana Tailscale Service |
 
 The `cnpg-clusters` namespace carries `pod-security.kubernetes.io/enforce=restricted`
 labels so any pod scheduled there must comply with the PodSecurity restricted
 profile. CNPG's pods (operator, instances, PgBouncer) all comply by default.
+
+The `monitoring` namespace uses `pod-security.kubernetes.io/enforce=privileged`
+because node-exporter requires `hostNetwork`/`hostPID`/`hostPath` access for
+complete host-level metrics collection.
 
 ---
 
@@ -109,6 +115,8 @@ code is squashed because absent objects return non-zero on a clean cluster.
 
 ## Day-2 helpers
 
+### CNPG
+
 ```sh
 just k8s::cnpg-status              # kubectl cnpg status postgres
 just k8s::cnpg-operator-logs       # tail operator logs
@@ -117,17 +125,30 @@ just k8s::cnpg-backup-now          # on-demand base backup
 just k8s::cnpg-backup-list         # list Backup objects with phase
 ```
 
+### Monitoring
+
+```sh
+just k8s::grafana-open             # open Grafana in browser via tailnet
+just k8s::grafana-port-forward     # fallback: port-forward Grafana to localhost:3000
+just k8s::prom-port-forward        # port-forward Prometheus UI to localhost:9090
+just k8s::prom-targets             # list Prometheus scrape targets
+just k8s::prom-operator-logs       # tail Prometheus operator logs
+just k8s::alerts                   # show all firing Prometheus alerts
+just k8s::cnpg-replication-lag     # query CNPG replication lag from Prometheus
+```
+
 For switchover, drain, and restore procedures see [`docs/runbooks/`](docs/runbooks/).
 
 ---
 
 ## Editing secrets
 
-Secrets live in two places, both as sops-encrypted Helm values files:
+Secrets live as sops-encrypted Helm values files:
 
 - `k8s/apps/postgres/secrets.yaml` — S3 backup credentials
 - `k8s/apps/cnpg-operator/secrets.yaml` — operator-side image-pull
   credentials (empty by default)
+- `k8s/apps/kube-prometheus-stack/secrets.yaml` — Grafana admin password
 
 To edit either:
 
@@ -139,6 +160,27 @@ This opens the file in `$EDITOR` via `sops`, which encrypts on save. The
 `.sops.yaml` at the repo root defines which age keys are recipients for each
 path pattern; both files are covered by the existing `k8s/.../secrets.yaml`
 rule (master-key only — no host needs to decrypt these).
+
+---
+
+## Monitoring
+
+The cluster runs `kube-prometheus-stack` (Prometheus + Alertmanager + Grafana)
+in the `monitoring` namespace. Key integration points:
+
+- **CNPG instance metrics** — PodMonitor on port 9187 (enabled via
+  `cluster.monitoring.enabled: true` in `apps/postgres/values.yaml`)
+- **CNPG PrometheusRules** — built-in alerts for replication lag, backup
+  failures, WAL archiving, and primary availability
+- **PgBouncer metrics** — PodMonitor on port 9127 (pooler monitoring)
+- **CNPG operator metrics** — PodMonitor on the operator's `/metrics`
+  endpoint (enabled via `monitoring.podMonitorEnabled: true` in
+  `apps/cnpg-operator/values.yaml`)
+- **Grafana dashboards** — the CNPG operator creates a ConfigMap with the
+  CloudNativePG dashboard (ID 20417); Grafana's sidecar auto-imports it
+
+Grafana is reachable at `http://grafana.<tailnet>.ts.net:3000` via the
+Tailscale LoadBalancer Service in `clusters/glug-infra/monitoring/`.
 
 ---
 
@@ -189,20 +231,27 @@ re-pinning is harmless.
 ```
 k8s/
 ├── README.md                                # this file
-├── helmfile.yaml                            # cnpg/cloudnative-pg + cnpg/cluster releases
+├── helmfile.yaml                            # kube-prometheus-stack + cnpg charts
 ├── apps/
 │   ├── cnpg-operator/
 │   │   ├── values.yaml                      # plain Helm values
 │   │   └── secrets.yaml                     # sops-encrypted Helm values
+│   ├── kube-prometheus-stack/
+│   │   ├── values.yaml                      # Prometheus + Grafana + Alertmanager config
+│   │   └── secrets.yaml                     # sops-encrypted Grafana admin password
 │   └── postgres/
 │       ├── values.yaml                      # Cluster + Pooler + Backup config
 │       └── secrets.yaml                     # sops-encrypted S3 credentials
 ├── clusters/
 │   └── glug-infra/
-│       ├── kustomization.yaml               # entry point
+│       ├── kustomization.yaml               # entry point (cnpg-clusters namespace)
 │       ├── namespace.yaml                   # cnpg-clusters + PSA labels
 │       ├── networkpolicy.yaml               # default-deny + allow rules
-│       └── tailscale-pg-service.yaml        # Tailscale LoadBalancer Service
+│       ├── tailscale-pg-service.yaml        # Tailscale LB: pg-rw
+│       └── monitoring/
+│           ├── kustomization.yaml           # entry point (monitoring namespace)
+│           ├── namespace.yaml               # monitoring + PSA labels
+│           └── tailscale-grafana-service.yaml  # Tailscale LB: grafana
 └── docs/
     └── runbooks/
         ├── failover.md
@@ -217,6 +266,11 @@ k8s/
 After the first `just k8s::apply`, walk through these checks:
 
 ```sh
+# Monitoring stack is up.
+kubectl -n monitoring get deploy                      # prometheus-operator, grafana, kube-state-metrics
+kubectl -n monitoring get pods                         # all Running
+kubectl -n monitoring get statefulset                  # prometheus, alertmanager
+
 # Operator is up.
 kubectl -n cnpg-system get deploy
 kubectl -n cnpg-system get pods                     # 1/1 Running
@@ -247,6 +301,15 @@ just k8s::cnpg-backup-list
 
 # Connect from a tailnet client.
 psql "postgres://app:$(kubectl -n cnpg-clusters get secret postgres-app -o jsonpath='{.data.password}' | base64 -d)@pg-rw.<tailnet>.ts.net:5432/app"
+
+# Grafana reachable on the tailnet.
+curl -s http://grafana.<tailnet>.ts.net:3000/api/health | jq .
+
+# Prometheus is scraping CNPG metrics.
+just k8s::prom-targets | grep cnpg
+
+# CNPG dashboard loaded in Grafana.
+curl -s http://grafana.<tailnet>.ts.net:3000/api/search?query=CloudNativePG | jq '.[].title'
 ```
 
 If any step fails, the `## 6. Day-2 operations` section of
