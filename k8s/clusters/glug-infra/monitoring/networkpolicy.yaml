@@ -42,10 +42,15 @@ spec:
   policyTypes:
     - Ingress
 ---
-# ---- 2. Allow Grafana ingress from Tailscale ts-proxy -----------------------
-# The Tailscale LoadBalancer Service selects Grafana pods directly. The
-# ts-proxy pod lives in the `tailscale` namespace and forwards traffic
-# from `grafana.<tailnet>.ts.net:3000`.
+# ---- 2. Allow Grafana ingress on port 3000 -----------------------------------
+# Grafana has its own authentication (admin user + password from sops secret),
+# so we do NOT restrict the source — only the port. This is necessary because
+# the Tailscale ts-proxy traffic may arrive with a masqueraded source IP
+# (node IP or flannel bridge), making namespace-based selectors unreliable.
+#
+# The security boundary for Grafana is its own login page, not the network.
+# The security boundary for Prometheus (raw metrics, no auth) IS the network
+# — that's locked to Grafana-only in rule 3 below.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -61,12 +66,7 @@ spec:
   policyTypes:
     - Ingress
   ingress:
-    - from:
-        # Tailscale ts-proxy pods.
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: tailscale
-      ports:
+    - ports:
         - protocol: TCP
           port: 3000
 ---
