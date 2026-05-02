@@ -1,8 +1,19 @@
-# values.yaml — Plain Helm values for the cloudnative-pg operator chart.
-# Encrypted / secret values belong in secrets.yaml (sops-encrypted).
+# values.yaml — Plain Helm values for the cloudnative-pg operator chart 0.28.x.
+#
+# Encrypted / secret values belong in secrets.yaml (sops-encrypted, referenced
+# from helmfile.yaml via the `secrets://` prefix).
+#
+# Reference for all available keys:
+#   helm show values cnpg/cloudnative-pg --version 0.28.0
+#
+# When bumping the chart, diff this file against the upstream defaults to
+# catch newly-added important keys:
+#   helm show values cnpg/cloudnative-pg --version <new> > /tmp/upstream.yaml
+#   diff <(helm show values cnpg/cloudnative-pg --version 0.28.0) /tmp/upstream.yaml
 
-# Operator resource requests and limits.
-# Tune for the chopper hardware (old laptop — keep requests low).
+# ---------------------------------------------------------------------------
+# Operator pod sizing — chopper is an old laptop, keep it light.
+# ---------------------------------------------------------------------------
 resources:
   requests:
     cpu: "100m"
@@ -11,21 +22,57 @@ resources:
     cpu: "500m"
     memory: "256Mi"
 
-# Expose a PodMonitor so Prometheus (kube-prometheus-stack) can scrape the
-# operator's own metrics.  Requires the Prometheus Operator CRDs to be present.
-monitoring:
-  podMonitorEnabled: true
-  grafanaDashboard:
-    # Set to true if kube-prometheus-stack is installed with sidecar support.
-    create: false
+# ---------------------------------------------------------------------------
+# Replication — single operator replica is fine for a single-node cluster.
+# Scale to 2 when you have ≥2 schedulable nodes; the operator does
+# leader-election out of the box.
+# ---------------------------------------------------------------------------
+replicaCount: 1
 
-# Operator log level: "debug" | "info" | "warning" | "error" | "trace"
+# ---------------------------------------------------------------------------
+# Logging
+# ---------------------------------------------------------------------------
+# Operator log level: "error" | "warning" | "info" | "debug" | "trace"
 logLevel: "info"
 
-# CRD installation is handled by the chart itself; keep this enabled so
-# upgrades also upgrade the CRDs.
+# ---------------------------------------------------------------------------
+# Monitoring
+# ---------------------------------------------------------------------------
+# Expose a PodMonitor for the operator's own /metrics endpoint. Picked up
+# automatically by kube-prometheus-stack if installed; harmless otherwise.
+# Per-instance metrics (Cluster pods) are exposed separately via the Cluster
+# CR's spec.monitoring.enablePodMonitor (set in cnpg-cluster.yaml).
+monitoring:
+  podMonitorEnabled: true
+  # Default Grafana dashboard ConfigMap. Disable until kube-prometheus-stack
+  # is installed with sidecar discovery; otherwise the ConfigMap accumulates
+  # without consumer.
+  grafanaDashboard:
+    create: false
+
+# ---------------------------------------------------------------------------
+# CRDs — install and upgrade them as managed chart resources.
+# ---------------------------------------------------------------------------
+# This makes `helmfile sync` upgrade CRDs in lock-step with the operator
+# Deployment, rather than relying on Helm's one-shot --install-crds hook
+# (which runs only on first install and then never again).
 crds:
   create: true
 
-# Number of operator replicas.  1 is fine for a single-node cluster.
-replicaCount: 1
+# ---------------------------------------------------------------------------
+# Image pull policy
+# ---------------------------------------------------------------------------
+# `IfNotPresent` is correct for tagged operator releases; only switch to
+# `Always` if you ever pin to `:main` or `:latest`, which we don't.
+image:
+  pullPolicy: IfNotPresent
+
+# ---------------------------------------------------------------------------
+# Webhook configuration
+# ---------------------------------------------------------------------------
+# CNPG ships a validating + mutating webhook. The chart provisions the cert
+# automatically using its own CA; do not disable unless you front the
+# webhook with cert-manager (in which case use the chart's `certManager`
+# values block).
+webhook:
+  enabled: true

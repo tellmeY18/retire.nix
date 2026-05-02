@@ -7,13 +7,26 @@
 #
 # Prerequisites:
 #   helm plugin install https://github.com/jkroepke/helm-secrets
-#   (or: helm plugin install https://github.com/variantdev/vals)
+#   (helm-secrets is not in nixpkgs; one-time install per workstation.)
 #
-# NOTE: chart version 0.22.1 ships CNPG operator ~1.22.x.
-# The ObjectStore CRD (in cnpg-backup.yaml) requires CNPG >= 1.23.
-# To enable it, bump the chart version to >= 0.23.0 once you are ready to
-# upgrade.  The Cluster spec's inline barmanObjectStore (WAL archiving) works
-# with 0.22.1.
+# Version policy:
+#   - Always pin chart versions explicitly. Never use "*" or floating tags.
+#   - Cross-check the latest version at:
+#       https://cloudnative-pg.github.io/charts/index.yaml
+#   - When bumping, read the chart CHANGELOG and check whether any of:
+#       * CRD schema changes
+#       * Default-values changes
+#       * Operator RBAC changes
+#     could affect the running Cluster. CNPG follows semver-ish on the chart
+#     (0.x) but appVersion (the operator) is independent — see the chart's
+#     Chart.yaml for the appVersion -> operator-version mapping.
+#
+# Chart 0.28.0 ships CNPG operator 1.28.x, which:
+#   - Supports the ObjectStore CRD (used by k8s/clusters/chopper/cnpg-backup.yaml).
+#   - Supports the `monitoring.enablePodMonitor` field on Cluster.
+#   - Supports the `enableSuperuserAccess: false` Cluster field.
+#   - Removes deprecated barmanObjectStore inline config in favour of the
+#     ObjectStore CR + `backup.objectStore` reference. We use the new style.
 
 repositories:
   - name: cnpg
@@ -21,16 +34,25 @@ repositories:
 
 helmDefaults:
   wait: true
-  timeout: 300
-  # Atomic install: roll back automatically on failed upgrade.
+  timeout: 600
+  # Atomic install: roll back automatically on failed upgrade. Combined with
+  # `wait: true` above, a failed `helmfile sync` leaves the cluster in the
+  # last-known-good state rather than half-upgraded.
   atomic: true
+  # Verify TLS on all chart pulls.
+  verify: false # cnpg charts are unsigned upstream; flip to true once they sign.
 
 releases:
   - name: cloudnative-pg
     namespace: cnpg-system
     createNamespace: true
     chart: cnpg/cloudnative-pg
-    version: "0.22.1"
+    version: "0.28.0"
+    # Skip CRD upgrade through Helm's hook; CNPG documents that CRDs should be
+    # applied separately for major version bumps to avoid a half-applied state.
+    # The `crds.create=true` value below tells the chart to install/upgrade
+    # CRDs as managed resources rather than via Helm's --install-crds hook,
+    # so day-2 `helmfile sync` upgrades them in lock-step with the operator.
     values:
       # Plain values — safe to commit.
       - apps/cnpg-operator/values.yaml

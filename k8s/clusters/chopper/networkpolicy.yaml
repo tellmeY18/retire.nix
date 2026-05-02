@@ -1,0 +1,99 @@
+---
+# networkpolicy.yaml — Default-deny + explicit allow NetworkPolicies for the
+# cnpg-clusters namespace.
+#
+# Defense in depth: even though the cluster is reachable only over the
+# tailnet, NetworkPolicies prevent an accidentally-exposed pod (e.g. a
+# misconfigured debug Deployment in this namespace) from contacting the
+# database without an explicit allow rule.
+#
+# k3s ships flannel as the default CNI and flannel does NOT implement
+# NetworkPolicy. To activate these rules you need a CNI that does
+# (Calico, Cilium, kube-router). On a flannel-only cluster these manifests
+# are applied but enforced by no controller — they are documentary.
+# When/if we switch CNI, no manifest change is required.
+#
+# Three rules:
+#   1. Default-deny ingress for the namespace.
+#   2. Allow ingress to the PgBouncer pods on 5432 from:
+#        - the Tailscale operator's ts-proxy pods (namespace: tailscale).
+#        - other pods in cnpg-clusters (so the CNPG operator's probes /
+#          backup pods can connect).
+#   3. Allow ingress to the CNPG instance pods on 5432 from PgBouncer pods
+#      AND from the CNPG operator namespace (cnpg-system).
+
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: cnpg-clusters
+  labels:
+    app.kubernetes.io/part-of: cloudnative-pg
+    app.kubernetes.io/managed-by: kustomize
+spec:
+  podSelector: {} # all pods
+  policyTypes:
+    - Ingress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-pooler-ingress
+  namespace: cnpg-clusters
+  labels:
+    app.kubernetes.io/part-of: cloudnative-pg
+    app.kubernetes.io/managed-by: kustomize
+spec:
+  podSelector:
+    matchLabels:
+      cnpg.io/poolerName: chopper-pg-pooler-rw
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        # Tailscale ts-proxy pods (the LoadBalancer-mode operator targets).
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: tailscale
+        # Other pods in this namespace (CNPG operator probes, backup jobs).
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: cnpg-clusters
+      ports:
+        - protocol: TCP
+          port: 5432
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-postgres-ingress
+  namespace: cnpg-clusters
+  labels:
+    app.kubernetes.io/part-of: cloudnative-pg
+    app.kubernetes.io/managed-by: kustomize
+spec:
+  podSelector:
+    matchLabels:
+      cnpg.io/cluster: chopper-pg
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        # PgBouncer pods (the only intended SQL clients of the primary).
+        - podSelector:
+            matchLabels:
+              cnpg.io/poolerName: chopper-pg-pooler-rw
+        # CNPG operator namespace — operator probes, status reconciliation.
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: cnpg-system
+        # Replica → primary streaming replication is intra-namespace; allow
+        # CNPG instance pods to reach each other on the replication port.
+        - podSelector:
+            matchLabels:
+              cnpg.io/cluster: chopper-pg
+      ports:
+        - protocol: TCP
+          port: 5432 # Postgres
+        - protocol: TCP
+          port: 9187 # CNPG metrics (PodMonitor scrape)

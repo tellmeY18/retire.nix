@@ -1,0 +1,29 @@
+---
+# namespace.yaml — Namespace declaration for CNPG workloads.
+#
+# The CNPG *operator* lives in `cnpg-system` (managed by helmfile, namespace
+# created by the chart's `createNamespace: true`).
+#
+# All CNPG *workload* resources for the chopper cluster live in
+# `cnpg-clusters` and are created by kustomize. We declare the namespace as
+# a kustomize resource (rather than relying on `kubectl create namespace`)
+# so the entire cluster-side state is reproducible from a single
+# `kubectl apply -k` invocation.
+#
+# Labels:
+#   pod-security.kubernetes.io/enforce=restricted
+#     Enforce the PodSecurity "restricted" profile cluster-wide for any pod
+#     in this namespace. CNPG's operand pods comply with this profile out of
+#     the box (non-root, no privilege escalation, seccomp).
+#   app.kubernetes.io/part-of=cloudnative-pg
+#     Aids ad-hoc selection (e.g. `kubectl get all -A -l app.kubernetes.io/part-of=cloudnative-pg`).
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cnpg-clusters
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: latest
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+    app.kubernetes.io/part-of: cloudnative-pg

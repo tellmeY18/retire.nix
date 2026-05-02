@@ -76,29 +76,36 @@ metadata:
 spec:
   instances: 1
 
+  # Match the production image so collations / catalog versions agree.
+  imageName: ghcr.io/cloudnative-pg/postgresql:17.2-bookworm
+
   storage:
     storageClass: zfs-localpv
     size: 20Gi
+  walStorage:
+    storageClass: zfs-localpv
+    size: 5Gi
 
   bootstrap:
     recovery:
-      # Point at the same S3 destination used by the production cluster.
-      backup:
-        name: ""         # Leave empty; source is the barmanObjectStore below.
+      # Pull from the named externalCluster declared below. The operator
+      # finds the latest base backup in the object store before targetTime,
+      # then replays WAL until targetTime is hit.
       source: chopper-pg-backup
-
-      # -----------------------------------------------------------------------
-      # Recovery target — set this to your desired point in time.
-      # CNPG will replay WAL until this timestamp then stop.
-      # -----------------------------------------------------------------------
       recoveryTarget:
+        # ---------------------------------------------------------------
+        # Recovery target — set this to your desired point in time (UTC).
+        # CNPG will replay WAL until this timestamp then stop.
+        # ---------------------------------------------------------------
         targetTime: "YYYY-MM-DDTHH:MM:SS"   # ← REPLACE THIS
 
   externalClusters:
     - name: chopper-pg-backup
       barmanObjectStore:
-        destinationPath: "s3://YOUR-BUCKET-NAME/chopper-pg"   # ← same as production
-        # endpointURL: "https://YOUR-S3-ENDPOINT"             # ← uncomment if needed
+        # Must EXACTLY match the production cluster's destinationPath
+        # (cnpg-cluster.yaml → spec.backup.barmanObjectStore.destinationPath).
+        destinationPath: "s3://YOUR-BUCKET-NAME/chopper-pg"
+        # endpointURL: "https://YOUR-S3-ENDPOINT"   # uncomment for R2/B2/Garage
         s3Credentials:
           accessKeyId:
             name: cnpg-backup-s3
@@ -111,10 +118,10 @@ spec:
 
   resources:
     requests:
-      memory: "256Mi"
+      memory: "512Mi"
       cpu: "100m"
     limits:
-      memory: "1Gi"
+      memory: "1.5Gi"
       cpu: "1000m"
 ```
 

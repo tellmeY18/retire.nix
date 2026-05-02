@@ -1,20 +1,54 @@
+---
+# kustomization.yaml — Single entry point for `kubectl apply -k`.
+#
+# This Kustomization file is the source of truth for every plain-YAML
+# resource that lives in the cnpg-clusters namespace. Apply with:
+#
+#   kubectl apply -k k8s/clusters/chopper
+#
+# Resources are listed in the order kustomize evaluates them; the *apply*
+# order is determined by kubectl's built-in resource priority (Namespace
+# always first, then NetworkPolicy, then CRDs/CRs by alphabetical order
+# within each kind). The order below is for human readability.
+#
+# Namespace pinning:
+#   `namespace:` below sets a namespace transformer that injects
+#   `metadata.namespace: cnpg-clusters` into any resource that does not
+#   already declare one. We additionally declare the namespace explicitly
+#   on every resource so this is belt-and-suspenders.
+#
+# What is NOT included here:
+#   - The CNPG operator chart (cnpg-system namespace) — managed by helmfile.
+#   - The cnpg-backup-s3 Secret — applied separately via sops to keep
+#     plaintext out of the kustomize pipeline. See `just k8s-apply`.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-# All CNPG workload resources live in the cnpg-clusters namespace.
-# The CNPG operator itself lives in cnpg-system (managed by helmfile).
 namespace: cnpg-clusters
 
+commonLabels:
+  app.kubernetes.io/part-of: cloudnative-pg
+
 resources:
+  # Namespace declaration — must be applied first.
+  - namespace.yaml
+  # NetworkPolicies — applied early so they are in place before pods start.
+  # On a flannel-CNI cluster they are inert; see networkpolicy.yaml header.
+  - networkpolicy.yaml
+  # CNPG Cluster CR — the operator handles all rolling restarts when the
+  # spec changes.
   - cnpg-cluster.yaml
+  # PgBouncer Pooler + its PodDisruptionBudget.
   - cnpg-pooler.yaml
+  # ScheduledBackup CR — daily base backups at 02:00 UTC.
   - cnpg-backup.yaml
+  # Tailscale LoadBalancer Service — exposes the pooler on the tailnet.
   - tailscale-pg-service.yaml
 
-# Secrets are NOT included here.  They are applied separately to avoid
-# plaintext ever entering the kustomize pipeline:
+# Secrets are NOT included here. They are applied separately to avoid
+# plaintext ever entering the kustomize build pipeline:
 #
 #   sops --decrypt k8s/clusters/chopper/secrets/cnpg-backup-s3.enc.yaml \
 #     | kubectl apply -f -
 #
-# See k8s/README.md and `just k8s-apply`.
+# See k8s/README.md and the `k8s-apply` recipe in the repo-root Justfile.
