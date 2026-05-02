@@ -7,20 +7,28 @@
 # misconfigured debug Deployment in this namespace) from contacting the
 # database without an explicit allow rule.
 #
-# k3s ships flannel as the default CNI and flannel does NOT implement
-# NetworkPolicy. To activate these rules you need a CNI that does
-# (Calico, Cilium, kube-router). On a flannel-only cluster these manifests
-# are applied but enforced by no controller — they are documentary.
-# When/if we switch CNI, no manifest change is required.
+# k3s ships kube-router alongside flannel specifically for NetworkPolicy
+# enforcement. These rules ARE actively enforced — they are not documentary.
 #
-# Three rules:
+# Four rules:
 #   1. Default-deny ingress for the namespace.
 #   2. Allow ingress to the PgBouncer pods on 5432 from:
 #        - the Tailscale operator's ts-proxy pods (namespace: tailscale).
 #        - other pods in cnpg-clusters (so the CNPG operator's probes /
 #          backup pods can connect).
 #   3. Allow ingress to the CNPG instance pods on 5432 from PgBouncer pods
-#      AND from the CNPG operator namespace (cnpg-system).
+#      AND from the CNPG operator namespace (cnpg-system), and on 8000
+#      (instance manager health/status) from the operator namespace.
+#   4. Allow egress from PgBouncer pods to the postgres-cluster-rw Service
+#      and to the Kubernetes API (for auth-query lookups).
+#
+# Label reference (from `kubectl get pods --show-labels`):
+#   Postgres instances:  cnpg.io/cluster=postgres-cluster
+#   PgBouncer poolers:   cnpg.io/poolerName=postgres-cluster-pooler-rw
+#
+# IMPORTANT: The CNPG Cluster object is named `postgres-cluster`
+# (Helm release `postgres` + chart `cluster`). All label selectors in
+# this file MUST use `postgres-cluster`, not `postgres`.
 
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -74,26 +82,45 @@ metadata:
 spec:
   podSelector:
     matchLabels:
-      cnpg.io/cluster: postgres
+      # CNPG Cluster name = <helm-release>-<chart> = postgres-cluster.
+      cnpg.io/cluster: postgres-cluster
   policyTypes:
     - Ingress
   ingress:
+    # Rule 1: SQL traffic (5432) + metrics (9187) from authorised sources.
     - from:
         # PgBouncer pods (the only intended SQL clients of the primary).
         - podSelector:
             matchLabels:
               cnpg.io/poolerName: postgres-cluster-pooler-rw
-        # CNPG operator namespace — operator probes, status reconciliation.
+        # CNPG operator namespace — operator probes, status reconciliation,
+        # backup jobs, and WAL archiving coordination.
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: cnpg-system
-        # Replica → primary streaming replication is intra-namespace; allow
+        # Replica ↔ primary streaming replication is intra-namespace; allow
         # CNPG instance pods to reach each other on the replication port.
         - podSelector:
             matchLabels:
-              cnpg.io/cluster: postgres
+              cnpg.io/cluster: postgres-cluster
       ports:
         - protocol: TCP
           port: 5432 # Postgres
         - protocol: TCP
           port: 9187 # CNPG metrics (PodMonitor scrape)
+    # Rule 2: Instance manager health/status endpoint (8000).
+    # The CNPG operator polls this port to extract instance status, trigger
+    # fencing, and coordinate switchovers. Without this rule the operator
+    # reports "Instance Status Extraction Error: HTTP communication issue".
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: cnpg-system
+        # Instance pods also expose :8000 to each other for the pg_rewind
+        # and fence-lifting protocol during automated failover.
+        - podSelector:
+            matchLabels:
+              cnpg.io/cluster: postgres-cluster
+      ports:
+        - protocol: TCP
+          port: 8000 # CNPG instance manager
