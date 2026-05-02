@@ -109,6 +109,47 @@ pxc:
   # Graceful shutdown timeout (seconds).
   gracePeriod: 600
 
+  # -------------------------------------------------------------------------
+  # Metrics — mysqld_exporter sidecar for Prometheus scraping.
+  # -------------------------------------------------------------------------
+  # The operator creates a `monitor` user in the mysql-pxc-db-secrets Secret.
+  # The sidecar reads the password via an env var, connects to MySQL on
+  # localhost:3306, and exposes /metrics on port 9104.
+  sidecars:
+    - name: mysqld-exporter
+      image: prom/mysqld-exporter:v0.16.0
+      ports:
+        - name: metrics
+          containerPort: 9104
+      env:
+        - name: MONITOR_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mysql-pxc-db-secrets
+              key: monitor
+        - name: MYSQLD_EXPORTER_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mysql-pxc-db-secrets
+              key: monitor
+      args:
+        - "--mysqld.address=localhost:3306"
+        - "--mysqld.username=monitor"
+        - "--web.listen-address=:9104"
+        - "--collect.info_schema.innodb_metrics"
+        - "--collect.info_schema.processlist"
+        - "--collect.slave_status"
+        - "--collect.global_status"
+        - "--collect.global_variables"
+        - "--collect.engine_innodb_status"
+      resources:
+        requests:
+          cpu: "10m"
+          memory: "32Mi"
+        limits:
+          cpu: "100m"
+          memory: "128Mi"
+
 # ---------------------------------------------------------------------------
 # HAProxy — connection router sitting in front of PXC writer node.
 # ---------------------------------------------------------------------------

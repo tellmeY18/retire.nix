@@ -1,7 +1,7 @@
 ---
 # pxc-haproxy-servicemonitor.yaml — ServiceMonitor for PXC HAProxy pods.
 #
-# The PXC operator's HAProxy sidecar exposes stats on port 33062.
+# The PXC operator's HAProxy image has a built-in Prometheus exporter on port 8404 at /metrics.
 # This ServiceMonitor allows Prometheus to scrape HAProxy metrics.
 
 apiVersion: monitoring.coreos.com/v1
@@ -22,5 +22,6 @@ spec:
     matchLabels:
       app.kubernetes.io/instance: mysql-pxc-db
   endpoints:
-    - port: haproxy-stats
+    - targetPort: 8404
       interval: 30s
+      path: /metrics
