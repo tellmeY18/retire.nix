@@ -143,3 +143,25 @@ alerts:
 cnpg-replication-lag:
     kubectl -n monitoring exec -it svc/kube-prometheus-stack-prometheus -- \
       promtool query instant http://localhost:9090 'cnpg_pg_replication_lag'
+
+# ---------------------------------------------------------------------------
+# ZFS monitoring helpers
+# ---------------------------------------------------------------------------
+
+# Show ZFS pool state from Prometheus.
+[doc('Query ZFS pool state from Prometheus')]
+zfs-pool-state:
+    kubectl -n monitoring exec -it svc/kube-prometheus-stack-prometheus -- \
+      promtool query instant http://localhost:9090 'node_zfs_zpool_state == 1'
+
+# Show ZFS ARC hit ratio (5m average).
+[doc('Query ZFS ARC hit ratio from Prometheus')]
+zfs-arc-hit-ratio:
+    kubectl -n monitoring exec -it svc/kube-prometheus-stack-prometheus -- \
+      promtool query instant http://localhost:9090 'rate(node_zfs_arc_hits[5m]) / (rate(node_zfs_arc_hits[5m]) + rate(node_zfs_arc_misses[5m]))'
+
+# Show ZFS ARC size vs max.
+[doc('Query ZFS ARC size and target max from Prometheus')]
+zfs-arc-size:
+    kubectl -n monitoring exec -it svc/kube-prometheus-stack-prometheus -- \
+      promtool query instant http://localhost:9090 '{__name__=~"node_zfs_arc_size|node_zfs_arc_c_max"}'
