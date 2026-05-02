@@ -1,0 +1,24 @@
+---
+# namespace.yaml — Namespace declaration for PXC workloads.
+#
+# The PXC *operator* lives in `pxc-system` (managed by helmfile, namespace
+# created by the chart's `createNamespace: true`).
+#
+# All PXC *workload* resources for the glug-infra cluster live in
+# `pxc-clusters` and are created by kustomize.
+#
+# Labels:
+#   pod-security.kubernetes.io/enforce=restricted
+#     Enforce the PodSecurity "restricted" profile. PXC operator pods
+#     comply with this profile out of the box (non-root UID, no privilege
+#     escalation, seccomp). Note: PXC 8.0 images run as mysql user (UID 1001).
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: pxc-clusters
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: latest
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+    app.kubernetes.io/part-of: percona-xtradb-cluster

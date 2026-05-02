@@ -526,3 +526,136 @@ The Tailscale Service then targets the `Pooler` Service instead of
 - No HAProxy/keepalived VIP — the Tailscale operator replaces this.
 - No bare-metal Patroni — CNPG is the chosen abstraction.
 - No multi-cluster federation — single cluster, multiple nodes.
+
+---
+
+## 8. Percona XtraDB Cluster (PXC) — MySQL on k3s
+
+This section captures the design for running **Percona XtraDB Cluster (PXC)**
+on the same `glug-infra` k3s cluster, alongside the existing CNPG PostgreSQL
+deployment. PXC provides **synchronous multi-master MySQL replication** via
+Galera, managed by the Percona Operator for MySQL.
+
+### 8.1 Goals & constraints
+
+- **Same cluster** as CNPG — shared k3s, shared ZFS pool, shared Tailscale
+  operator. No second cluster.
+- **Workload:** MySQL 8.0 via Percona XtraDB Cluster (Galera-based
+  synchronous replication).
+- **Consumers:** webservices in the cloud, connected over the tailnet at
+  `mysql-rw.<tailnet>.ts.net:3306`.
+- **HA semantics:** identical to CNPG — phase 1 (single node) = no HA;
+  phase 2+ = pods spread across nodes.
+
+### 8.2 Topology decisions
+
+| Decision | Choice | Rationale |
+|---|---|---|
+| Operator | **Percona Operator for MySQL (PXC)** 1.19.x | Kubernetes-native, Helm-deployable, manages Galera lifecycle, HAProxy, backups. |
+| MySQL flavour | **Percona XtraDB Cluster 8.0** | Galera-based synchronous replication, battle-tested. |
+| Proxy | **HAProxy** (operator-managed) | Simpler than ProxySQL; routes writes to the current Galera writer node. |
+| Storage | **OpenEBS ZFS LocalPV** with `recordsize=16k` | Matches InnoDB's 16KB page size (vs 8k for PostgreSQL). |
+| Backup | **Percona XtraBackup → S3** | Scheduled daily at 03:00 UTC, 14-day retention. |
+| Tailscale endpoint | `mysql-rw.<tailnet>.ts.net:3306` | Same pattern as `pg-rw` — LoadBalancer Service with `loadBalancerClass: tailscale`. |
+| Namespace | `pxc-clusters` (kustomize) / `pxc-system` (helmfile) | Mirrors the `cnpg-clusters` / `cnpg-system` split. |
+
+### 8.3 ZFS optimisation for InnoDB
+
+The default `zfs-localpv` StorageClass (8k recordsize) is tuned for
+PostgreSQL. MySQL/InnoDB uses **16KB pages**, so a second StorageClass
+`zfs-localpv-16k` is bootstrapped in `modules/services/k3s.nix`:
+
+- `recordsize=16k` — 1:1 mapping between InnoDB pages and ZFS records;
+  eliminates read/write amplification.
+- `compression=zstd` — same as the 8k class.
+- Same pool (`rpool/openebs`) — OpenEBS applies the SC's recordsize to
+  each child dataset it creates.
+
+InnoDB configuration (in the PXC CR via `pxc.configuration`):
+
+- `innodb_doublewrite=0` — ZFS is copy-on-write; the doublewrite buffer
+  is redundant and wastes IOPS.
+- `innodb_flush_method=O_DIRECT` — bypass the Linux page cache; let ZFS
+  ARC handle caching.
+- `innodb_flush_neighbors=0` — NVMe doesn't benefit from sequential
+  neighbour flushing.
+- `innodb_io_capacity=2000` / `innodb_io_capacity_max=4000` — NVMe can
+  handle more IOPS than spinning rust defaults.
+
+### 8.4 NixOS integration points
+
+- **New bootstrap StorageClass** in `modules/services/k3s.nix`:
+  `zfs-localpv-16k` (NOT the default, must be explicitly requested).
+- No additional sops secrets needed — the PXC operator generates its own
+  internal secrets (root password, replication creds). S3 backup creds
+  are handled via `helm-secrets` (same as CNPG).
+
+### 8.5 Repository layout additions
+
+```
+k8s/
+├── apps/
+│   ├── pxc-operator/
+│   │   ├── values.yaml          # PXC operator Helm values
+│   │   └── secrets.yaml         # sops-encrypted (empty by default)
+│   └── mysql/
+│       ├── values.yaml          # PXC cluster + HAProxy + backups
+│       └── secrets.yaml         # sops-encrypted S3 creds
+├── clusters/
+│   └── glug-infra/
+│       ├── pxc/
+│       │   ├── kustomization.yaml
+│       │   ├── namespace.yaml           # pxc-clusters + PSA restricted
+│       │   ├── networkpolicy.yaml       # default-deny + HAProxy + PXC rules
+│       │   └── tailscale-mysql-service.yaml  # Tailscale LB: mysql-rw
+│       └── monitoring/
+│           ├── pxc-cluster-servicemonitor.yaml
+│           ├── pxc-haproxy-servicemonitor.yaml
+│           └── pxc-prometheusrules.yaml
+modules/services/k3s.nix         # + zfs-localpv-16k StorageClass
+```
+
+### 8.6 Stable MySQL URL — how it survives node loss
+
+1. Webservice connects to `mysql-rw.<tailnet>.ts.net:3306`.
+2. That hostname is owned by a Tailscale operator-managed device.
+3. The ts-proxy forwards to the in-cluster `mysql-haproxy` Service.
+4. HAProxy routes to the current Galera writer node.
+5. If the writer pod / its node dies:
+   - Galera promotes another node to writer (automatic, RPO = 0 for
+     committed transactions thanks to synchronous replication).
+   - HAProxy detects the failure and re-routes within seconds.
+6. Same single-node caveat as CNPG: if chopper is the only node, the
+   cluster is down until chopper returns.
+
+### 8.7 Monitoring
+
+- **mysqld_exporter** sidecar on each PXC pod (port 9104) → scraped by
+  a standalone ServiceMonitor in kustomize.
+- **HAProxy stats** (port 33062) → scraped by a separate ServiceMonitor.
+- **PrometheusRules** for Galera health (wsrep_ready, cluster size,
+  flow control), slow queries, and PVC capacity.
+
+### 8.8 Helmfile releases
+
+| # | Release | Chart | Version | Namespace |
+|---|---|---|---|---|
+| 4 | `pxc-operator` | `percona/pxc-operator` | `1.19.1` | `pxc-system` |
+| 5 | `mysql` | `percona/pxc-db` | `1.19.2` | `pxc-clusters` |
+
+Both depend on `monitoring/kube-prometheus-stack` (for CRDs). `mysql`
+also depends on `pxc-system/pxc-operator`.
+
+### 8.9 Day-2 operations
+
+```sh
+just k8s::pxc-status          # show PerconaXtraDBCluster status
+just k8s::pxc-describe        # detailed cluster description
+just k8s::pxc-operator-logs   # tail operator logs
+just k8s::pxc-primary-logs    # tail writer node logs
+just k8s::pxc-haproxy-logs    # tail HAProxy logs
+just k8s::pxc-pods            # list all PXC pods
+just k8s::pxc-backup-list     # list backup objects
+just k8s::pxc-backup-now      # trigger on-demand backup
+just k8s::pxc-shell           # MySQL CLI via HAProxy
+```

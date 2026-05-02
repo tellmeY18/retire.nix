@@ -366,6 +366,40 @@ in
         };
 
         # --------------------------------------------------------------------
+        # StorageClass for MySQL / InnoDB workloads (16K recordsize)
+        #
+        # InnoDB uses a 16KB page size (vs PostgreSQL's 8KB). Matching the
+        # ZFS recordsize to the database page size avoids read/write
+        # amplification: a single InnoDB page read or write maps 1:1 to a
+        # single ZFS record, eliminating partial-record I/O.
+        #
+        # Both StorageClasses share the same underlying ZFS pool
+        # (cfg.openebsZfsPool, default rpool/openebs). OpenEBS ZFS LocalPV
+        # applies the SC's `recordsize` parameter to each child dataset it
+        # creates, overriding the parent dataset's default.
+        #
+        # This SC is NOT marked as the default (no annotation). PVCs must
+        # explicitly request `storageClassName: zfs-localpv-16k`.
+        # --------------------------------------------------------------------
+        "openebs-zfs-localpv-storageclass-16k".content = {
+          apiVersion = "storage.k8s.io/v1";
+          kind = "StorageClass";
+          metadata = {
+            name = "zfs-localpv-16k";
+          };
+          provisioner = "zfs.csi.openebs.io";
+          allowVolumeExpansion = true;
+          reclaimPolicy = "Delete";
+          volumeBindingMode = "WaitForFirstConsumer";
+          parameters = {
+            poolname = cfg.openebsZfsPool;
+            fstype = "zfs";
+            recordsize = "16k";
+            compression = "zstd";
+          };
+        };
+
+        # --------------------------------------------------------------------
         # Tailscale Kubernetes Operator
         #
         # Exposes in-cluster Services as Tailscale devices with stable MagicDNS

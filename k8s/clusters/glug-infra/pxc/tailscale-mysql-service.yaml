@@ -1,0 +1,52 @@
+---
+# tailscale-mysql-service.yaml — Expose the PXC HAProxy on the tailnet as
+# a stable MagicDNS endpoint via the Tailscale Kubernetes operator.
+#
+# Traffic path:
+#   webservice
+#     → mysql-rw.<tailnet>.ts.net:3306     (Tailscale MagicDNS)
+#     → ts-proxy pod                        (this Service, ts-managed)
+#     → mysql-haproxy Service               (created by PXC operator)
+#     → HAProxy pods (connection routing)
+#     → PXC writer node
+#
+# The Tailscale operator watches Services with `spec.loadBalancerClass:
+# tailscale` and provisions a ts-proxy StatefulSet that registers a device
+# on the tailnet.
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql-rw-tailscale
+  namespace: pxc-clusters
+  labels:
+    app.kubernetes.io/name: percona-xtradb-cluster
+    app.kubernetes.io/component: tailnet-frontend
+    app.kubernetes.io/part-of: percona-xtradb-cluster
+    app.kubernetes.io/managed-by: kustomize
+  annotations:
+    tailscale.com/hostname: "mysql-rw"
+    tailscale.com/tags: "tag:k8s"
+spec:
+  type: LoadBalancer
+  loadBalancerClass: tailscale
+
+  # Select the HAProxy pods managed by the PXC operator.
+  selector:
+    app.kubernetes.io/component: haproxy
+    app.kubernetes.io/instance: mysql
+
+  ports:
+    - name: mysql
+      protocol: TCP
+      port: 3306
+      targetPort: 3306
+    - name: mysql-replicas
+      protocol: TCP
+      port: 3309
+      targetPort: 3309
+
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 10800

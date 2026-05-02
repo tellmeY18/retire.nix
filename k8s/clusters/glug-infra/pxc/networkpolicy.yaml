@@ -1,0 +1,112 @@
+---
+# networkpolicy.yaml — Default-deny + explicit allow NetworkPolicies for the
+# pxc-clusters namespace.
+#
+# Defense in depth: even though the cluster is reachable only over the
+# tailnet, NetworkPolicies prevent an accidentally-exposed pod from
+# contacting the database without an explicit allow rule.
+#
+# Label reference (from `kubectl get pods --show-labels`):
+#   PXC instances:     app.kubernetes.io/component=pxc, app.kubernetes.io/instance=mysql
+#   HAProxy pods:      app.kubernetes.io/component=haproxy, app.kubernetes.io/instance=mysql
+
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: pxc-clusters
+  labels:
+    app.kubernetes.io/part-of: percona-xtradb-cluster
+    app.kubernetes.io/managed-by: kustomize
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+---
+# Allow ingress to HAProxy pods from Tailscale ts-proxy and intra-namespace.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-haproxy-ingress
+  namespace: pxc-clusters
+  labels:
+    app.kubernetes.io/part-of: percona-xtradb-cluster
+    app.kubernetes.io/managed-by: kustomize
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: haproxy
+      app.kubernetes.io/instance: mysql
+  policyTypes:
+    - Ingress
+  ingress:
+    # Rule 1: Client SQL traffic (3306, 3309) from tailscale and intra-namespace.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: tailscale
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: pxc-clusters
+      ports:
+        - protocol: TCP
+          port: 3306
+        - protocol: TCP
+          port: 3309
+    # Rule 2: Prometheus scrapes HAProxy stats on port 33062.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+      ports:
+        - protocol: TCP
+          port: 33062
+---
+# Allow ingress to PXC instance pods from HAProxy, operator, and intra-cluster.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-pxc-ingress
+  namespace: pxc-clusters
+  labels:
+    app.kubernetes.io/part-of: percona-xtradb-cluster
+    app.kubernetes.io/managed-by: kustomize
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: pxc
+      app.kubernetes.io/instance: mysql
+  policyTypes:
+    - Ingress
+  ingress:
+    # Rule 1: MySQL traffic from HAProxy + operator + intra-cluster replication.
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: haproxy
+              app.kubernetes.io/instance: mysql
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: pxc-system
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: pxc
+              app.kubernetes.io/instance: mysql
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+      ports:
+        - protocol: TCP
+          port: 3306
+        - protocol: TCP
+          port: 33060
+        # Galera replication ports
+        - protocol: TCP
+          port: 4567
+        - protocol: TCP
+          port: 4568
+        - protocol: TCP
+          port: 4444
+        # mysqld_exporter metrics
+        - protocol: TCP
+          port: 9104
