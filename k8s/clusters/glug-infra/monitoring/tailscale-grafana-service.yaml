@@ -13,11 +13,11 @@
 #   browser / API client
 #     -> grafana.<tailnet>.ts.net:3000   (Tailscale MagicDNS)
 #     -> ts-proxy pod                     (this Service, ts-managed)
-#     -> Grafana pod :3000                (kube-prometheus-stack Deployment)
+#     -> Grafana pod :3000                (victoria-metrics-k8s-stack Deployment)
 #
 # Why a separate Tailscale Service instead of setting Grafana's own Service
 # to LoadBalancer?
-#   The kube-prometheus-stack chart manages Grafana's Service. If we set its
+#   The victoria-metrics-k8s-stack chart manages Grafana's Service. If we set its
 #   type to LoadBalancer + loadBalancerClass: tailscale directly in
 #   values.yaml, a chart upgrade could reset it. Keeping the Tailscale
 #   frontend as a standalone kustomize-managed Service decouples the tailnet
@@ -41,7 +41,7 @@ metadata:
   labels:
     app.kubernetes.io/name: grafana
     app.kubernetes.io/component: tailnet-frontend
-    app.kubernetes.io/part-of: kube-prometheus-stack
+    app.kubernetes.io/part-of: victoria-metrics-k8s-stack
     app.kubernetes.io/managed-by: kustomize
   annotations:
     # MagicDNS hostname registered on the tailnet. Must be a valid DNS label
@@ -57,14 +57,14 @@ spec:
   type: LoadBalancer
   loadBalancerClass: tailscale
 
-  # Select the Grafana pods deployed by kube-prometheus-stack.
+  # Select the Grafana pods deployed by victoria-metrics-k8s-stack.
   # The chart labels Grafana pods with:
   #   app.kubernetes.io/name: grafana
   #   app.kubernetes.io/instance: <release-name>
-  # The release name in helmfile.yaml is `kube-prometheus-stack`.
+  # The release name in helmfile.yaml is `victoria-metrics-k8s-stack`.
   selector:
     app.kubernetes.io/name: grafana
-    app.kubernetes.io/instance: kube-prometheus-stack
+    app.kubernetes.io/instance: victoria-metrics-k8s-stack
 
   ports:
     - name: http-web

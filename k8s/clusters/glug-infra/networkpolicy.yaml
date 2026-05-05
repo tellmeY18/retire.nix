@@ -117,8 +117,8 @@ spec:
         - podSelector:
             matchLabels:
               cnpg.io/cluster: postgres-cluster
-        # Prometheus (kube-prometheus-stack) scrapes CNPG instance and
-        # PgBouncer metrics on port 9187 via PodMonitor.
+        # VMAgent (victoria-metrics-k8s-stack) scrapes CNPG instance and
+        # PgBouncer metrics on port 9187 via VMPodScrape.
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: monitoring

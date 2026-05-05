@@ -36,7 +36,7 @@ metadata:
     grafana_dashboard: "1"
     app.kubernetes.io/name: cluster-overview
     app.kubernetes.io/component: dashboard
-    app.kubernetes.io/part-of: kube-prometheus-stack
+    app.kubernetes.io/part-of: victoria-metrics-k8s-stack
     app.kubernetes.io/managed-by: kustomize
   annotations:
     grafana_folder: "Overview"

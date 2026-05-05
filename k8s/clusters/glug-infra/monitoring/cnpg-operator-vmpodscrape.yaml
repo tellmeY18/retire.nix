@@ -1,0 +1,27 @@
+---
+# cnpg-operator-vmpodscrape.yaml — VMPodScrape for the CNPG operator itself.
+#
+# Replaces the PodMonitor that was previously created by the CNPG operator
+# chart (monitoring.podMonitorEnabled: true). Since we disabled Prometheus CRD
+# converter and PodMonitor creation in the operator chart, this VMPodScrape
+# scrapes the operator's own /metrics endpoint.
+
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMPodScrape
+metadata:
+  name: cnpg-operator
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: cloudnative-pg
+    app.kubernetes.io/component: operator
+    app.kubernetes.io/part-of: cloudnative-pg
+    app.kubernetes.io/managed-by: kustomize
+spec:
+  namespaceSelector:
+    matchNames:
+      - cnpg-system
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: cloudnative-pg
+  podMetricsEndpoints:
+    - port: metrics

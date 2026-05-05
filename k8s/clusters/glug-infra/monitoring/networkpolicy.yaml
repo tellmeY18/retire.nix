@@ -1,32 +1,32 @@
 ---
 # networkpolicy.yaml — NetworkPolicies for the monitoring namespace.
 #
-# Defense in depth: even though Prometheus and Alertmanager are ClusterIP-only
+# Defense in depth: even though VMSingle and VMAlertmanager are ClusterIP-only
 # (no Tailscale LoadBalancer, no NodePort), we lock down ingress so that only
 # authorised pods can reach each service.
 #
-# Architecture:
+# Architecture (VictoriaMetrics stack):
 #
-#   tailnet → ts-proxy → Grafana (:3000) → Prometheus (:9090)
-#                                        → Alertmanager (:9093)
+#   tailnet → ts-proxy → Grafana (:3000) → VMSingle (:8428)
+#                                        → VMAlertmanager (:9093)
 #
-#   Prometheus (:9090) ← scrapes ← kube-state-metrics, node-exporter,
-#                                   operator, CNPG pods (via PodMonitor)
+#   VMAgent (:8429) → scrapes → kube-state-metrics, node-exporter,
+#                                CNPG pods (via VMPodScrape), PXC (via VMServiceScrape)
+#   VMAgent → writes → VMSingle (:8428)
+#   VMAlert (:8080) → reads → VMSingle (:8428)
+#   VMAlert → pushes → VMAlertmanager (:9093)
 #
 # Rules:
 #   1. Default-deny ingress for the namespace.
-#   2. Allow Grafana ingress from the Tailscale ts-proxy (namespace: tailscale).
-#   3. Allow Prometheus ingress from Grafana (port 9090) for dashboard queries.
-#   4. Allow Alertmanager ingress from Prometheus (port 9093) for alert delivery.
-#   5. Allow intra-namespace scraping — Prometheus scrapes kube-state-metrics,
-#      node-exporter, the operator, and Alertmanager. Rather than enumerating
-#      every target, we allow all monitoring-namespace pods to accept ingress
-#      from Prometheus on their metrics ports.
+#   2. Allow Grafana ingress from the Tailscale ts-proxy.
+#   3. Allow VMSingle ingress from Grafana (queries) and VMAgent (writes)
+#      and VMAlert (reads).
+#   4. Allow VMAlertmanager ingress from VMAlert (alert delivery).
+#   5. Allow intra-namespace scraping — VMAgent scrapes kube-state-metrics,
+#      node-exporter, the operator, and VMAlertmanager.
 #
-# NOTE: Prometheus EGRESS is not restricted. It needs to reach pods in many
+# NOTE: VMAgent EGRESS is not restricted. It needs to reach pods in many
 # namespaces (cnpg-clusters, cnpg-system, kube-system, etc.) for scraping.
-# Restricting egress would require enumerating every scrape target namespace,
-# which is brittle and breaks silently when new PodMonitors are added.
 
 # ---- 1. Default deny ingress ------------------------------------------------
 apiVersion: networking.k8s.io/v1
@@ -35,7 +35,7 @@ metadata:
   name: default-deny-ingress
   namespace: monitoring
   labels:
-    app.kubernetes.io/part-of: kube-prometheus-stack
+    app.kubernetes.io/part-of: victoria-metrics-k8s-stack
     app.kubernetes.io/managed-by: kustomize
 spec:
   podSelector: {} # all pods in the namespace
@@ -44,20 +44,14 @@ spec:
 ---
 # ---- 2. Allow Grafana ingress on port 3000 -----------------------------------
 # Grafana has its own authentication (admin user + password from sops secret),
-# so we do NOT restrict the source — only the port. This is necessary because
-# the Tailscale ts-proxy traffic may arrive with a masqueraded source IP
-# (node IP or flannel bridge), making namespace-based selectors unreliable.
-#
-# The security boundary for Grafana is its own login page, not the network.
-# The security boundary for Prometheus (raw metrics, no auth) IS the network
-# — that's locked to Grafana-only in rule 3 below.
+# so we do NOT restrict the source — only the port.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: allow-grafana-ingress
   namespace: monitoring
   labels:
-    app.kubernetes.io/part-of: kube-prometheus-stack
+    app.kubernetes.io/part-of: victoria-metrics-k8s-stack
     app.kubernetes.io/managed-by: kustomize
 spec:
   podSelector:
@@ -70,53 +64,63 @@ spec:
         - protocol: TCP
           port: 3000
 ---
-# ---- 3. Allow Prometheus ingress from Grafana --------------------------------
-# Grafana queries Prometheus on port 9090 for all dashboard panels.
+# ---- 3. Allow VMSingle ingress from Grafana, VMAgent, and VMAlert ------------
+# Grafana queries VMSingle for dashboard panels (port 8428).
+# VMAgent writes scraped metrics to VMSingle (port 8428).
+# VMAlert reads metrics from VMSingle for rule evaluation (port 8428).
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: allow-prometheus-from-grafana
+  name: allow-vmsingle-ingress
   namespace: monitoring
   labels:
-    app.kubernetes.io/part-of: kube-prometheus-stack
+    app.kubernetes.io/part-of: victoria-metrics-k8s-stack
     app.kubernetes.io/managed-by: kustomize
 spec:
   podSelector:
     matchLabels:
-      app.kubernetes.io/name: prometheus
+      app.kubernetes.io/name: vmsingle
   policyTypes:
     - Ingress
   ingress:
     - from:
-        # Grafana pods in this namespace.
+        # Grafana pods.
         - podSelector:
             matchLabels:
               app.kubernetes.io/name: grafana
+        # VMAgent pods.
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: vmagent
+        # VMAlert pods.
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: vmalert
       ports:
         - protocol: TCP
-          port: 9090
+          port: 8428
 ---
-# ---- 4. Allow Alertmanager ingress from Prometheus ---------------------------
-# Prometheus pushes firing alerts to Alertmanager on port 9093.
+# ---- 4. Allow VMAlertmanager ingress from VMAlert ----------------------------
+# VMAlert pushes firing alerts to VMAlertmanager on port 9093.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: allow-alertmanager-from-prometheus
+  name: allow-vmalertmanager-from-vmalert
   namespace: monitoring
   labels:
-    app.kubernetes.io/part-of: kube-prometheus-stack
+    app.kubernetes.io/part-of: victoria-metrics-k8s-stack
     app.kubernetes.io/managed-by: kustomize
 spec:
   podSelector:
     matchLabels:
-      app.kubernetes.io/name: alertmanager
+      app.kubernetes.io/name: vmalertmanager
   policyTypes:
     - Ingress
   ingress:
     - from:
         - podSelector:
             matchLabels:
-              app.kubernetes.io/name: prometheus
+              app.kubernetes.io/name: vmalert
       ports:
         - protocol: TCP
           port: 9093
@@ -126,22 +130,21 @@ spec:
         - protocol: UDP
           port: 9094
 ---
-# ---- 5. Allow intra-namespace metrics scraping by Prometheus -----------------
-# Prometheus scrapes kube-state-metrics (:8080/:8443), node-exporter (:9100),
-# the prometheus-operator (:10250), and Alertmanager (:9093). Rather than
-# listing each target individually, we allow Prometheus to reach any pod in
-# this namespace on common metrics ports.
+# ---- 5. Allow intra-namespace metrics scraping by VMAgent --------------------
+# VMAgent scrapes kube-state-metrics (:8080/:8443), node-exporter (:9100),
+# the VM operator (:8080), VMSingle (:8428), VMAlert (:8080), and
+# VMAlertmanager (:9093). Rather than listing each target individually, we
+# allow VMAgent to reach any pod in this namespace on common metrics ports.
 #
 # NOTE: node-exporter runs with hostNetwork=true, so it is NOT subject to
-# pod-level NetworkPolicy. The ports listed here cover the non-hostNetwork
-# components.
+# pod-level NetworkPolicy.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: allow-prometheus-scraping
+  name: allow-vmagent-scraping
   namespace: monitoring
   labels:
-    app.kubernetes.io/part-of: kube-prometheus-stack
+    app.kubernetes.io/part-of: victoria-metrics-k8s-stack
     app.kubernetes.io/managed-by: kustomize
 spec:
   podSelector: {} # all pods in the namespace
@@ -151,7 +154,7 @@ spec:
     - from:
         - podSelector:
             matchLabels:
-              app.kubernetes.io/name: prometheus
+              app.kubernetes.io/name: vmagent
       ports:
         # kube-state-metrics HTTP
         - protocol: TCP
@@ -159,36 +162,41 @@ spec:
         # kube-state-metrics self-metrics (telemetry port)
         - protocol: TCP
           port: 8443
-        # node-exporter (pod-network fallback, though it usually uses hostNetwork)
+        # node-exporter (pod-network fallback)
         - protocol: TCP
           port: 9100
-        # Alertmanager metrics
+        # VMAlertmanager metrics
         - protocol: TCP
           port: 9093
-        # prometheus-operator metrics
+        # VMSingle metrics
         - protocol: TCP
-          port: 10250
+          port: 8428
+        # VMAlert metrics
+        - protocol: TCP
+          port: 8080
+        # VMAgent self-metrics
+        - protocol: TCP
+          port: 8429
 ---
-# ---- 6. Allow Prometheus operator webhook & API access -----------------------
-# The prometheus-operator needs to be reached by the Kubernetes API server
-# for admission webhook calls. The API server's source IP varies by cluster,
-# so we allow the webhook port from anywhere within the cluster.
+# ---- 6. Allow VM operator webhook & API access -------------------------------
+# The VictoriaMetrics operator needs to be reached by the Kubernetes API server
+# for admission webhook calls.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: allow-operator-webhook
   namespace: monitoring
   labels:
-    app.kubernetes.io/part-of: kube-prometheus-stack
+    app.kubernetes.io/part-of: victoria-metrics-k8s-stack
     app.kubernetes.io/managed-by: kustomize
 spec:
   podSelector:
     matchLabels:
-      app.kubernetes.io/name: prometheus-operator
+      app.kubernetes.io/name: victoria-metrics-operator
   policyTypes:
     - Ingress
   ingress:
     - ports:
-        # Admission webhook port (validating/mutating webhooks for PrometheusRule etc.)
+        # Admission webhook port.
         - protocol: TCP
-          port: 10250
+          port: 9443

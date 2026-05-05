@@ -1,0 +1,417 @@
+# values.yaml — Plain Helm values for victoria-metrics-k8s-stack chart.
+#
+# Encrypted / secret values belong in secrets.yaml (sops-encrypted, referenced
+# from helmfile.yaml via the `secrets://` prefix). Currently that is just the
+# Grafana admin password.
+#
+# Reference for all available keys:
+#   helm show values vm/victoria-metrics-k8s-stack --version 0.35.0
+#
+# Design notes:
+#   - All resource requests/limits are tuned for an old laptop (chopper).
+#   - VMSingle is used (not VMCluster) — single-node cluster, no HA needed.
+#   - VMAgent does all scraping, VMAlert evaluates rules, VMAlertmanager
+#     handles alert routing.
+#   - The Prometheus CRD converter is DISABLED. All monitoring resources use
+#     native VictoriaMetrics CRDs (VMRule, VMPodScrape, VMServiceScrape).
+#   - k3s with embedded etcd does NOT expose etcd/scheduler/controller-manager
+#     metrics via standard endpoints — those scrape targets are disabled.
+#   - Grafana sidecar auto-discovers dashboards from ConfigMaps across all
+#     namespaces (same mechanism as before).
+
+# ===========================================================================
+# Global settings
+# ===========================================================================
+nameOverride: "vmks"
+
+# ===========================================================================
+# VictoriaMetrics Operator
+# ===========================================================================
+victoria-metrics-operator:
+  enabled: true
+
+  # Disable Prometheus CRD conversion — we use pure native VM CRDs.
+  # No prometheus-operator CRDs are installed; no auto-conversion happens.
+  operator:
+    disable_prometheus_converter: true
+
+  # CRDs — install as plain manifests managed by Helm.
+  crds:
+    plain: true
+    cleanup:
+      enabled: true
+      image:
+        pullPolicy: IfNotPresent
+        repository: registry.k8s.io/kubectl
+
+  # Admission webhooks — validate VMRule resources on create/update.
+  admissionWebhooks:
+    # Use Ignore policy so the stack can be installed in a single pass
+    # without races against the operator's webhook server starting up.
+    policy: Ignore
+
+  # Operator pod resources — lightweight.
+  resources:
+    requests:
+      cpu: "50m"
+      memory: "64Mi"
+    limits:
+      cpu: "300m"
+      memory: "256Mi"
+
+  serviceMonitor:
+    enabled: true
+
+# ===========================================================================
+# VMSingle — time-series database (replaces Prometheus TSDB)
+# ===========================================================================
+vmsingle:
+  enabled: true
+
+  spec:
+    # Single replica — single-node cluster.
+    replicaCount: 1
+
+    # Retention: 7 days of local metrics.
+    retentionPeriod: "7d"
+
+    # Port for the VMSingle HTTP API.
+    port: "8428"
+
+    # Storage — OpenEBS ZFS LocalPV.
+    storage:
+      storageClassName: zfs-localpv
+      accessModes:
+        - ReadWriteOnce
+      resources:
+        requests:
+          storage: 10Gi
+
+    # Resources — conservative for laptop hardware.
+    resources:
+      requests:
+        cpu: "200m"
+        memory: "512Mi"
+      limits:
+        cpu: "1000m"
+        memory: "2Gi"
+
+    extraArgs:
+      # Deduplication window — useful if VMAgent retries writes.
+      dedup.minScrapeInterval: "30s"
+
+# ===========================================================================
+# VMAgent — metrics scraper (replaces Prometheus scraping)
+# ===========================================================================
+vmagent:
+  enabled: true
+
+  spec:
+    # Scrape interval.
+    scrapeInterval: "30s"
+
+    # Port for VMAgent.
+    port: "8429"
+
+    # Discover all VMServiceScrape, VMPodScrape, VMNodeScrape, VMProbe,
+    # VMStaticScrape, VMScrapeConfig objects across ALL namespaces.
+    selectAllByDefault: true
+
+    # Stream parsing for large scrape targets (reduces memory spikes).
+    extraArgs:
+      promscrape.streamParse: "true"
+
+    # Resources — conservative for laptop hardware.
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "128Mi"
+      limits:
+        cpu: "500m"
+        memory: "512Mi"
+
+# ===========================================================================
+# VMAlert — rule evaluation engine (replaces Prometheus rule evaluation)
+# ===========================================================================
+vmalert:
+  enabled: true
+
+  spec:
+    # Evaluation interval for rules.
+    evaluationInterval: "30s"
+
+    # Port for VMAlert.
+    port: "8080"
+
+    # Discover all VMRule objects across ALL namespaces.
+    selectAllByDefault: true
+
+    extraArgs:
+      http.pathPrefix: /
+
+    # Resources.
+    resources:
+      requests:
+        cpu: "50m"
+        memory: "64Mi"
+      limits:
+        cpu: "300m"
+        memory: "256Mi"
+
+# ===========================================================================
+# VMAlertmanager — alert routing (replaces Alertmanager)
+# ===========================================================================
+alertmanager:
+  enabled: true
+
+  spec:
+    # Single replica, no persistent storage. Alertmanager state (silences,
+    # notification log) is ephemeral — acceptable for a homelab.
+    replicaCount: 1
+    port: "9093"
+
+    # Discover all VMAlertmanagerConfig objects.
+    selectAllByDefault: true
+
+    image:
+      tag: v0.28.1
+
+    resources:
+      requests:
+        cpu: "50m"
+        memory: "64Mi"
+      limits:
+        cpu: "200m"
+        memory: "256Mi"
+
+  # Default config: single null receiver that just logs.
+  # Replace with a real receiver (Slack, PagerDuty, Pushover) when ready.
+  config:
+    global:
+      resolve_timeout: "5m"
+    route:
+      receiver: "blackhole"
+      group_by:
+        - alertname
+        - namespace
+      group_wait: "30s"
+      group_interval: "5m"
+      repeat_interval: "12h"
+    receivers:
+      - name: "blackhole"
+    inhibit_rules: []
+
+# ===========================================================================
+# VMAuth — disabled (not needed for single-node)
+# ===========================================================================
+vmauth:
+  enabled: false
+
+# ===========================================================================
+# VMCluster — disabled (using VMSingle instead)
+# ===========================================================================
+vmcluster:
+  enabled: false
+
+# ===========================================================================
+# Default Rules — built-in Kubernetes alerting/recording rules
+# ===========================================================================
+defaultRules:
+  create: true
+  rules: {}
+  # Disable rules for components k3s doesn't expose.
+  groups:
+    etcd:
+      create: false
+    kubeScheduler:
+      create: false
+    kubernetesSystemControllerManager:
+      create: false
+    kubernetesSystemScheduler:
+      create: false
+
+# ===========================================================================
+# Default Dashboards
+# ===========================================================================
+defaultDashboards:
+  enabled: true
+
+# ===========================================================================
+# Grafana
+# ===========================================================================
+grafana:
+  enabled: true
+
+  # Single replica, no persistent storage. All dashboards are provisioned
+  # from ConfigMaps via the sidecar.
+  replicas: 1
+
+  persistence:
+    enabled: false
+
+  # Admin credentials. Password comes from secrets.yaml (sops-encrypted).
+  adminUser: admin
+  # adminPassword: set in secrets.yaml
+
+  # Sidecar — auto-discover dashboards and datasources from ConfigMaps.
+  sidecar:
+    dashboards:
+      enabled: true
+      searchNamespace: ALL
+      label: grafana_dashboard
+      labelValue: "1"
+      folderAnnotation: grafana_folder
+      provider:
+        foldersFromFilesStructure: true
+    datasources:
+      enabled: true
+      searchNamespace: ALL
+      label: grafana_datasource
+      labelValue: "1"
+
+  # Grafana service — ClusterIP only.
+  # External access is via the Tailscale LoadBalancer Service.
+  service:
+    type: ClusterIP
+    port: 3000
+
+  # Resources — conservative for laptop hardware.
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+
+  # Grafana.ini overrides
+  grafana.ini:
+    server:
+      root_url: "http://grafana:3000"
+    analytics:
+      reporting_enabled: false
+      check_for_updates: false
+      check_for_plugin_updates: false
+
+# ===========================================================================
+# Node Exporter — host-level metrics (CPU, memory, disk, network, ZFS).
+# ===========================================================================
+prometheus-node-exporter:
+  enabled: true
+
+  resources:
+    requests:
+      cpu: "50m"
+      memory: "32Mi"
+    limits:
+      cpu: "200m"
+      memory: "128Mi"
+
+  # Extra args — enable textfile collector for ZFS supplementary metrics.
+  extraArgs:
+    - --collector.textfile.directory=/host/textfile
+    - --collector.filesystem.mount-points-exclude=^/(dev|proc|sys|var/lib/docker/.+|var/lib/kubelet/.+)($|/)
+    - --collector.filesystem.fs-types-exclude=^(autofs|binfmt_misc|bpf|cgroup2?|configfs|debugfs|devpts|devtmpfs|fusectl|hugetlbfs|iso9660|mqueue|nsfs|overlay|proc|procfs|pstore|rpc_pipefs|securityfs|selinuxfs|squashfs|erofs|sysfs|tracefs)$
+
+  # Host path mounts — textfile directory written by NixOS systemd timer.
+  extraHostPathMounts:
+    - name: textfile
+      hostPath: /var/lib/node-exporter/textfile
+      mountPath: /host/textfile
+      readOnly: true
+
+  service:
+    labels:
+      jobLabel: node-exporter
+
+  # VMServiceScrape for node-exporter
+  vmScrape:
+    enabled: true
+    spec:
+      endpoints:
+        - metricRelabelConfigs:
+            - action: drop
+              regex: /var/lib/kubelet/pods.+
+              source_labels:
+                - mountpoint
+          port: metrics
+      jobLabel: jobLabel
+
+# ===========================================================================
+# kube-state-metrics — Kubernetes object state metrics.
+# ===========================================================================
+kube-state-metrics:
+  enabled: true
+
+  resources:
+    requests:
+      cpu: "50m"
+      memory: "64Mi"
+    limits:
+      cpu: "200m"
+      memory: "256Mi"
+
+  vmScrape:
+    enabled: true
+
+# ===========================================================================
+# Kubelet scraping — works on k3s.
+# ===========================================================================
+kubelet:
+  enabled: true
+
+  vmScrape:
+    kind: VMNodeScrape
+    spec:
+      interval: "30s"
+      scrapeTimeout: "10s"
+      scheme: https
+      bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+      honorLabels: true
+      honorTimestamps: false
+      tlsConfig:
+        caFile: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+        insecureSkipVerify: true
+      relabelConfigs:
+        - action: labelmap
+          regex: __meta_kubernetes_node_label_(.+)
+        - sourceLabels:
+            - __metrics_path__
+          targetLabel: metrics_path
+        - replacement: kubelet
+          targetLabel: job
+      metricRelabelConfigs:
+        - action: labeldrop
+          regex: (uid)
+        - action: labeldrop
+          regex: (id|name)
+
+# ===========================================================================
+# Kube API Server — works on k3s.
+# ===========================================================================
+kubeApiServer:
+  enabled: true
+
+# ===========================================================================
+# CoreDNS — works on k3s.
+# ===========================================================================
+coreDns:
+  enabled: true
+
+# ===========================================================================
+# Disabled scrape targets — k3s does not expose these as separate processes.
+# ===========================================================================
+kubeEtcd:
+  enabled: false
+
+kubeControllerManager:
+  enabled: false
+
+kubeScheduler:
+  enabled: false
+
+kubeProxy:
+  enabled: false
+
+kubeDns:
+  enabled: false

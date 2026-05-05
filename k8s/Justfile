@@ -28,19 +28,23 @@ default:
 # Apply all k8s cluster resources (kustomize + helmfile).
 #
 # Order matters:
-#   1. kustomize creates the cnpg-clusters namespace (with PSA labels),
-#      network policies, and the Tailscale LoadBalancer Service.
-#      It also creates the monitoring namespace and the Grafana Tailscale
-#      Service.
-#   2. helmfile installs/upgrades the CNPG operator first (CRDs + controller),
-#      then the postgres cluster release (which needs the namespace from step 1
-#      and the CRDs from the operator).
+#   1. kustomize creates the Namespaces (with PSA labels), NetworkPolicies,
+#      and Tailscale LoadBalancer Services. These contain NO CRD-dependent
+#      resources — only core Kubernetes types (Namespace, NetworkPolicy,
+#      Service).
+#   2. helmfile installs the victoria-metrics-k8s-stack (CRDs + operator +
+#      VMSingle + VMAgent + Grafana), then CNPG operator, then Postgres
+#      cluster, then PXC operator + MySQL cluster.
+#   3. AFTER helmfile (CRDs are now in place), kustomize applies the
+#      monitoring custom resources (VMRule, VMPodScrape, VMServiceScrape).
+#      These require the VM operator CRDs to exist.
 [doc('Apply kustomize + helmfile to the cluster')]
 apply:
     kubectl apply -k clusters/glug-infra
     kubectl apply -k clusters/glug-infra/pxc
-    kubectl apply -k clusters/glug-infra/monitoring
+    kubectl apply -f clusters/glug-infra/monitoring/namespace.yaml
     helmfile sync
+    kubectl apply -k clusters/glug-infra/monitoring
 
 # Preview k8s changes without applying.
 [doc('Preview kustomize + helmfile changes (no apply)')]
@@ -64,7 +68,7 @@ template:
 # Edit a sops-encrypted secret file (path is relative to k8s/).
 # Examples:
 #   just k8s::edit-secret apps/postgres/secrets.yaml
-#   just k8s::edit-secret apps/cnpg-operator/secrets.yaml
+#   just k8s::edit-secret apps/victoria-metrics-k8s-stack/secrets.yaml
 [doc('Open a sops-encrypted file in $EDITOR')]
 edit-secret path:
     sops {{ path }}
@@ -72,7 +76,7 @@ edit-secret path:
 # Encrypt a plaintext values file in place (first-time setup only).
 # After this runs, use `edit-secret` for subsequent edits.
 # Example:
-#   just k8s::encrypt-secret apps/cnpg-operator/secrets.yaml
+#   just k8s::encrypt-secret apps/victoria-metrics-k8s-stack/secrets.yaml
 [doc('Encrypt a plaintext values file in place (first-time)')]
 encrypt-secret path:
     sops --encrypt --in-place {{ path }}
@@ -157,7 +161,7 @@ pxc-shell:
     kubectl exec -n pxc-clusters -it mysql-haproxy-0 -- mysql -h 127.0.0.1 -u root -p
 
 # ---------------------------------------------------------------------------
-# Monitoring helpers
+# Monitoring helpers (VictoriaMetrics stack)
 # ---------------------------------------------------------------------------
 
 # Open Grafana in the default browser (requires tailnet access).
@@ -165,60 +169,77 @@ pxc-shell:
 grafana-open:
     open "http://grafana.$(tailscale status --json | jq -r '.MagicDNSSuffix'):3000"
 
-# Show Prometheus targets and their health.
-[doc('List Prometheus scrape targets')]
-prom-targets:
-    kubectl -n monitoring exec -it svc/kube-prometheus-stack-prometheus -- \
-      promtool query instant http://localhost:9090 'up'
+# Query VMSingle directly using curl (MetricsQL compatible).
+# Usage: just vm-query 'up'
+[doc('Query VMSingle with a MetricsQL expression')]
+vm-query expr:
+    kubectl -n monitoring exec -it deploy/vmks-victoria-metrics-k8s-stack-vmsingle -- \
+      wget -qO- "http://localhost:8428/api/v1/query?query={{ expr }}" | jq .
 
-# Port-forward Prometheus UI to localhost:9090 (for debugging).
-[doc('Port-forward Prometheus UI to localhost:9090')]
-prom-port-forward:
-    kubectl -n monitoring port-forward svc/kube-prometheus-stack-prometheus 9090:9090
+# Show all firing alerts from VMAlert.
+[doc('Show all firing alerts from VMAlert')]
+alerts:
+    kubectl -n monitoring exec -it deploy/vmks-victoria-metrics-k8s-stack-vmsingle -- \
+      wget -qO- "http://localhost:8428/api/v1/query?query=ALERTS%7Balertstate%3D%22firing%22%7D" | jq '.data.result[]'
+
+# Port-forward VMSingle UI to localhost:8428 (for debugging).
+[doc('Port-forward VMSingle UI to localhost:8428')]
+vm-port-forward:
+    kubectl -n monitoring port-forward svc/vmks-victoria-metrics-k8s-stack-vmsingle 8428:8428
 
 # Port-forward Grafana to localhost:3000 (fallback if tailnet is down).
 [doc('Port-forward Grafana to localhost:3000')]
 grafana-port-forward:
-    kubectl -n monitoring port-forward svc/kube-prometheus-stack-grafana 3000:80
+    kubectl -n monitoring port-forward svc/vmks-victoria-metrics-k8s-stack-grafana 3000:3000
 
-# Tail logs from the Prometheus operator.
-[doc('Tail Prometheus operator logs')]
-prom-operator-logs:
-    kubectl -n monitoring logs -l app.kubernetes.io/name=prometheus-operator -f --tail=200
+# Tail logs from the VictoriaMetrics operator.
+[doc('Tail VictoriaMetrics operator logs')]
+vm-operator-logs:
+    kubectl -n monitoring logs -l app.kubernetes.io/name=victoria-metrics-operator -f --tail=200
 
-# Show all firing alerts.
-[doc('Show all firing Prometheus alerts')]
-alerts:
-    kubectl -n monitoring exec -it svc/kube-prometheus-stack-prometheus -- \
-      promtool query instant http://localhost:9090 'ALERTS{alertstate="firing"}'
+# Tail logs from VMAgent.
+[doc('Tail VMAgent logs')]
+vmagent-logs:
+    kubectl -n monitoring logs -l app.kubernetes.io/name=vmagent -f --tail=200
 
-# Check CNPG replication lag via Prometheus.
-[doc('Query CNPG replication lag from Prometheus')]
+# Tail logs from VMAlert.
+[doc('Tail VMAlert logs')]
+vmalert-logs:
+    kubectl -n monitoring logs -l app.kubernetes.io/name=vmalert -f --tail=200
+
+# Show VMAgent scrape targets.
+[doc('Show VMAgent active scrape targets')]
+vmagent-targets:
+    kubectl -n monitoring exec -it deploy/vmks-victoria-metrics-k8s-stack-vmagent -- \
+      wget -qO- "http://localhost:8429/api/v1/targets" | jq '.data.activeTargets | length'
+
+# Check CNPG replication lag via VMSingle.
+[doc('Query CNPG replication lag from VMSingle')]
 cnpg-replication-lag:
-    kubectl -n monitoring exec -it svc/kube-prometheus-stack-prometheus -- \
-      promtool query instant http://localhost:9090 'cnpg_pg_replication_lag'
+    kubectl -n monitoring exec -it deploy/vmks-victoria-metrics-k8s-stack-vmsingle -- \
+      wget -qO- "http://localhost:8428/api/v1/query?query=cnpg_pg_replication_lag" | jq '.data.result[]'
 
 # ---------------------------------------------------------------------------
 # ZFS monitoring helpers
 # ---------------------------------------------------------------------------
 
-# Show ZFS pool state from Prometheus.
-[doc('Query ZFS pool state from Prometheus')]
+# Show ZFS pool state from VMSingle.
+[doc('Query ZFS pool state from VMSingle')]
 zfs-pool-state:
-    kubectl -n monitoring exec -it svc/kube-prometheus-stack-prometheus -- \
-      promtool query instant http://localhost:9090 'node_zfs_zpool_state == 1'
+    kubectl -n monitoring exec -it deploy/vmks-victoria-metrics-k8s-stack-vmsingle -- \
+      wget -qO- "http://localhost:8428/api/v1/query?query=node_zfs_zpool_state%7Bstate%3D%22online%22%7D" | jq '.data.result[]'
 
 # Show ZFS ARC hit ratio (5m average).
-[doc('Query ZFS ARC hit ratio from Prometheus')]
+[doc('Query ZFS ARC hit ratio from VMSingle')]
 zfs-arc-hit-ratio:
-    kubectl -n monitoring exec -it svc/kube-prometheus-stack-prometheus -- \
-      promtool query instant http://localhost:9090 'rate(node_zfs_arc_hits[5m]) / (rate(node_zfs_arc_hits[5m]) + rate(node_zfs_arc_misses[5m]))'
+    kubectl -n monitoring exec -it deploy/vmks-victoria-metrics-k8s-stack-vmsingle -- \
+      wget -qO- "http://localhost:8428/api/v1/query?query=rate(node_zfs_arc_hits%5B5m%5D)%20%2F%20(rate(node_zfs_arc_hits%5B5m%5D)%20%2B%20rate(node_zfs_arc_misses%5B5m%5D))" | jq '.data.result[]'
 
 # Show ZFS ARC size vs max.
-[doc('Query ZFS ARC size and target max from Prometheus')]
+[doc('Query ZFS ARC size and target max from VMSingle')]
 zfs-arc-size:
-    kubectl -n monitoring exec -it svc/kube-prometheus-stack-prometheus -- \
-      promtool query instant http://localhost:9090 '{__name__=~"node_zfs_arc_size|node_zfs_arc_c_max"}'
+    kubectl -n monitoring exec -it deploy/vmks-victoria-metrics-k8s-stack-vmsingle -- \
+      wget -qO- "http://localhost:8428/api/v1/query?query=%7B__name__%3D~%22node_zfs_arc_size%7Cnode_zfs_arc_c_max%22%7D" | jq '.data.result[]'
 
 # ---------------------------------------------------------------------------
 # Laptop battery monitoring helpers
@@ -227,23 +248,23 @@ zfs-arc-size:
 # Show AC power status for all nodes (1 = on AC, 0 = on battery).
 [doc('Query AC power status for all nodes')]
 battery-ac-status:
-    kubectl -n monitoring exec -it svc/kube-prometheus-stack-prometheus -- \
-      promtool query instant http://localhost:9090 'node_power_supply_online{power_supply="AC0"}'
+    kubectl -n monitoring exec -it deploy/vmks-victoria-metrics-k8s-stack-vmsingle -- \
+      wget -qO- "http://localhost:8428/api/v1/query?query=node_power_supply_online%7Bpower_supply%3D%22AC0%22%7D" | jq '.data.result[]'
 
 # Show battery charge percentage for all nodes.
 [doc('Query battery charge level (%) for all nodes')]
 battery-level:
-    kubectl -n monitoring exec -it svc/kube-prometheus-stack-prometheus -- \
-      promtool query instant http://localhost:9090 '(node_power_supply_energy_watthour{power_supply="BAT0"} / node_power_supply_energy_full{power_supply="BAT0"}) * 100'
+    kubectl -n monitoring exec -it deploy/vmks-victoria-metrics-k8s-stack-vmsingle -- \
+      wget -qO- "http://localhost:8428/api/v1/query?query=(node_power_supply_energy_watthour%7Bpower_supply%3D%22BAT0%22%7D%20%2F%20node_power_supply_energy_full%7Bpower_supply%3D%22BAT0%22%7D)%20*%20100" | jq '.data.result[]'
 
 # Show battery health (current full capacity vs design capacity).
 [doc('Query battery health (%) for all nodes')]
 battery-health:
-    kubectl -n monitoring exec -it svc/kube-prometheus-stack-prometheus -- \
-      promtool query instant http://localhost:9090 '(node_power_supply_energy_full{power_supply="BAT0"} / node_power_supply_energy_full_design{power_supply="BAT0"}) * 100'
+    kubectl -n monitoring exec -it deploy/vmks-victoria-metrics-k8s-stack-vmsingle -- \
+      wget -qO- "http://localhost:8428/api/v1/query?query=(node_power_supply_energy_full%7Bpower_supply%3D%22BAT0%22%7D%20%2F%20node_power_supply_energy_full_design%7Bpower_supply%3D%22BAT0%22%7D)%20*%20100" | jq '.data.result[]'
 
 # Show remaining battery energy in watt-hours.
 [doc('Query remaining battery energy (Wh) for all nodes')]
 battery-energy:
-    kubectl -n monitoring exec -it svc/kube-prometheus-stack-prometheus -- \
-      promtool query instant http://localhost:9090 'node_power_supply_energy_watthour{power_supply="BAT0"}'
+    kubectl -n monitoring exec -it deploy/vmks-victoria-metrics-k8s-stack-vmsingle -- \
+      wget -qO- "http://localhost:8428/api/v1/query?query=node_power_supply_energy_watthour%7Bpower_supply%3D%22BAT0%22%7D" | jq '.data.result[]'

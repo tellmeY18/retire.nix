@@ -1,18 +1,10 @@
 ---
-# pxc-prometheusrules.yaml — PrometheusRule for Percona XtraDB Cluster.
+# pxc-vmrules.yaml — VMRule for Percona XtraDB Cluster alerting.
 #
-# Alerts for common PXC/Galera failure modes:
-#   - Cluster node not ready (wsrep_ready != ON)
-#   - Galera cluster size dropped (split-brain risk)
-#   - Replication lag / flow control
-#   - Backup failures
-#   - PVC filling up
-#
-# These are scraped from the mysqld_exporter sidecar (port 9104) and
-# the PXC operator's built-in metrics.
+# Native VictoriaMetrics equivalent of the former PrometheusRule.
 
-apiVersion: monitoring.coreos.com/v1
-kind: PrometheusRule
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMRule
 metadata:
   name: pxc-default-alerts
   namespace: monitoring
@@ -72,8 +64,3 @@ spec:
           for: 5m
           labels:
             severity: warning
-
-    # NOTE: Per-namespace PVC storage alerts (pxc-storage.rules) have been
-    # removed from this file. They are replaced by the cluster-wide
-    # pvc-storage-prometheusrules.yaml which monitors ALL PVCs in ALL
-    # namespaces without hardcoded namespace strings.

@@ -37,9 +37,9 @@ nodes are present; the Tailscale `pg-rw` MagicDNS endpoint stays stable.
 | **Postgres workloads** | `helmfile` (cnpg/cluster chart) | One Helm release per Postgres cluster. Renders the `Cluster`, `ScheduledBackup`, and `Pooler` CRs from values files in `apps/postgres/`. |
 | **PXC operator** | `helmfile` | The `pxc-operator` chart in the `pxc-system` namespace. Provides CRDs + the controller. |
 | **MySQL workloads** | `helmfile` (percona/pxc-db chart) | One Helm release per PXC cluster. Renders the `PerconaXtraDBCluster` CR (PXC nodes + HAProxy + backups) from values files in `apps/mysql/`. |
-| **Monitoring stack** | `helmfile` | `kube-prometheus-stack` chart in the `monitoring` namespace. Provides Prometheus + Alertmanager + Grafana + CRDs (PodMonitor, PrometheusRule, ServiceMonitor). |
+| **Monitoring stack** | `helmfile` | `victoria-metrics-k8s-stack` chart in the `monitoring` namespace. Provides VMSingle + VMAgent + VMAlert + VMAlertmanager + Grafana + VictoriaMetrics Operator + CRDs (VMRule, VMPodScrape, VMServiceScrape). |
 | **Cluster glue** | `kubectl apply -k` (kustomize) | Namespaces (with PSA labels), NetworkPolicies, and Tailscale LoadBalancer Services (pg-rw, mysql-rw, grafana). |
-| **Encrypted secrets** | `helm-secrets` (sops) | S3 backup credentials live in `apps/postgres/secrets.yaml` and the Grafana admin password in `apps/kube-prometheus-stack/secrets.yaml` — both sops-encrypted Helm values, merged by `helm-secrets` at install time. No raw `Secret` manifest ever touches git or the kustomize pipeline. |
+| **Encrypted secrets** | `helm-secrets` (sops) | S3 backup credentials live in `apps/postgres/secrets.yaml` and the Grafana admin password in `apps/victoria-metrics-k8s-stack/secrets.yaml` — both sops-encrypted Helm values, merged by `helm-secrets` at install time. No raw `Secret` manifest ever touches git or the kustomize pipeline. |
 
 ---
 
@@ -51,7 +51,7 @@ nodes are present; the Tailscale `pg-rw` MagicDNS endpoint stays stable.
 | `cnpg-clusters` | `namespace.yaml` (kustomize) | Postgres `Cluster`, `Pooler`, `ScheduledBackup`, `Service`, `NetworkPolicy`, `Secret` (rendered by chart) |
 | `pxc-system` | helmfile chart `createNamespace: true` | PXC operator Deployment |
 | `pxc-clusters` | `pxc/namespace.yaml` (kustomize) | `PerconaXtraDBCluster`, HAProxy, backup schedules, `NetworkPolicy`, Tailscale `Service` |
-| `monitoring` | `monitoring/namespace.yaml` (kustomize) | Prometheus, Alertmanager, Grafana, node-exporter, kube-state-metrics, Grafana Tailscale Service |
+| `monitoring` | `monitoring/namespace.yaml` (kustomize) | VMSingle, VMAgent, VMAlert, VMAlertmanager, Grafana, node-exporter, kube-state-metrics, Grafana Tailscale Service |
 
 The `cnpg-clusters` namespace carries `pod-security.kubernetes.io/enforce=restricted`
 labels so any pod scheduled there must comply with the PodSecurity restricted
@@ -166,7 +166,7 @@ Secrets live as sops-encrypted Helm values files:
 - `k8s/apps/postgres/secrets.yaml` — S3 backup credentials
 - `k8s/apps/cnpg-operator/secrets.yaml` — operator-side image-pull
   credentials (empty by default)
-- `k8s/apps/kube-prometheus-stack/secrets.yaml` — Grafana admin password
+- `k8s/apps/victoria-metrics-k8s-stack/secrets.yaml` — Grafana admin password
 - `k8s/apps/pxc-operator/secrets.yaml` — PXC operator-side values (empty
   by default)
 - `k8s/apps/mysql/secrets.yaml` — S3 backup credentials for PXC
@@ -186,23 +186,22 @@ rule (master-key only — no host needs to decrypt these).
 
 ## Monitoring
 
-The cluster runs `kube-prometheus-stack` (Prometheus + Alertmanager + Grafana)
-in the `monitoring` namespace. Key integration points:
+The cluster runs `victoria-metrics-k8s-stack` (VMSingle + VMAgent + VMAlert +
+VMAlertmanager + Grafana) in the `monitoring` namespace. Key integration points:
 
-- **CNPG instance metrics** — PodMonitor on port 9187 (enabled via
-  `cluster.monitoring.enabled: true` in `apps/postgres/values.yaml`)
-- **CNPG PrometheusRules** — built-in alerts for replication lag, backup
-  failures, WAL archiving, and primary availability
-- **PgBouncer metrics** — PodMonitor on port 9127 (pooler monitoring)
-- **CNPG operator metrics** — PodMonitor on the operator's `/metrics`
-  endpoint (enabled via `monitoring.podMonitorEnabled: true` in
-  `apps/cnpg-operator/values.yaml`)
-- **PXC instance metrics** — ServiceMonitor on port 9104 (mysqld_exporter
+- **CNPG instance metrics** — VMPodScrape on port 9187 (defined in
+  `clusters/glug-infra/monitoring/cnpg-cluster-vmpodscrape.yaml`)
+- **CNPG VMRules** — alerts for replication lag, backup failures, WAL
+  archiving, and primary availability
+- **PgBouncer metrics** — VMPodScrape on port 9127 (pooler monitoring)
+- **CNPG operator metrics** — VMPodScrape on the operator's `/metrics`
+  endpoint (defined in `cnpg-operator-vmpodscrape.yaml`)
+- **PXC instance metrics** — VMServiceScrape on port 9104 (mysqld_exporter
   sidecar) in `pxc-clusters` namespace
-- **PXC HAProxy metrics** — ServiceMonitor on HAProxy stats port in
+- **PXC HAProxy metrics** — VMServiceScrape on HAProxy stats port in
   `pxc-clusters` namespace
-- **PXC PrometheusRules** — alerts for Galera health (wsrep_ready, cluster
-  size, flow control), slow queries, and PVC capacity
+- **PXC VMRules** — alerts for Galera health (wsrep_ready, cluster
+  size, flow control), slow queries
 - **Grafana dashboards** — the CNPG operator creates a ConfigMap with the
   CloudNativePG dashboard (ID 20417); Grafana's sidecar auto-imports it
 
@@ -280,13 +279,13 @@ and re-route within seconds. Webservices see at most a brief connection drop.
 ```
 k8s/
 ├── README.md                                # this file
-├── helmfile.yaml                            # kube-prometheus-stack + cnpg + pxc charts
+├── helmfile.yaml                            # victoria-metrics-k8s-stack + cnpg + pxc charts
 ├── apps/
 │   ├── cnpg-operator/
 │   │   ├── values.yaml                      # plain Helm values
 │   │   └── secrets.yaml                     # sops-encrypted Helm values
-│   ├── kube-prometheus-stack/
-│   │   ├── values.yaml                      # Prometheus + Grafana + Alertmanager config
+│   ├── victoria-metrics-k8s-stack/
+│   │   ├── values.yaml                      # VMSingle + VMAgent + Grafana + Alertmanager config
 │   │   └── secrets.yaml                     # sops-encrypted Grafana admin password
 │   ├── mysql/
 │   │   ├── values.yaml                      # PXC cluster + HAProxy + Backup config
@@ -312,14 +311,20 @@ k8s/
 │           ├── kustomization.yaml           # entry point (monitoring namespace)
 │           ├── namespace.yaml               # monitoring + PSA labels
 │           ├── tailscale-grafana-service.yaml  # Tailscale LB: grafana
-│           ├── cnpg-cluster-podmonitor.yaml
-│           ├── cnpg-pooler-podmonitor.yaml
-│           ├── cnpg-prometheusrules.yaml
-│           ├── pxc-cluster-servicemonitor.yaml
-│           ├── pxc-haproxy-servicemonitor.yaml
-│           ├── pxc-prometheusrules.yaml
-│           ├── zfs-prometheusrules.yaml
-│           └── zfs-grafana-dashboard.yaml
+│           ├── cnpg-cluster-vmpodscrape.yaml
+│           ├── cnpg-pooler-vmpodscrape.yaml
+│           ├── cnpg-operator-vmpodscrape.yaml
+│           ├── cnpg-vmrules.yaml
+│           ├── pxc-cluster-vmservicescrape.yaml
+│           ├── pxc-haproxy-vmservicescrape.yaml
+│           ├── pxc-vmrules.yaml
+│           ├── pvc-storage-vmrules.yaml
+│           ├── laptop-battery-vmrules.yaml
+│           ├── zfs-vmrules.yaml
+│           ├── zfs-grafana-dashboard.yaml
+│           ├── pxc-grafana-dashboard.yaml
+│           ├── laptop-battery-grafana-dashboard.yaml
+│           └── cluster-overview-grafana-dashboard.yaml
 └── docs/
     └── runbooks/
         ├── failover.md

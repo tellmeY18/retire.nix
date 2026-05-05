@@ -195,7 +195,7 @@ proxysql:
 
 # ---------------------------------------------------------------------------
 # PMM (Percona Monitoring and Management) — disabled.
-# We use kube-prometheus-stack with standalone ServiceMonitors instead.
+# We use victoria-metrics-k8s-stack with standalone VMServiceScrapes instead.
 # ---------------------------------------------------------------------------
 pmm:
   enabled: false

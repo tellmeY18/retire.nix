@@ -38,20 +38,16 @@ logLevel: "info"
 # ---------------------------------------------------------------------------
 # Monitoring
 # ---------------------------------------------------------------------------
-# Expose a PodMonitor for the operator's own /metrics endpoint. Picked up
-# automatically by kube-prometheus-stack if installed; harmless otherwise.
-# kube-prometheus-stack is installed (helmfile orders it before this chart)
-# and provides the PodMonitor CRD + Grafana sidecar discovery.
+# PodMonitor creation is DISABLED because we use native VictoriaMetrics CRDs
+# (VMPodScrape) instead of Prometheus CRDs. The equivalent VMPodScrape for
+# the operator is defined in:
+#   k8s/clusters/glug-infra/monitoring/cnpg-operator-vmpodscrape.yaml
 #
-# NOTE: This is the *operator chart's* podMonitorEnabled, NOT the Cluster
-# CR's deprecated `.spec.monitoring.enablePodMonitor`. The operator chart
-# creates a PodMonitor for the operator's own /metrics endpoint. This is
-# separate from the Cluster-level monitoring and is NOT deprecated.
+# Grafana dashboard ConfigMap creation is still enabled — the sidecar
+# auto-discovers ConfigMaps with the `grafana_dashboard` label regardless
+# of whether the monitoring backend is Prometheus or VictoriaMetrics.
 monitoring:
-  podMonitorEnabled: true
-  # Grafana dashboard ConfigMap — the kube-prometheus-stack Grafana sidecar
-  # auto-discovers ConfigMaps with the `grafana_dashboard` label and loads
-  # them into Grafana.
+  podMonitorEnabled: false
   grafanaDashboard:
     create: true
 
