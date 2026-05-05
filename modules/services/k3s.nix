@@ -363,6 +363,18 @@ in
             recordsize = "8k";
             compression = "zstd";
           };
+          # Restrict PV provisioning to storage nodes ONLY.
+          # Compute nodes (cloud VMs) will never have PVCs scheduled to them.
+          allowedTopologies = [
+            {
+              matchLabelExpressions = [
+                {
+                  key = "node-role.glug.infra/storage";
+                  values = [ "true" ];
+                }
+              ];
+            }
+          ];
         };
 
         # --------------------------------------------------------------------
@@ -397,6 +409,17 @@ in
             recordsize = "16k";
             compression = "zstd";
           };
+          # Restrict PV provisioning to storage nodes ONLY.
+          allowedTopologies = [
+            {
+              matchLabelExpressions = [
+                {
+                  key = "node-role.glug.infra/storage";
+                  values = [ "true" ];
+                }
+              ];
+            }
+          ];
         };
 
         # --------------------------------------------------------------------
