@@ -10,10 +10,14 @@
 #   No manual `helm plugin install` step needed.
 #
 # Layered model:
-#   1. cnpg/cloudnative-pg → the operator (CRDs + controller + webhooks).
-#   2. cnpg/cluster        → one release per Postgres cluster, renders the
-#                             Cluster + ScheduledBackup + Pooler CRs from
-#                             values files in apps/<release>/.
+#   1. vm/victoria-metrics-k8s-stack → the monitoring stack (VMSingle,
+#                                       VMAgent, VMAlert, VMAlertmanager,
+#                                       Grafana, node-exporter, kube-state-metrics,
+#                                       VictoriaMetrics Operator + CRDs).
+#   2. cnpg/cloudnative-pg → the operator (CRDs + controller + webhooks).
+#   3. cnpg/cluster        → one release per Postgres cluster.
+#   4. percona/pxc-operator → PXC operator.
+#   5. percona/pxc-db       → MySQL cluster.
 #
 # Adding a second Postgres cluster (e.g. for analytics):
 #   - Create k8s/apps/analytics/{values,secrets}.yaml.
@@ -22,13 +26,11 @@
 #
 # Version policy:
 #   - Always pin chart versions explicitly. Never use "*" or floating tags.
-#   - Cross-check the latest at:
-#       https://cloudnative-pg.github.io/charts/index.yaml
 #   - When bumping, read the chart CHANGELOG for breaking changes.
 
 repositories:
-  - name: prometheus-community
-    url: https://prometheus-community.github.io/helm-charts
+  - name: vm
+    url: https://victoriametrics.github.io/helm-charts
   - name: cnpg
     url: https://cloudnative-pg.github.io/charts
   - name: percona
@@ -42,31 +44,27 @@ helmDefaults:
   # last-known-good state rather than half-upgraded.
   atomic: true
   # Verify TLS on all chart pulls.
-  verify: false # cnpg charts are unsigned upstream; flip when they sign.
+  verify: false # upstream charts are unsigned; flip when they sign.
 
 releases:
   # ---------------------------------------------------------------------------
-  # 1. kube-prometheus-stack (Prometheus, Alertmanager, Grafana, CRDs).
+  # 1. victoria-metrics-k8s-stack (VMSingle, VMAgent, VMAlert, VMAlertmanager,
+  #    Grafana, node-exporter, kube-state-metrics, VM Operator + CRDs).
   # ---------------------------------------------------------------------------
-  # Must be installed BEFORE any release that creates PodMonitor or
-  # PrometheusRule CRs (i.e. the CNPG operator and cluster charts). Without
-  # the CRDs in place, `helm install` fails with:
-  #   "no matches for kind PodMonitor in version monitoring.coreos.com/v1"
-  #
-  # Chart 84.4.0 ships prometheus-operator 0.82.x, Prometheus 3.x,
-  # Alertmanager 0.28.x, and Grafana 8.x.
+  # Must be installed BEFORE any release that creates VMPodScrape, VMRule,
+  # VMServiceScrape CRs. Without the CRDs in place, `helm install` fails.
   #
   # The namespace `monitoring` is created by kustomize (with PSA labels)
   # before helmfile runs — hence `createNamespace: false`.
-  - name: kube-prometheus-stack
+  - name: victoria-metrics-k8s-stack
     namespace: monitoring
     createNamespace: false
-    chart: prometheus-community/kube-prometheus-stack
-    version: "84.4.0"
+    chart: vm/victoria-metrics-k8s-stack
+    version: "0.35.0"
     values:
-      - apps/kube-prometheus-stack/values.yaml
+      - apps/victoria-metrics-k8s-stack/values.yaml
     secrets:
-      - apps/kube-prometheus-stack/secrets.yaml
+      - apps/victoria-metrics-k8s-stack/secrets.yaml
 
   # ---------------------------------------------------------------------------
   # 2. CNPG operator (CRDs + controller + admission webhooks).
@@ -78,10 +76,10 @@ releases:
     createNamespace: true
     chart: cnpg/cloudnative-pg
     version: "0.28.0"
-    # PodMonitor CRDs must exist before the operator chart tries to create
-    # its PodMonitor resource.
+    # VM Operator CRDs must exist before the operator chart tries to create
+    # any monitoring resources (though we've disabled PodMonitor creation).
     needs:
-      - monitoring/kube-prometheus-stack
+      - monitoring/victoria-metrics-k8s-stack
     values:
       - apps/cnpg-operator/values.yaml
     secrets:
@@ -91,21 +89,16 @@ releases:
   # 3. Postgres cluster — `Cluster` + `ScheduledBackup` + `Pooler`.
   # ---------------------------------------------------------------------------
   # Chart 0.6.0 maps cleanly onto operator 1.28.x. Renders all CRs from the
-  # values file. The release name `postgres` is what every generated object
-  # is prefixed with (Cluster/postgres, Service/postgres-rw,
-  # Secret/postgres-app, etc.) — picked to be cluster-scoped, not
-  # host-scoped, so the workload identity does not change as nodes come
-  # and go.
+  # values file.
   - name: postgres
     namespace: cnpg-clusters
     createNamespace: false # namespace is created by kustomize (PSA labels)
     chart: cnpg/cluster
     version: "0.6.0"
-    # Apply only after the operator + CRDs are in place, and after
-    # kube-prometheus-stack provides PodMonitor/PrometheusRule CRDs.
+    # Apply only after the operator + CRDs are in place.
     needs:
       - cnpg-system/cloudnative-pg
-      - monitoring/kube-prometheus-stack
+      - monitoring/victoria-metrics-k8s-stack
     values:
       - apps/postgres/values.yaml
     secrets:
@@ -114,15 +107,14 @@ releases:
   # ---------------------------------------------------------------------------
   # 4. PXC operator (CRDs + controller).
   # ---------------------------------------------------------------------------
-  # Chart 1.19.1 ships PXC operator 1.19.1. The operator runs in
-  # `pxc-system`; CRDs are cluster-scoped.
+  # Chart 1.19.1 ships PXC operator 1.19.1.
   - name: pxc-operator
     namespace: pxc-system
     createNamespace: true
     chart: percona/pxc-operator
     version: "1.19.1"
     needs:
-      - monitoring/kube-prometheus-stack
+      - monitoring/victoria-metrics-k8s-stack
     values:
       - apps/pxc-operator/values.yaml
     secrets:
@@ -131,10 +123,6 @@ releases:
   # ---------------------------------------------------------------------------
   # 5. MySQL cluster — PerconaXtraDBCluster + HAProxy + Backups.
   # ---------------------------------------------------------------------------
-  # Chart 1.19.2 maps cleanly onto operator 1.19.x. Renders the
-  # PerconaXtraDBCluster CR from the values file. The release name `mysql`
-  # is what every generated object is prefixed with (PerconaXtraDBCluster/mysql,
-  # Service/mysql-haproxy, etc.).
   - name: mysql
     namespace: pxc-clusters
     createNamespace: false
@@ -142,7 +130,7 @@ releases:
     version: "1.19.2"
     needs:
       - pxc-system/pxc-operator
-      - monitoring/kube-prometheus-stack
+      - monitoring/victoria-metrics-k8s-stack
     values:
       - apps/mysql/values.yaml
     secrets:

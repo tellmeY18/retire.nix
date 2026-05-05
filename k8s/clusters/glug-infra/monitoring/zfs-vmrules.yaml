@@ -1,0 +1,102 @@
+---
+# zfs-vmrules.yaml — VMRule for ZFS host-level monitoring.
+#
+# Native VictoriaMetrics equivalent of the former PrometheusRule.
+# Uses node_exporter's built-in ZFS collector metrics from /proc/spl/kstat/zfs/.
+
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMRule
+metadata:
+  name: zfs-host-alerts
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: zfs
+    app.kubernetes.io/component: alerting
+    app.kubernetes.io/part-of: victoria-metrics-k8s-stack
+    app.kubernetes.io/managed-by: kustomize
+spec:
+  groups:
+    - name: zfs-pool-health
+      rules:
+        - alert: ZFSPoolNotOnline
+          expr: |-
+            node_zfs_zpool_state{state="online"} == 0
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: "ZFS pool {{ $labels.zpool }} is not online"
+            description: >-
+              ZFS pool {{ $labels.zpool }} on {{ $labels.instance }} is not in
+              the ONLINE state. Check `zpool status {{ $labels.zpool }}` for
+              details.
+
+        - alert: ZFSPoolDegraded
+          expr: |-
+            node_zfs_zpool_state{state="degraded"} == 1
+          for: 1m
+          labels:
+            severity: warning
+          annotations:
+            summary: "ZFS pool {{ $labels.zpool }} is degraded"
+            description: >-
+              ZFS pool {{ $labels.zpool }} on {{ $labels.instance }} is in a
+              DEGRADED state. Run `zpool status {{ $labels.zpool }}` to identify
+              the affected vdev.
+
+        - alert: ZFSPoolFaulted
+          expr: |-
+            node_zfs_zpool_state{state="faulted"} == 1
+          for: 0m
+          labels:
+            severity: critical
+          annotations:
+            summary: "ZFS pool {{ $labels.zpool }} is FAULTED"
+            description: >-
+              ZFS pool {{ $labels.zpool }} on {{ $labels.instance }} has
+              FAULTED. All data on this pool is inaccessible until the fault
+              is resolved.
+
+    - name: zfs-arc
+      rules:
+        - alert: ZFSARCHitRatioLow
+          expr: |-
+            (
+              rate(node_zfs_arc_hits[5m])
+              /
+              (rate(node_zfs_arc_hits[5m]) + rate(node_zfs_arc_misses[5m]))
+            ) < 0.8
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "ZFS ARC hit ratio is below 80%"
+            description: >-
+              ZFS ARC hit ratio on {{ $labels.instance }} is
+              {{ $value | humanizePercentage }} (5m average).
+
+        - alert: ZFSARCShrunk
+          expr: |-
+            (node_zfs_arc_size / node_zfs_arc_c_max) < 0.5
+          for: 30m
+          labels:
+            severity: warning
+          annotations:
+            summary: "ZFS ARC is significantly below target size"
+            description: >-
+              ZFS ARC on {{ $labels.instance }} is using only
+              {{ $value | humanizePercentage }} of its maximum target size.
+
+    - name: zfs-io
+      rules:
+        - alert: ZFSHighZILCommitRate
+          expr: |-
+            rate(node_zfs_zil_zil_commit_count[5m]) > 1000
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "ZFS ZIL commit rate is high"
+            description: >-
+              ZIL commit rate on {{ $labels.instance }} is
+              {{ $value | humanize }}/s over the last 5 minutes.

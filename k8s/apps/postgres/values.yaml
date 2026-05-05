@@ -148,13 +148,14 @@ cluster:
   # CNPG 1.28+ deprecates `.spec.monitoring.enablePodMonitor` and the
   # entire `.spec.monitoring` section on the Cluster CR. It will be removed
   # in CNPG 1.30. The official recommendation is to create standalone
-  # PodMonitor and PrometheusRule resources manually.
+  # monitoring resources manually.
   #
   # We follow the upstream guidance: all monitoring resources live in the
-  # kustomize layer at k8s/clusters/glug-infra/monitoring/:
-  #   - cnpg-cluster-podmonitor.yaml  (PodMonitor for Postgres instances)
-  #   - cnpg-pooler-podmonitor.yaml   (PodMonitor for PgBouncer pooler)
-  #   - cnpg-prometheusrules.yaml     (PrometheusRule with CNPG alerts)
+  # kustomize layer at k8s/clusters/glug-infra/monitoring/ using native
+  # VictoriaMetrics CRDs:
+  #   - cnpg-cluster-vmpodscrape.yaml  (VMPodScrape for Postgres instances)
+  #   - cnpg-pooler-vmpodscrape.yaml   (VMPodScrape for PgBouncer pooler)
+  #   - cnpg-vmrules.yaml              (VMRule with CNPG alerts)
   #
   # See: https://cloudnative-pg.io/documentation/current/monitoring/
   monitoring:

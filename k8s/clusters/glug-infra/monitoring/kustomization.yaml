@@ -9,81 +9,65 @@
 #     as `grafana.<tailnet>.ts.net:3000`.
 #
 # What does NOT live here (managed by helmfile instead):
-#   - The kube-prometheus-stack chart (Prometheus, Alertmanager, Grafana,
-#     node-exporter, kube-state-metrics, and the Prometheus operator).
+#   - The victoria-metrics-k8s-stack chart (VMSingle, VMAgent, VMAlert,
+#     VMAlertmanager, Grafana, node-exporter, kube-state-metrics, and the
+#     VictoriaMetrics operator).
 #     These are installed by helmfile from
-#     k8s/apps/kube-prometheus-stack/values.yaml + secrets.yaml.
+#     k8s/apps/victoria-metrics-k8s-stack/values.yaml + secrets.yaml.
 #
-# Also lives here (standalone monitoring resources):
-#   - CNPG cluster PodMonitor (replaces deprecated Cluster CR monitoring).
-#   - CNPG pooler PodMonitor (replaces deprecated Pooler CR monitoring).
-#   - CNPG PrometheusRule (upstream-recommended alert rules).
-#     See: https://cloudnative-pg.io/documentation/current/monitoring/
-#   - ZFS PrometheusRule (pool health, ARC efficiency, IO alerts).
-#     Uses node_exporter's built-in ZFS collector (enabled by default).
-#   - PXC ServiceMonitors (mysqld_exporter on port 9104 + HAProxy stats).
-#   - PXC PrometheusRule (Galera health, flow control, storage alerts).
-#     See: https://docs.percona.com/percona-operator-for-mysql/pxc/monitoring.html
+# Also lives here (standalone monitoring resources using native VM CRDs):
+#   - CNPG cluster VMPodScrape (scrapes Postgres instance metrics).
+#   - CNPG pooler VMPodScrape (scrapes PgBouncer metrics).
+#   - CNPG operator VMPodScrape (scrapes operator's own metrics).
+#   - CNPG VMRule (upstream-recommended alert rules).
+#   - ZFS VMRule (pool health, ARC efficiency, IO alerts).
+#   - PXC VMServiceScrapes (mysqld_exporter + HAProxy stats).
+#   - PXC VMRule (Galera health, flow control, storage alerts).
+#   - PVC storage VMRule (cluster-wide PVC capacity alerts).
+#   - Laptop battery VMRule (AC power, charge level, health alerts).
 #
 # These resources are kustomize-managed because they are either
 # infrastructure-wide (Namespace) or front-end glue not expressed by the
-# upstream chart (Tailscale Service).
+# upstream chart (Tailscale Service, custom scrape/rule objects).
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 # NOTE: We intentionally do NOT set `namespace:` here. The namespace field
-# is already explicit in each resource manifest. Setting it globally would
-# also override the namespace on the Namespace object itself, which is
-# redundant at best and confusing at worst.
+# is already explicit in each resource manifest.
 
 labels:
   - pairs:
-      app.kubernetes.io/part-of: kube-prometheus-stack
+      app.kubernetes.io/part-of: victoria-metrics-k8s-stack
       app.kubernetes.io/managed-by: kustomize
     includeSelectors: false
 
 resources:
   # Namespace declaration — must be applied first.
   - namespace.yaml
-  # NetworkPolicies — default-deny + explicit allow rules. Locks down
-  # Prometheus to only accept queries from Grafana, not from arbitrary pods.
+  # NetworkPolicies — default-deny + explicit allow rules.
   - networkpolicy.yaml
   # Tailscale LoadBalancer Service exposing Grafana on the tailnet under
   # MagicDNS name `grafana`.
   - tailscale-grafana-service.yaml
-  # CNPG standalone monitoring resources — CNPG 1.28+ deprecates the
-  # Cluster CR's `.spec.monitoring` section. We create PodMonitors and
-  # PrometheusRules manually per upstream guidance.
-  - cnpg-cluster-podmonitor.yaml
-  - cnpg-pooler-podmonitor.yaml
-  - cnpg-prometheusrules.yaml
+  # CNPG standalone monitoring resources (native VM CRDs).
+  - cnpg-cluster-vmpodscrape.yaml
+  - cnpg-pooler-vmpodscrape.yaml
+  - cnpg-operator-vmpodscrape.yaml
+  - cnpg-vmrules.yaml
   # ZFS host-level alerts — uses node_exporter's built-in ZFS collector.
-  # No separate exporter needed; metrics flow from /proc/spl/kstat/zfs/.
-  - zfs-prometheusrules.yaml
-  # ZFS Grafana dashboard — auto-imported by Grafana's sidecar via the
-  # `grafana_dashboard: "1"` label. Shows pool state, ARC stats, IO, ZIL.
+  - zfs-vmrules.yaml
+  # ZFS Grafana dashboard — auto-imported by Grafana's sidecar.
   - zfs-grafana-dashboard.yaml
-  # PXC standalone monitoring resources — ServiceMonitors and alerts for
-  # Percona XtraDB Cluster MySQL instances and HAProxy.
-  - pxc-cluster-servicemonitor.yaml
-  - pxc-haproxy-servicemonitor.yaml
-  - pxc-prometheusrules.yaml
-  # PXC Grafana dashboard — auto-imported by Grafana's sidecar via the
-  # `grafana_dashboard: "1"` label. Shows Galera cluster health, InnoDB
-  # performance, connections, HAProxy traffic, and replication writesets.
+  # PXC standalone monitoring resources (native VM CRDs).
+  - pxc-cluster-vmservicescrape.yaml
+  - pxc-haproxy-vmservicescrape.yaml
+  - pxc-vmrules.yaml
+  # PXC Grafana dashboard.
   - pxc-grafana-dashboard.yaml
-  # Cluster-wide PVC storage alerts — replaces the per-namespace
-  # cnpg-storage.rules and pxc-storage.rules with a single set of rules
-  # that fire for ANY PVC in ANY namespace.
-  - pvc-storage-prometheusrules.yaml
-  # Laptop battery monitoring — alerts for AC power loss, battery level,
-  # and battery health degradation. Harmless no-ops on non-laptop nodes
-  # (metrics simply don't exist if there's no battery).
-  - laptop-battery-prometheusrules.yaml
-  # Laptop battery Grafana dashboard — auto-imported by sidecar. Shows
-  # AC status, charge level, health, voltage, and trends over time.
+  # Cluster-wide PVC storage alerts.
+  - pvc-storage-vmrules.yaml
+  # Laptop battery monitoring.
+  - laptop-battery-vmrules.yaml
   - laptop-battery-grafana-dashboard.yaml
-  # Cluster Overview Grafana dashboard — the "single pane of glass" for
-  # the entire k3s cluster. Color-coded stat panels + Active Alerts table
-  # provide instant visual priority. Auto-discovers all nodes/services.
+  # Cluster Overview dashboard — single pane of glass.
   - cluster-overview-grafana-dashboard.yaml

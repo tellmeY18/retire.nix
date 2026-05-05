@@ -1,14 +1,14 @@
 ---
-# cnpg-pooler-podmonitor.yaml — Standalone PodMonitor for CNPG PgBouncer pooler pods.
+# cnpg-pooler-vmpodscrape.yaml — VMPodScrape for CNPG PgBouncer pooler pods.
 #
-# Targets the PgBouncer pods created by the CNPG Pooler CR. These pods
-# expose PgBouncer exporter metrics on port 9127.
+# Native VictoriaMetrics equivalent of the former PodMonitor.
+# Targets PgBouncer pods on port 9127.
 #
 # Reference:
 #   https://cloudnative-pg.io/documentation/current/monitoring/
 
-apiVersion: monitoring.coreos.com/v1
-kind: PodMonitor
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMPodScrape
 metadata:
   name: cnpg-pooler-rw
   namespace: monitoring

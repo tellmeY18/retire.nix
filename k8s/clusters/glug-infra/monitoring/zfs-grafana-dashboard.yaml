@@ -1,7 +1,7 @@
 ---
 # zfs-grafana-dashboard.yaml — Grafana dashboard ConfigMap for ZFS monitoring.
 #
-# Grafana's sidecar (configured in kube-prometheus-stack) watches for
+# Grafana's sidecar (configured in victoria-metrics-k8s-stack) watches for
 # ConfigMaps with the label `grafana_dashboard: "1"` across all namespaces
 # and auto-imports them. The `grafana_folder` annotation organises the
 # dashboard into a named folder in the Grafana UI.
@@ -27,7 +27,7 @@ metadata:
     grafana_dashboard: "1"
     app.kubernetes.io/name: zfs
     app.kubernetes.io/component: dashboard
-    app.kubernetes.io/part-of: kube-prometheus-stack
+    app.kubernetes.io/part-of: victoria-metrics-k8s-stack
     app.kubernetes.io/managed-by: kustomize
   annotations:
     grafana_folder: "ZFS"

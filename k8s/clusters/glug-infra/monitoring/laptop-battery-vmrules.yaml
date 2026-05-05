@@ -1,0 +1,101 @@
+---
+# laptop-battery-vmrules.yaml — VMRule for laptop battery monitoring.
+#
+# Native VictoriaMetrics equivalent of the former PrometheusRule.
+# Node-agnostic: fires on any node with battery metrics, harmless no-op on others.
+
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMRule
+metadata:
+  name: laptop-battery-alerts
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: laptop-battery
+    app.kubernetes.io/component: alerting
+    app.kubernetes.io/part-of: victoria-metrics-k8s-stack
+    app.kubernetes.io/managed-by: kustomize
+spec:
+  groups:
+    - name: laptop-battery.rules
+      rules:
+        - alert: NodeOnBattery
+          annotations:
+            description: >-
+              Node {{ $labels.instance }} has lost AC power and is running
+              on battery. Server laptops should always be plugged in.
+            summary: Node is running on battery power
+          expr: |-
+            node_power_supply_online{power_supply="AC0"} == 0
+          for: 2m
+          labels:
+            severity: warning
+
+        - alert: NodeBatteryLow
+          annotations:
+            description: >-
+              Node {{ $labels.instance }} is on battery and charge has
+              dropped below 30% (current: {{ $value | printf "%.1f" }}%).
+            summary: Node battery below 30% while on battery power
+          expr: |-
+            (
+              node_power_supply_energy_watthour{power_supply="BAT0"}
+              /
+              node_power_supply_energy_full{power_supply="BAT0"}
+            ) * 100 < 30
+            and on (instance)
+            node_power_supply_online{power_supply="AC0"} == 0
+          for: 5m
+          labels:
+            severity: warning
+
+        - alert: NodeBatteryCritical
+          annotations:
+            description: >-
+              Node {{ $labels.instance }} is on battery and charge has
+              dropped below 15% (current: {{ $value | printf "%.1f" }}%).
+            summary: Node battery below 15% while on battery power
+          expr: |-
+            (
+              node_power_supply_energy_watthour{power_supply="BAT0"}
+              /
+              node_power_supply_energy_full{power_supply="BAT0"}
+            ) * 100 < 15
+            and on (instance)
+            node_power_supply_online{power_supply="AC0"} == 0
+          for: 2m
+          labels:
+            severity: critical
+
+        - alert: NodeBatteryEmergency
+          annotations:
+            description: >-
+              Node {{ $labels.instance }} is on battery and charge has
+              dropped below 5% (current: {{ $value | printf "%.1f" }}%).
+              Imminent unclean shutdown.
+            summary: Node battery below 5% — imminent shutdown
+          expr: |-
+            (
+              node_power_supply_energy_watthour{power_supply="BAT0"}
+              /
+              node_power_supply_energy_full{power_supply="BAT0"}
+            ) * 100 < 5
+            and on (instance)
+            node_power_supply_online{power_supply="AC0"} == 0
+          labels:
+            severity: critical
+
+        - alert: NodeBatteryHealthDegraded
+          annotations:
+            description: >-
+              The battery in node {{ $labels.instance }} can only hold
+              {{ $value | printf "%.0f" }}% of its original design capacity.
+            summary: Node battery health below 50% of design capacity
+          expr: |-
+            (
+              node_power_supply_energy_full{power_supply="BAT0"}
+              /
+              node_power_supply_energy_full_design{power_supply="BAT0"}
+            ) * 100 < 50
+          for: 1h
+          labels:
+            severity: warning

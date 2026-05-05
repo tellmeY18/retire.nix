@@ -1,11 +1,11 @@
 ---
 # namespace.yaml — Namespace declaration for the monitoring stack.
 #
-# kube-prometheus-stack deploys Prometheus, Alertmanager, Grafana,
-# node-exporter, kube-state-metrics, and the Prometheus operator into this
-# namespace. We declare it as a kustomize resource (rather than relying on
-# helmfile's `createNamespace: true`) so PodSecurity labels are in place
-# before any workload pod is scheduled.
+# victoria-metrics-k8s-stack deploys VMSingle, VMAgent, VMAlert,
+# VMAlertmanager, Grafana, node-exporter, kube-state-metrics, and the
+# VictoriaMetrics operator into this namespace. We declare it as a kustomize
+# resource (rather than relying on helmfile's `createNamespace: true`) so
+# PodSecurity labels are in place before any workload pod is scheduled.
 #
 # Labels:
 #   pod-security.kubernetes.io/enforce=privileged
@@ -14,10 +14,9 @@
 #     host-level metrics. The `restricted` profile would block these pods
 #     from scheduling.
 #
-#     Only node-exporter needs privileged access; Prometheus, Alertmanager,
-#     Grafana, and kube-state-metrics all run as non-root with restricted
-#     capabilities. If you ever split node-exporter into its own namespace,
-#     this namespace can be tightened to `restricted`.
+#     Only node-exporter needs privileged access; VMSingle, VMAgent,
+#     VMAlert, VMAlertmanager, Grafana, and kube-state-metrics all run as
+#     non-root with restricted capabilities.
 #
 #   pod-security.kubernetes.io/audit=baseline
 #   pod-security.kubernetes.io/warn=baseline
@@ -34,4 +33,4 @@ metadata:
     pod-security.kubernetes.io/enforce-version: latest
     pod-security.kubernetes.io/audit: baseline
     pod-security.kubernetes.io/warn: baseline
-    app.kubernetes.io/part-of: kube-prometheus-stack
+    app.kubernetes.io/part-of: victoria-metrics-k8s-stack

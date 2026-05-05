@@ -1,0 +1,29 @@
+---
+# cnpg-cluster-vmpodscrape.yaml — VMPodScrape for CNPG Postgres instances.
+#
+# Native VictoriaMetrics equivalent of the former PodMonitor.
+# Targets pods labelled cnpg.io/cluster: postgres-cluster and scrapes
+# the built-in metrics exporter on port 9187 ("metrics").
+#
+# Reference:
+#   https://cloudnative-pg.io/documentation/current/monitoring/
+
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMPodScrape
+metadata:
+  name: cnpg-cluster-instances
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: cloudnative-pg
+    app.kubernetes.io/component: database
+    app.kubernetes.io/part-of: cloudnative-pg
+    app.kubernetes.io/managed-by: kustomize
+spec:
+  namespaceSelector:
+    matchNames:
+      - cnpg-clusters
+  selector:
+    matchLabels:
+      cnpg.io/cluster: postgres-cluster
+  podMetricsEndpoints:
+    - port: metrics

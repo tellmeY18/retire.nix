@@ -1,31 +1,14 @@
 ---
-# cnpg-prometheusrules.yaml — PrometheusRule for CloudNativePG.
+# cnpg-vmrules.yaml — VMRule for CloudNativePG alerting.
+#
+# Native VictoriaMetrics equivalent of the former PrometheusRule.
+# Evaluated by VMAlert, which reads rules from all VMRule objects.
 #
 # Based on the official CNPG sample:
 #   https://github.com/cloudnative-pg/cloudnative-pg/blob/main/docs/src/samples/monitoring/prometheusrule.yaml
-#
-# These are the upstream-recommended alerting rules. We maintain them as a
-# standalone kustomize resource rather than using the cnpg/cluster chart's
-# built-in PrometheusRule (which fails prometheus-operator v0.90.x webhook
-# validation).
-#
-# Alerts:
-#   - LongRunningTransaction:  query > 5 min
-#   - BackendsWaiting:         backends waiting > 5 min
-#   - PGDatabaseXidAge:        XID age > 300M (transaction wraparound risk)
-#   - PGReplication:            replication lag > 5 min
-#   - LastFailedArchiveTime:   WAL archiving failure
-#   - DatabaseDeadlockConflicts: deadlocks > 10
-#   - ReplicaFailingReplication: replica WAL receiver down
-#
-# Additional custom alerts for storage monitoring are appended below the
-# upstream rules.
-#
-# Reference:
-#   https://cloudnative-pg.io/documentation/current/monitoring/
 
-apiVersion: monitoring.coreos.com/v1
-kind: PrometheusRule
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMRule
 metadata:
   name: cnpg-default-alerts
   namespace: monitoring
@@ -36,9 +19,6 @@ metadata:
     app.kubernetes.io/managed-by: kustomize
 spec:
   groups:
-    # =======================================================================
-    # Official CNPG upstream rules
-    # =======================================================================
     - name: cnpg-default.rules
       rules:
         - alert: LongRunningTransaction
@@ -110,8 +90,3 @@ spec:
           for: 1m
           labels:
             severity: warning
-
-    # NOTE: Per-namespace PVC storage alerts (cnpg-storage.rules) have been
-    # removed from this file. They are replaced by the cluster-wide
-    # pvc-storage-prometheusrules.yaml which monitors ALL PVCs in ALL
-    # namespaces without hardcoded namespace strings.

@@ -1,11 +1,11 @@
 ---
-# pxc-haproxy-servicemonitor.yaml — ServiceMonitor for PXC HAProxy pods.
+# pxc-haproxy-vmservicescrape.yaml — VMServiceScrape for PXC HAProxy pods.
 #
-# The PXC operator's HAProxy image has a built-in Prometheus exporter on port 8404 at /metrics.
-# This ServiceMonitor allows Prometheus to scrape HAProxy metrics.
+# Native VictoriaMetrics equivalent of the former ServiceMonitor.
+# Scrapes HAProxy's built-in Prometheus exporter on port 8404.
 
-apiVersion: monitoring.coreos.com/v1
-kind: ServiceMonitor
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMServiceScrape
 metadata:
   name: pxc-haproxy
   namespace: monitoring
