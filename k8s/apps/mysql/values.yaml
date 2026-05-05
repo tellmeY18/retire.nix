@@ -15,11 +15,13 @@
 #   `Service/mysql-haproxy`, etc. Nothing here is host-specific.
 
 # ---------------------------------------------------------------------------
-# Allow unsafe configurations — required for single-node phase 1.
-# Without this, the operator refuses to start a 3-node PXC cluster on a
-# single k8s node (it considers this unsafe for production).
+# Unsafe flags — required for single-node phase 1.
+# The operator refuses PXC size < 3 and HAProxy size < 2 by default.
+# These granular flags override those specific checks.
 # ---------------------------------------------------------------------------
-allowUnsafeConfigurations: true
+unsafeFlags:
+  pxcSize: true
+  proxySize: true
 
 # ---------------------------------------------------------------------------
 # Finalizers — ensure clean teardown of PVCs and backups on cluster deletion.
@@ -31,10 +33,17 @@ finalizers:
 # PXC (Percona XtraDB Cluster) nodes
 # ---------------------------------------------------------------------------
 pxc:
-  # Three instances: one writer + two synchronous replicas via Galera.
-  # Phase 1 (single k3s node): all three pods land on the same node.
-  # Flip anti-affinity to required once a second untainted node joins.
-  size: 3
+  # Single instance for Phase 1 (single k3s node). Galera with size > 1 on
+  # a single node causes crash-recovery failures: pods that can never
+  # schedule confuse the quorum logic, and "full cluster crash" recovery
+  # stalls indefinitely.
+  #
+  # When a second schedulable node joins, bump to size: 3.
+  size: 1
+
+  # Auto-recovery: if the single PXC pod crashes or the node reboots,
+  # the operator will automatically bootstrap Galera from the latest state.
+  autoRecovery: true
 
   image:
     repository: percona/percona-xtradb-cluster
@@ -157,7 +166,9 @@ pxc:
 # tailscale-mysql-service.yaml) targets the HAProxy pods.
 haproxy:
   enabled: true
-  size: 2
+  # Single HAProxy instance for Phase 1 (single k3s node).
+  # Bump to 2 when a second schedulable node joins.
+  size: 1
 
   # The upstream chart expects haproxy.image as a plain string (unlike
   # pxc.image which accepts repository+tag). Using the structured form

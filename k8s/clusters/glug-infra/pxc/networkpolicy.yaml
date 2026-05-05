@@ -44,7 +44,8 @@ spec:
   policyTypes:
     - Ingress
   ingress:
-    # Rule 1: Client SQL traffic (3306, 3309) from tailscale and intra-namespace.
+    # Rule 1: Client SQL traffic (3306, 3309) from tailscale, intra-namespace,
+    #          and pxc-system (operator needs proxy access for smart-update).
     - from:
         - namespaceSelector:
             matchLabels:
@@ -52,6 +53,9 @@ spec:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: pxc-clusters
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: pxc-system
       ports:
         - protocol: TCP
           port: 3306
