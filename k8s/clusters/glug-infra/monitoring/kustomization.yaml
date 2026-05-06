@@ -23,6 +23,8 @@
 #   - ZFS VMRule (pool health, ARC efficiency, IO alerts).
 #   - PXC VMServiceScrapes (mysqld_exporter + HAProxy stats).
 #   - PXC VMRule (Galera health, flow control, storage alerts).
+#   - RustFS VMServiceScrape (S3 API + node metrics via MinIO v2 API).
+#   - RustFS VMRule (cluster health, capacity, S3 errors, healing).
 #   - PVC storage VMRule (cluster-wide PVC capacity alerts).
 #   - Laptop battery VMRule (AC power, charge level, health alerts).
 #
@@ -64,6 +66,10 @@ resources:
   - pxc-vmrules.yaml
   # PXC Grafana dashboard.
   - pxc-grafana-dashboard.yaml
+  # RustFS (MinIO-compatible S3) monitoring resources.
+  - rustfs-vmservicescrape.yaml
+  - rustfs-vmrules.yaml
+  - rustfs-grafana-dashboard.yaml
   # Cluster-wide PVC storage alerts.
   - pvc-storage-vmrules.yaml
   # Laptop battery monitoring.

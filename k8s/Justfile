@@ -34,10 +34,11 @@ default:
 #      Service).
 #   2. helmfile installs the victoria-metrics-k8s-stack (CRDs + operator +
 #      VMSingle + VMAgent + Grafana), then CNPG operator, then Postgres
-#      cluster, then PXC operator + MySQL cluster.
-#   3. AFTER helmfile (CRDs are now in place), kustomize applies the
-#      monitoring custom resources (VMRule, VMPodScrape, VMServiceScrape).
-#      These require the VM operator CRDs to exist.
+#      cluster, then PXC operator + MySQL cluster, then RustFS operator.
+#   3. AFTER helmfile (CRDs are now in place), kustomize applies CRD-
+#      dependent resources:
+#      - RustFS Tenant CR (requires rustfs.com/v1alpha1 Tenant CRD)
+#      - Monitoring custom resources (VMRule, VMPodScrape, VMServiceScrape)
 [doc('Apply kustomize + helmfile to the cluster')]
 apply:
     kubectl apply -k clusters/glug-infra
@@ -45,6 +46,7 @@ apply:
     kubectl apply -k clusters/glug-infra/rustfs
     kubectl apply -f clusters/glug-infra/monitoring/namespace.yaml
     helmfile sync
+    kubectl apply -f clusters/glug-infra/rustfs/tenant.yaml
     kubectl apply -k clusters/glug-infra/monitoring
 
 # Preview k8s changes without applying.
@@ -53,6 +55,7 @@ diff:
     kubectl diff -k clusters/glug-infra || true
     kubectl diff -k clusters/glug-infra/pxc || true
     kubectl diff -k clusters/glug-infra/rustfs || true
+    kubectl diff -f clusters/glug-infra/rustfs/tenant.yaml 2>/dev/null || true
     kubectl diff -k clusters/glug-infra/monitoring || true
     helmfile diff
 
@@ -219,6 +222,24 @@ rustfs-health:
 rustfs-apply-secret:
     @echo "Decrypting and applying RustFS credentials..."
     sops --decrypt clusters/glug-infra/rustfs/credentials-secret.enc.yaml | kubectl apply -f -
+
+# Show RustFS cluster capacity from VMSingle.
+[doc('Query RustFS cluster capacity from VMSingle')]
+rustfs-capacity:
+    kubectl -n monitoring exec -it deploy/vmks-victoria-metrics-k8s-stack-vmsingle -- \
+      wget -qO- "http://localhost:8428/api/v1/query?query=%7B__name__%3D~%22minio_cluster_capacity_(total|used|free)_bytes%22%7D" | jq '.data.result[]'
+
+# Show RustFS node/drive online status from VMSingle.
+[doc('Query RustFS node/drive status from VMSingle')]
+rustfs-node-status:
+    kubectl -n monitoring exec -it deploy/vmks-victoria-metrics-k8s-stack-vmsingle -- \
+      wget -qO- "http://localhost:8428/api/v1/query?query=%7B__name__%3D~%22minio_cluster_(nodes|drive)_(online|offline)_total%22%7D" | jq '.data.result[]'
+
+# Show RustFS S3 request error rate (5m) from VMSingle.
+[doc('Query RustFS S3 error rate from VMSingle')]
+rustfs-error-rate:
+    kubectl -n monitoring exec -it deploy/vmks-victoria-metrics-k8s-stack-vmsingle -- \
+      wget -qO- "http://localhost:8428/api/v1/query?query=rate(minio_s3_requests_errors_total%5B5m%5D)" | jq '.data.result[]'
 
 # ---------------------------------------------------------------------------
 # Monitoring helpers (VictoriaMetrics stack)
