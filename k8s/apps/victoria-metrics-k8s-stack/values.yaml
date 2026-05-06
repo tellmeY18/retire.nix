@@ -1,11 +1,11 @@
-# values.yaml — Plain Helm values for victoria-metrics-k8s-stack chart.
+# values.yaml — Plain Helm values for victoria-metrics-k8s-stack chart 0.77.0.
 #
 # Encrypted / secret values belong in secrets.yaml (sops-encrypted, referenced
 # from helmfile.yaml via the `secrets://` prefix). Currently that is just the
 # Grafana admin password.
 #
 # Reference for all available keys:
-#   helm show values vm/victoria-metrics-k8s-stack --version 0.35.0
+#   helm show values vm/victoria-metrics-k8s-stack --version 0.77.0
 #
 # Design notes:
 #   - All resource requests/limits are tuned for an old laptop (chopper).
@@ -18,6 +18,15 @@
 #     metrics via standard endpoints — those scrape targets are disabled.
 #   - Grafana sidecar auto-discovers dashboards from ConfigMaps across all
 #     namespaces (same mechanism as before).
+#
+# Upgrade notes (0.35.0 → 0.77.0):
+#   - prometheus-operator-crds subchart removed (0.39.0) — N/A, we use native VM CRDs.
+#   - Grafana subchart upgraded to v12 (0.50.0) — no config impact.
+#   - KSM subchart upgraded to 6.x (0.55.0) — metric names unchanged for our alerts.
+#   - VMSingle default port changed to 8428 (0.58.3) — already our explicit setting.
+#   - Label scheme changed to app.kubernetes.io/component (0.74.0) — operator
+#     Deployment may need manual deletion on first upgrade.
+#   - admissionWebhooks.policy defaults to Ignore (0.77.0) — already our setting.
 
 # ===========================================================================
 # Global settings
@@ -42,12 +51,12 @@ victoria-metrics-operator:
       enabled: true
       image:
         pullPolicy: IfNotPresent
-        repository: registry.k8s.io/kubectl
 
   # Admission webhooks — validate VMRule resources on create/update.
   admissionWebhooks:
     # Use Ignore policy so the stack can be installed in a single pass
     # without races against the operator's webhook server starting up.
+    # NOTE: This is the default in 0.77.0+ but we set it explicitly.
     policy: Ignore
 
   # Operator pod resources — lightweight.
@@ -76,6 +85,8 @@ vmsingle:
     retentionPeriod: "7d"
 
     # Port for the VMSingle HTTP API.
+    # NOTE: Default changed from 8429 to 8428 in chart 0.58.3. We explicitly
+    # set 8428 which matches the new default (avoids unwanted pod restart).
     port: "8428"
 
     # Storage — OpenEBS ZFS LocalPV.
@@ -174,7 +185,7 @@ alertmanager:
     selectAllByDefault: true
 
     image:
-      tag: v0.28.1
+      tag: v0.32.1
 
     resources:
       requests:
