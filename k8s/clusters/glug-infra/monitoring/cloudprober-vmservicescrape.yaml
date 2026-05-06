@@ -1,0 +1,34 @@
+# =============================================================================
+# VMServiceScrape — Cloudprober metrics ingestion into VictoriaMetrics
+# =============================================================================
+#
+# This VMServiceScrape tells VMAgent to scrape Cloudprober's /metrics endpoint.
+# Metrics are then available in VictoriaMetrics for alerting and dashboards.
+#
+# Key queries:
+#   Availability:  rate(cloudprober_success{probe="care-frontend"}[5m])
+#                  / rate(cloudprober_total{probe="care-frontend"}[5m])
+#   Latency (ms):  rate(cloudprober_latency{probe="care-frontend"}[5m])
+#                  / rate(cloudprober_success{probe="care-frontend"}[5m]) / 1000
+# =============================================================================
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMServiceScrape
+metadata:
+  name: cloudprober
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: cloudprober
+    app.kubernetes.io/component: prober
+    app.kubernetes.io/part-of: victoria-metrics-k8s-stack
+    app.kubernetes.io/managed-by: kustomize
+spec:
+  namespaceSelector:
+    matchNames:
+      - monitoring
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: cloudprober
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: 30s

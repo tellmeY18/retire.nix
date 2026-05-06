@@ -1,0 +1,211 @@
+---
+# endpoint-vmrules.yaml — VMRule for endpoint monitoring alerts.
+#
+# Native VictoriaMetrics CRD evaluated by VMAlert.
+#
+# ─── Cloudprober metric model ───────────────────────────────────────────────
+#
+# Cloudprober exposes COUNTERS (not gauges). The relevant metrics are:
+#
+#   cloudprober_total{probe="...", dst="..."}   — total probes sent (counter)
+#   cloudprober_success{probe="...", dst="..."} — successful probes (counter)
+#   cloudprober_latency{probe="...", dst="..."} — cumulative latency in
+#                                                  microseconds (counter)
+#
+# Because these are counters, you MUST use rate() for meaningful calculations:
+#   Success rate = rate(cloudprober_success[5m]) / rate(cloudprober_total[5m])
+#   Avg latency  = rate(cloudprober_latency[5m]) / rate(cloudprober_success[5m])
+#                  (result is in µs — divide by 1e6 for seconds)
+#
+# ─── ticket_priority labels ─────────────────────────────────────────────────
+#
+# The `ticket_priority` label drives Jira ticket lifecycle via jiralert:
+#   P1 = Highest — immediate response, page on-call
+#   P2 = High    — respond within 30 minutes
+#   P3 = Medium  — respond within business hours
+#
+# ─── probe filter: care-tls-expiry ──────────────────────────────────────────
+#
+# The `probe!="care-tls-expiry"` filter is applied to all availability and
+# latency rules. The "care-tls-expiry" probe runs hourly (not every few
+# seconds like HTTP probes), so including it in rate()-based success/latency
+# calculations would produce misleading spikes and false positives.
+# SSL certificate expiry is handled separately in the `endpoint-ssl` group.
+#
+# ─── endpoint-agnostic design ───────────────────────────────────────────────
+#
+# All rules use generic label matchers (no hardcoded probe or dst names).
+# When a new endpoint is added to the Cloudprober configuration, it is
+# automatically monitored by every rule in this file — zero config changes
+# needed here.
+#
+
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMRule
+metadata:
+  name: endpoint-alerts
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: endpoint-monitor
+    app.kubernetes.io/component: alerting
+    app.kubernetes.io/part-of: victoria-metrics-k8s-stack
+    app.kubernetes.io/managed-by: kustomize
+spec:
+  groups:
+    # ─── Group 1: Availability & Latency ──────────────────────────────────────
+    - name: endpoint-availability
+      rules:
+        - alert: EndpointDown
+          annotations:
+            description: >-
+              Success rate is {{ $value | humanizePercentage }}. The endpoint
+              has been failing for more than 2 minutes.
+            summary: >-
+              Endpoint {{ $labels.dst }} is DOWN
+              (probe: {{ $labels.probe }})
+          expr: |-
+            (
+              rate(cloudprober_success{probe!="care-tls-expiry"}[5m])
+              /
+              rate(cloudprober_total{probe!="care-tls-expiry"}[5m])
+            ) < 0.5
+          for: 2m
+          labels:
+            severity: critical
+            ticket_priority: P1
+
+        - alert: EndpointDegraded
+          annotations:
+            description: >-
+              Success rate for {{ $labels.dst }} is
+              {{ $value | humanizePercentage }} (below 95% SLO threshold).
+              The endpoint has been degraded for more than 5 minutes.
+            summary: >-
+              Endpoint {{ $labels.dst }} is degraded
+              (probe: {{ $labels.probe }})
+          expr: |-
+            (
+              rate(cloudprober_success{probe!="care-tls-expiry"}[5m])
+              /
+              rate(cloudprober_total{probe!="care-tls-expiry"}[5m])
+            ) < 0.95
+          for: 5m
+          labels:
+            severity: warning
+            ticket_priority: P3
+
+        - alert: EndpointHighLatency
+          annotations:
+            description: >-
+              Average response time for {{ $labels.dst }} is
+              {{ $value | printf "%.1f" }}s (threshold: 5s). The endpoint
+              has been slow for more than 5 minutes.
+            summary: >-
+              Endpoint {{ $labels.dst }} latency > 5s
+              (probe: {{ $labels.probe }})
+          expr: |-
+            (
+              rate(cloudprober_latency{probe!="care-tls-expiry"}[5m])
+              /
+              rate(cloudprober_success{probe!="care-tls-expiry"}[5m])
+            ) / 1e6 > 5
+          for: 5m
+          labels:
+            severity: warning
+            ticket_priority: P3
+
+        - alert: EndpointHighLatencyCritical
+          annotations:
+            description: >-
+              Average response time for {{ $labels.dst }} is
+              {{ $value | printf "%.1f" }}s (threshold: 15s). The endpoint
+              has been critically slow for more than 2 minutes.
+            summary: >-
+              Endpoint {{ $labels.dst }} latency > 15s
+              (probe: {{ $labels.probe }})
+          expr: |-
+            (
+              rate(cloudprober_latency{probe!="care-tls-expiry"}[5m])
+              /
+              rate(cloudprober_success{probe!="care-tls-expiry"}[5m])
+            ) / 1e6 > 15
+          for: 2m
+          labels:
+            severity: critical
+            ticket_priority: P2
+
+    # ─── Group 2: SSL Certificate Expiry ──────────────────────────────────────
+    #
+    # NOTE: The exact metric name for SSL certificate expiry in Cloudprober
+    # may be `cloudprober_http_ssl_earliest_cert_expiry_sec` or similar —
+    # verify with actual `curl localhost:9313/metrics` output from the
+    # Cloudprober pod and adjust the metric name if needed. The metric
+    # reports seconds until the earliest certificate in the chain expires.
+    #
+    - name: endpoint-ssl
+      rules:
+        - alert: SSLCertExpiringSoon
+          annotations:
+            description: >-
+              SSL certificate for {{ $labels.dst }} expires in
+              {{ $value | printf "%.0f" }} days (probe: {{ $labels.probe }}).
+              Renew before it becomes critical.
+            summary: >-
+              SSL cert for {{ $labels.dst }} expires in < 30 days
+          expr: |-
+            cloudprober_http_ssl_earliest_cert_expiry_sec > 0
+            and
+            cloudprober_http_ssl_earliest_cert_expiry_sec < 30 * 86400
+          for: 1h
+          labels:
+            severity: warning
+            ticket_priority: P3
+
+        - alert: SSLCertExpiringCritical
+          annotations:
+            description: >-
+              SSL certificate for {{ $labels.dst }} expires in
+              {{ $value | printf "%.0f" }} days (probe: {{ $labels.probe }}).
+              Immediate renewal required to avoid outage.
+            summary: >-
+              SSL cert for {{ $labels.dst }} expires in < 7 days
+          expr: |-
+            cloudprober_http_ssl_earliest_cert_expiry_sec > 0
+            and
+            cloudprober_http_ssl_earliest_cert_expiry_sec < 7 * 86400
+          for: 10m
+          labels:
+            severity: critical
+            ticket_priority: P1
+
+    # ─── Group 3: Uptime SLO (recording rules + breach alert) ─────────────────
+    - name: endpoint-uptime-slo
+      rules:
+        # Recording rule: 5-minute success rate per endpoint.
+        - record: endpoint:success_rate:5m
+          expr: |-
+            rate(cloudprober_success{probe!="care-tls-expiry"}[5m])
+            /
+            rate(cloudprober_total{probe!="care-tls-expiry"}[5m])
+
+        # Recording rule: 1-hour success rate per endpoint.
+        - record: endpoint:success_rate:1h
+          expr: |-
+            rate(cloudprober_success{probe!="care-tls-expiry"}[1h])
+            /
+            rate(cloudprober_total{probe!="care-tls-expiry"}[1h])
+
+        - alert: EndpointSLOBreach
+          annotations:
+            description: >-
+              Endpoint {{ $labels.dst }} availability has dropped to
+              {{ $value | humanizePercentage }} over the past hour, breaching
+              the 99% SLO target (probe: {{ $labels.probe }}).
+            summary: >-
+              SLO breach — {{ $labels.dst }} availability < 99% over 1h
+          expr: |-
+            endpoint:success_rate:1h < 0.99
+          for: 5m
+          labels:
+            severity: critical
+            ticket_priority: P1

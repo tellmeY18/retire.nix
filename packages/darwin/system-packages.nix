@@ -7,7 +7,7 @@
 
     # Media & Graphics
     #pkgs.mpv
-    pkgs.ffmpeg_6-full
+    #    pkgs.ffmpeg_6-full
     pkgs.imagemagick
     pkgs.sox
 
@@ -98,7 +98,6 @@
     # Data Processing
     pkgs.grex
     pkgs.rPackages.saws
-    pkgs.papers
     pkgs.sshuttle
   ];
 }
