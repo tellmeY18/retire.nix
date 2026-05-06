@@ -35,10 +35,10 @@ default:
 #   2. helmfile installs the victoria-metrics-k8s-stack (CRDs + operator +
 #      VMSingle + VMAgent + Grafana), then CNPG operator, then Postgres
 #      cluster, then PXC operator + MySQL cluster, then RustFS operator.
-#   3. AFTER helmfile (CRDs are now in place), kustomize applies CRD-
-#      dependent resources:
+#   3. AFTER helmfile (CRDs are now in place), apply CRD-dependent resources:
+#      - RustFS credentials Secret (sops-decrypted, must exist BEFORE Tenant)
 #      - RustFS Tenant CR (requires rustfs.com/v1alpha1 Tenant CRD)
-#      - Monitoring custom resources (VMRule, VMPodScrape, VMServiceScrape)
+#      - Monitoring custom resources (VMRule, VMServiceScrape, dashboards)
 [doc('Apply kustomize + helmfile to the cluster')]
 apply:
     kubectl apply -k clusters/glug-infra
@@ -46,6 +46,8 @@ apply:
     kubectl apply -k clusters/glug-infra/rustfs
     kubectl apply -f clusters/glug-infra/monitoring/namespace.yaml
     helmfile sync
+    @echo "Applying RustFS credentials (sops-decrypt)..."
+    sops --decrypt clusters/glug-infra/rustfs/credentials-secret.enc.yaml | kubectl apply -f -
     kubectl apply -f clusters/glug-infra/rustfs/tenant.yaml
     kubectl apply -k clusters/glug-infra/monitoring
 

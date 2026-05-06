@@ -11,7 +11,7 @@
     ../../modules/neondb.nix
     ../../modules/services/cloudflared-bootstrap.nix
     ../../modules/services/cloudflared-dns.nix
-    ../../profiles/k3s-node.nix
+    ../../profiles/k3s-storage-node.nix
     ./default.nix
     ../../packages/chopper
   ];

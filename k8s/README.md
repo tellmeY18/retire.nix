@@ -102,11 +102,16 @@ just k8s::apply
 
 `just k8s::apply` runs:
 
-1. `helmfile sync` — installs/upgrades the CNPG **operator** and (declared via
-   `needs:`) the `postgres` cluster release. helm-secrets decrypts each
+1. `kubectl apply -k` — creates Namespaces (with PSA labels), NetworkPolicies,
+   and Tailscale LoadBalancer Services for CNPG, PXC, and RustFS.
+2. `helmfile sync` — installs/upgrades all operators (VM stack, CNPG, PXC,
+   RustFS) and workloads (Postgres, MySQL). helm-secrets decrypts each
    `secrets.yaml` inline and merges it on top of the corresponding `values.yaml`.
-2. `kubectl apply -k k8s/clusters/glug-infra` — applies the namespace,
-   NetworkPolicies, and Tailscale LoadBalancer Service.
+3. RustFS credentials Secret — sops-decrypted and applied (must exist before
+   the Tenant CR so the operator can validate immediately).
+4. RustFS Tenant CR — applied now that the CRD + credentials both exist.
+5. `kubectl apply -k monitoring` — applies VMRules, VMServiceScrapes, and
+   Grafana dashboards (requires VM operator CRDs from step 2).
 
 ### Preview before applying
 

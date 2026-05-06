@@ -8,15 +8,21 @@
 # `rustfs-clusters` and are created by kustomize.
 #
 # Labels:
-#   pod-security.kubernetes.io/enforce=restricted
-#     RustFS operator sets proper security contexts on StatefulSet pods:
-#     runAsNonRoot, no privilege escalation, seccomp RuntimeDefault.
+#   pod-security.kubernetes.io/enforce=baseline
+#     The RustFS operator (v0.1.0) does NOT yet set a restricted-compatible
+#     securityContext on StatefulSet pods (missing allowPrivilegeEscalation,
+#     capabilities drop, runAsNonRoot, seccompProfile). Enforcement is
+#     relaxed to `baseline` until upstream fixes this.
+#     Audit + warn remain `restricted` so we're alerted when it's safe to
+#     tighten enforcement.
+#   TODO: Tighten to `restricted` once rustfs/operator sets proper pod
+#         security context (track https://github.com/rustfs/operator/issues).
 apiVersion: v1
 kind: Namespace
 metadata:
   name: rustfs-clusters
   labels:
-    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce: baseline
     pod-security.kubernetes.io/enforce-version: latest
     pod-security.kubernetes.io/audit: restricted
     pod-security.kubernetes.io/warn: restricted
