@@ -1,0 +1,76 @@
+---
+# networkpolicy.yaml — Default-deny + explicit allow NetworkPolicies for the
+# rustfs-clusters namespace.
+#
+# Defense in depth: even though the cluster is reachable only over the
+# tailnet, NetworkPolicies prevent unauthorised intra-cluster traffic.
+#
+# Rules:
+#   1. Default-deny ingress for the namespace.
+#   2. Allow ingress to RustFS pods on 9000 (S3 API) from:
+#        - the Tailscale operator's ts-proxy pods (namespace: tailscale).
+#        - other RustFS pods in the namespace (inter-node erasure coding).
+#        - the monitoring namespace (metrics scrape).
+#   3. Allow ingress to RustFS pods on 9001 (Console UI) from:
+#        - the Tailscale operator's ts-proxy pods (namespace: tailscale).
+#   4. Allow egress between RustFS pods (erasure coding protocol).
+
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: rustfs-clusters
+  labels:
+    app.kubernetes.io/part-of: rustfs
+    app.kubernetes.io/managed-by: kustomize
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-rustfs-ingress
+  namespace: rustfs-clusters
+  labels:
+    app.kubernetes.io/part-of: rustfs
+    app.kubernetes.io/managed-by: kustomize
+spec:
+  podSelector:
+    matchLabels:
+      rustfs.tenant: rustfs-storage
+  policyTypes:
+    - Ingress
+  ingress:
+    # Rule 1: S3 API (9000) from tailscale, intra-namespace, and monitoring.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: tailscale
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: rustfs-clusters
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+      ports:
+        - protocol: TCP
+          port: 9000
+    # Rule 2: Console UI (9001) from tailscale only.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: tailscale
+      ports:
+        - protocol: TCP
+          port: 9001
+    # Rule 3: Inter-node communication for erasure coding.
+    # RustFS nodes communicate with each other on port 9000.
+    - from:
+        - podSelector:
+            matchLabels:
+              rustfs.tenant: rustfs-storage
+      ports:
+        - protocol: TCP
+          port: 9000

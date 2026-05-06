@@ -1,0 +1,58 @@
+---
+# tailscale-s3-service.yaml — Expose the RustFS S3 API on the tailnet as
+# a stable MagicDNS endpoint via the Tailscale Kubernetes operator.
+#
+# Traffic path:
+#   webservice / client
+#     → s3.<tailnet>.ts.net:9000          (Tailscale MagicDNS)
+#     → ts-proxy pod                       (this Service, ts-managed)
+#     → RustFS IO Service                  (operator-created, port 9000)
+#     → RustFS StatefulSet pods            (erasure-coded cluster)
+#
+# The Tailscale operator watches Services with `spec.loadBalancerClass:
+# tailscale` and provisions a ts-proxy StatefulSet that registers a device
+# on the tailnet.
+#
+# Prerequisites:
+#   - Tailscale Kubernetes operator installed (NixOS-bootstrapped).
+#   - Tailscale operator OAuth credentials applied.
+#   - Tailscale ACL allows tag:k8s traffic on port 9000.
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: s3-tailscale
+  namespace: rustfs-clusters
+  labels:
+    app.kubernetes.io/name: rustfs
+    app.kubernetes.io/component: tailnet-frontend
+    app.kubernetes.io/part-of: rustfs
+    app.kubernetes.io/managed-by: kustomize
+  annotations:
+    # MagicDNS hostname: s3.<tailnet>.ts.net
+    tailscale.com/hostname: "s3"
+    tailscale.com/tags: "tag:k8s"
+spec:
+  type: LoadBalancer
+  loadBalancerClass: tailscale
+
+  # Select the RustFS pods for the S3 API (IO service).
+  # The operator labels pods with `rustfs.tenant=<tenant-name>`.
+  selector:
+    rustfs.tenant: rustfs-storage
+
+  ports:
+    - name: s3-api
+      protocol: TCP
+      port: 9000
+      targetPort: 9000
+    - name: console
+      protocol: TCP
+      port: 9001
+      targetPort: 9001
+
+  # Session affinity for consistent routing during multi-part uploads.
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 3600

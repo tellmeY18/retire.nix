@@ -42,6 +42,7 @@ default:
 apply:
     kubectl apply -k clusters/glug-infra
     kubectl apply -k clusters/glug-infra/pxc
+    kubectl apply -k clusters/glug-infra/rustfs
     kubectl apply -f clusters/glug-infra/monitoring/namespace.yaml
     helmfile sync
     kubectl apply -k clusters/glug-infra/monitoring
@@ -51,6 +52,7 @@ apply:
 diff:
     kubectl diff -k clusters/glug-infra || true
     kubectl diff -k clusters/glug-infra/pxc || true
+    kubectl diff -k clusters/glug-infra/rustfs || true
     kubectl diff -k clusters/glug-infra/monitoring || true
     helmfile diff
 
@@ -159,6 +161,64 @@ pxc-backup-now:
 pxc-shell:
     @echo "Connecting to MySQL via HAProxy..."
     kubectl exec -n pxc-clusters -it mysql-haproxy-0 -- mysql -h 127.0.0.1 -u root -p
+
+# ---------------------------------------------------------------------------
+# RustFS (S3-compatible object storage) day-2 helpers
+# ---------------------------------------------------------------------------
+
+# Show the RustFS Tenant status.
+[doc('Show RustFS Tenant status')]
+rustfs-status:
+    kubectl get tenant rustfs-storage -n rustfs-clusters -o wide
+
+# Show detailed RustFS Tenant info.
+[doc('Show detailed RustFS Tenant description')]
+rustfs-describe:
+    kubectl describe tenant rustfs-storage -n rustfs-clusters
+
+# Tail logs from the RustFS operator.
+[doc('Tail RustFS operator logs')]
+rustfs-operator-logs:
+    kubectl logs -n rustfs-system -l app.kubernetes.io/name=rustfs-operator -f --tail=200
+
+# Tail logs from a specific RustFS pod (default: first pod).
+[doc('Tail RustFS storage pod logs')]
+rustfs-pod-logs pod="rustfs-storage-pool-0-0":
+    kubectl logs -n rustfs-clusters {{ pod }} -f --tail=200
+
+# Show all RustFS pods and their status.
+[doc('List all RustFS pods')]
+rustfs-pods:
+    kubectl -n rustfs-clusters get pods -l rustfs.tenant=rustfs-storage -o wide
+
+# Show RustFS PVCs and their capacity.
+[doc('List all RustFS PVCs')]
+rustfs-pvcs:
+    kubectl -n rustfs-clusters get pvc -l rustfs.tenant=rustfs-storage \
+      -o custom-columns=NAME:.metadata.name,STATUS:.status.phase,CAPACITY:.status.capacity.storage,STORAGECLASS:.spec.storageClassName
+
+# Port-forward the RustFS S3 API to localhost:9000.
+[doc('Port-forward RustFS S3 API to localhost:9000')]
+rustfs-port-forward:
+    kubectl -n rustfs-clusters port-forward svc/rustfs-storage-io 9000:9000
+
+# Port-forward the RustFS Console UI to localhost:9001.
+[doc('Port-forward RustFS Console UI to localhost:9001')]
+rustfs-console:
+    kubectl -n rustfs-clusters port-forward svc/rustfs-storage-console 9001:9001
+
+# Test S3 API connectivity (requires aws cli or mc).
+[doc('Test RustFS S3 API health via tailnet')]
+rustfs-health:
+    @echo "Testing S3 API health..."
+    kubectl -n rustfs-clusters exec rustfs-storage-pool-0-0 -- wget -qO- http://localhost:9000/minio/health/live && echo " OK" || echo " FAILED"
+
+# Apply the RustFS credentials Secret from sops-encrypted source.
+# Use this after editing credentials with `just k8s::edit-secret`.
+[doc('Apply sops-decrypted RustFS credentials Secret')]
+rustfs-apply-secret:
+    @echo "Decrypting and applying RustFS credentials..."
+    sops --decrypt clusters/glug-infra/rustfs/credentials-secret.enc.yaml | kubectl apply -f -
 
 # ---------------------------------------------------------------------------
 # Monitoring helpers (VictoriaMetrics stack)
