@@ -40,7 +40,9 @@ repositories:
     url: https://percona.github.io/percona-helm-charts
   # NOTE: The rustfs-operator chart is not published to a Helm registry.
   # It lives in the source repo at deploy/rustfs-operator/. We reference it
-  # directly via the helm-git plugin (included in the Nix dev shell).
+  # via the helm-git plugin (included in the Nix dev shell via wrapHelm).
+  - name: rustfs-git
+    url: "git+https://github.com/rustfs/operator@deploy?ref=main"
 
 helmDefaults:
   wait: true
@@ -150,12 +152,11 @@ releases:
   # for Tenant resources.
   #
   # Chart source: https://github.com/rustfs/operator/tree/main/deploy/rustfs-operator
-  # NOTE: This chart is NOT published to a Helm registry. We pull it directly
-  # from git via the helm-git plugin. Pin to a specific commit for stability.
+  # Pulled via helm-git plugin from the rustfs-git repository defined above.
   - name: rustfs-operator
     namespace: rustfs-system
     createNamespace: true
-    chart: "git+https://github.com/rustfs/operator@deploy/rustfs-operator?ref=main"
+    chart: rustfs-git/rustfs-operator
     version: "0.1.0"
     needs:
       - monitoring/victoria-metrics-k8s-stack
