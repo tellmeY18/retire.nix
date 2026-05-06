@@ -1,0 +1,239 @@
+# =============================================================================
+# Cloudprober — Active Synthetic Endpoint Monitoring
+# =============================================================================
+#
+# What is Cloudprober?
+#   Cloudprober is an active monitoring tool that continuously probes configured
+#   endpoints (HTTP, TCP, DNS, etc.) and exports Prometheus-compatible metrics.
+#   Unlike passive monitoring (which waits for traffic), Cloudprober actively
+#   sends requests at fixed intervals — catching outages even when no real
+#   users are hitting the endpoint.
+#
+# Why Cloudprober over blackbox_exporter?
+#   - Active vs passive: Cloudprober runs its own probe loop; blackbox_exporter
+#     requires Prometheus to drive probes via relabeling hacks.
+#   - Simpler config: protobuf text format is more readable than the nested
+#     YAML modules blackbox requires.
+#   - Lighter: single static binary, ~15MB RSS, minimal CPU.
+#   - Built-in validators, additional labels, and surfacers (output backends).
+#   - No need for probe/relabel_configs gymnastics in the scrape config.
+#
+# How to add new endpoints:
+#   1. Edit the ConfigMap below (cloudprober.cfg uses protobuf text format).
+#   2. Add a new `probe { ... }` block following the existing examples.
+#   3. Apply the manifest: kubectl apply -f cloudprober.yaml
+#   4. Restart the pod to pick up config changes:
+#        kubectl rollout restart deployment/cloudprober -n monitoring
+#
+# Key metrics exported (on :9313/metrics):
+#   - cloudprober_total{probe="...", dst="..."}       — total probes sent
+#   - cloudprober_success{probe="...", dst="..."}     — successful probes
+#   - cloudprober_latency{probe="...", dst="..."}     — cumulative latency (us)
+#   - cloudprober_timeouts{probe="...", dst="..."}    — timed-out probes
+#   - cloudprober_validation_failure{probe="..."}     — validator failures
+#
+#   Derive availability: rate(cloudprober_success[5m]) / rate(cloudprober_total[5m])
+#   Derive p50 latency: rate(cloudprober_latency[5m]) / rate(cloudprober_success[5m])
+#
+# Docs: https://cloudprober.org/docs/
+# =============================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cloudprober-config
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: cloudprober
+    app.kubernetes.io/component: prober
+    app.kubernetes.io/part-of: victoria-metrics-k8s-stack
+    app.kubernetes.io/managed-by: kustomize
+data:
+  cloudprober.cfg: |
+    # Cloudprober configuration (protobuf text format)
+    # Docs: https://cloudprober.org/docs/config/
+
+    probe {
+      name: "care-frontend"
+      type: HTTP
+      targets {
+        host_names: "care.ohc.network"
+      }
+      http_probe {
+        protocol: HTTPS
+        relative_url: "/"
+        resolve_first: true
+      }
+      interval_msec: 30000
+      timeout_msec: 10000
+      validator {
+        http_validator {
+          success_status_codes: "200-399"
+        }
+      }
+      additional_label {
+        key: "service"
+        value: "care"
+      }
+      additional_label {
+        key: "tier"
+        value: "frontend"
+      }
+      additional_label {
+        key: "team"
+        value: "ohc"
+      }
+    }
+
+    probe {
+      name: "care-api-health"
+      type: HTTP
+      targets {
+        host_names: "careapi.ohc.network"
+      }
+      http_probe {
+        protocol: HTTPS
+        relative_url: "/health/"
+        resolve_first: true
+      }
+      interval_msec: 30000
+      timeout_msec: 10000
+      validator {
+        http_validator {
+          success_status_codes: "200-399"
+        }
+      }
+      additional_label {
+        key: "service"
+        value: "care"
+      }
+      additional_label {
+        key: "tier"
+        value: "backend"
+      }
+      additional_label {
+        key: "team"
+        value: "ohc"
+      }
+    }
+
+    # TLS certificate expiry probe (uses the same targets but checks cert)
+    probe {
+      name: "care-tls-expiry"
+      type: HTTP
+      targets {
+        host_names: "care.ohc.network,careapi.ohc.network"
+      }
+      http_probe {
+        protocol: HTTPS
+        relative_url: "/"
+        resolve_first: true
+      }
+      interval_msec: 3600000
+      timeout_msec: 10000
+      additional_label {
+        key: "check"
+        value: "tls"
+      }
+    }
+
+    # Surfacer: expose Prometheus metrics on port 9313
+    surfacer {
+      type: PROMETHEUS
+      prometheus_surfacer {
+        metrics_prefix: "cloudprober_"
+      }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cloudprober
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: cloudprober
+    app.kubernetes.io/component: prober
+    app.kubernetes.io/part-of: victoria-metrics-k8s-stack
+    app.kubernetes.io/managed-by: kustomize
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: cloudprober
+      app.kubernetes.io/component: prober
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: cloudprober
+        app.kubernetes.io/component: prober
+        app.kubernetes.io/part-of: victoria-metrics-k8s-stack
+        app.kubernetes.io/managed-by: kustomize
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: cloudprober
+          image: cloudprober/cloudprober:v0.14.3
+          args:
+            - "--config_file"
+            - "/etc/cloudprober/cloudprober.cfg"
+          ports:
+            - name: metrics
+              containerPort: 9313
+              protocol: TCP
+          resources:
+            requests:
+              cpu: 25m
+              memory: 32Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          securityContext:
+            runAsNonRoot: true
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            seccompProfile:
+              type: RuntimeDefault
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 9313
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 9313
+            periodSeconds: 10
+          volumeMounts:
+            - name: config
+              mountPath: /etc/cloudprober/cloudprober.cfg
+              subPath: cloudprober.cfg
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: cloudprober-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cloudprober
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: cloudprober
+    app.kubernetes.io/component: prober
+    app.kubernetes.io/part-of: victoria-metrics-k8s-stack
+    app.kubernetes.io/managed-by: kustomize
+spec:
+  selector:
+    app.kubernetes.io/name: cloudprober
+    app.kubernetes.io/component: prober
+  ports:
+    - name: metrics
+      port: 9313
+      targetPort: metrics
+      protocol: TCP

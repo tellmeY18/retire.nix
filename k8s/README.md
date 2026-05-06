@@ -37,7 +37,9 @@ nodes are present; the Tailscale `pg-rw` MagicDNS endpoint stays stable.
 | **Postgres workloads** | `helmfile` (cnpg/cluster chart) | One Helm release per Postgres cluster. Renders the `Cluster`, `ScheduledBackup`, and `Pooler` CRs from values files in `apps/postgres/`. |
 | **PXC operator** | `helmfile` | The `pxc-operator` chart in the `pxc-system` namespace. Provides CRDs + the controller. |
 | **MySQL workloads** | `helmfile` (percona/pxc-db chart) | One Helm release per PXC cluster. Renders the `PerconaXtraDBCluster` CR (PXC nodes + HAProxy + backups) from values files in `apps/mysql/`. |
-| **Monitoring stack** | `helmfile` | `victoria-metrics-k8s-stack` chart in the `monitoring` namespace. Provides VMSingle + VMAgent + VMAlert + VMAlertmanager + Grafana + VictoriaMetrics Operator + CRDs (VMRule, VMPodScrape, VMServiceScrape). |
+| **RustFS operator** | `helmfile` (helm-git) | The `rustfs-operator` chart pulled from `github.com/rustfs/operator` via the `helm-git` plugin. Provides the `Tenant` CRD + controller in the `rustfs-system` namespace. |
+| **RustFS workloads** | `kustomize` + `sops` | The `Tenant` CR (`tenant.yaml`) is applied post-helmfile once the CRD exists. Credentials Secret is sops-decrypted and applied before the Tenant. |
+| **Monitoring stack** | `helmfile` | `victoria-metrics-k8s-stack` chart (v0.77.0) in the `monitoring` namespace. Provides VMSingle + VMAgent + VMAlert + VMAlertmanager + Grafana + VictoriaMetrics Operator + CRDs (VMRule, VMPodScrape, VMServiceScrape). |
 | **Cluster glue** | `kubectl apply -k` (kustomize) | Namespaces (with PSA labels), NetworkPolicies, and Tailscale LoadBalancer Services (pg-rw, mysql-rw, grafana). |
 | **Encrypted secrets** | `helm-secrets` (sops) | S3 backup credentials live in `apps/postgres/secrets.yaml` and the Grafana admin password in `apps/victoria-metrics-k8s-stack/secrets.yaml` — both sops-encrypted Helm values, merged by `helm-secrets` at install time. No raw `Secret` manifest ever touches git or the kustomize pipeline. |
 
@@ -59,6 +61,11 @@ The `cnpg-clusters` namespace carries `pod-security.kubernetes.io/enforce=restri
 labels so any pod scheduled there must comply with the PodSecurity restricted
 profile. CNPG's pods (operator, instances, PgBouncer) all comply by default.
 
+The `rustfs-clusters` namespace uses `pod-security.kubernetes.io/enforce=baseline`
+because the RustFS operator (v0.1.0) does not yet set a restricted-compatible
+securityContext on its StatefulSet pods. Audit/warn remain `restricted` so
+we're alerted when upstream fixes this.
+
 The `monitoring` namespace uses `pod-security.kubernetes.io/enforce=privileged`
 because node-exporter requires `hostNetwork`/`hostPID`/`hostPath` access for
 complete host-level metrics collection.
@@ -69,9 +76,9 @@ complete host-level metrics collection.
 
 ### Prerequisites
 
-- `helmfile` + `helm` + `helm-secrets` plugin installed (system-level toolset
-  comes from `profiles/k3s-node.nix`; `helm-secrets` is a one-shot manual
-  install — see `docs/k3s-cnpg.md`).
+- `helmfile` + `helm` + `helm-secrets` + `helm-git` plugins installed
+  (all Nix-managed via `wrapHelm` in `home/common/packages/dev-k8s.nix`;
+  no manual `helm plugin install` needed).
 - `kubectl` configured against the cluster. On any k3s node this is automatic
   via `KUBECONFIG=/etc/rancher/k3s/k3s.yaml` exported by `profiles/k3s-node.nix`.
 - `sops` on `$PATH`; your age private key loaded (see [`docs/secrets.md`](../docs/secrets.md)).
@@ -215,8 +222,9 @@ rule (master-key only — no host needs to decrypt these).
 
 ## Monitoring
 
-The cluster runs `victoria-metrics-k8s-stack` (VMSingle + VMAgent + VMAlert +
-VMAlertmanager + Grafana) in the `monitoring` namespace. Key integration points:
+The cluster runs `victoria-metrics-k8s-stack` v0.77.0 (VMSingle + VMAgent +
+VMAlert + VMAlertmanager + Grafana) in the `monitoring` namespace. Key
+integration points:
 
 - **CNPG instance metrics** — VMPodScrape on port 9187 (defined in
   `clusters/glug-infra/monitoring/cnpg-cluster-vmpodscrape.yaml`)
@@ -231,8 +239,14 @@ VMAlertmanager + Grafana) in the `monitoring` namespace. Key integration points:
   `pxc-clusters` namespace
 - **PXC VMRules** — alerts for Galera health (wsrep_ready, cluster
   size, flow control), slow queries
-- **Grafana dashboards** — the CNPG operator creates a ConfigMap with the
-  CloudNativePG dashboard (ID 20417); Grafana's sidecar auto-imports it
+- **RustFS metrics** — VMServiceScrape on port 9000, scraping MinIO v2
+  metrics API (`/minio/v2/metrics/cluster` + `/minio/v2/metrics/node`)
+- **RustFS VMRules** — alerts for cluster health (nodes/drives offline,
+  capacity), S3 errors, and healing progress
+- **RustFS Grafana dashboard** — cluster status, capacity, S3 traffic,
+  per-node metrics
+- **Grafana dashboards** — auto-imported from ConfigMaps labelled
+  `grafana_dashboard: "1"` across all namespaces (sidecar)
 
 Grafana is reachable at `http://grafana.<tailnet>.ts.net:3000` via the
 Tailscale LoadBalancer Service in `clusters/glug-infra/monitoring/`.
@@ -343,10 +357,10 @@ k8s/
 │   │   └── secrets.yaml                     # sops-encrypted Helm values
 │   ├── rustfs-operator/
 │   │   ├── values.yaml                      # RustFS operator Helm values
-│   │   └── secrets.yaml                     # sops-encrypted (empty placeholder)
+│   │   └── secrets.yaml                     # placeholder (no secrets needed)
 │   └── rustfs/
 │       ├── values.yaml                      # Tenant configuration reference
-│       └── secrets.yaml                     # sops-encrypted S3 admin credentials
+│       └── secrets.yaml                     # placeholder (credentials in kustomize)
 ├── clusters/
 │   └── glug-infra/
 │       ├── kustomization.yaml               # entry point (cnpg-clusters namespace)
@@ -360,10 +374,10 @@ k8s/
 │       │   └── tailscale-mysql-service.yaml # Tailscale LB: mysql-rw
 │       ├── rustfs/
 │       │   ├── kustomization.yaml           # entry point (rustfs-clusters namespace)
-│       │   ├── namespace.yaml               # rustfs-clusters + PSA restricted labels
+│       │   ├── namespace.yaml               # rustfs-clusters + PSA baseline labels
 │       │   ├── networkpolicy.yaml           # default-deny + S3 + inter-node rules
 │       │   ├── credentials-secret.enc.yaml  # RustFS admin credentials (sops-encrypted)
-│       │   ├── tenant.yaml                  # RustFS Tenant CR (4 servers × 2 vols)
+│       │   ├── tenant.yaml                  # RustFS Tenant CR (4 servers × 2 vols, applied post-helmfile)
 │       │   └── tailscale-s3-service.yaml    # Tailscale LB: s3
 │       └── monitoring/
 │           ├── kustomization.yaml           # entry point (monitoring namespace)
@@ -376,6 +390,10 @@ k8s/
 │           ├── pxc-cluster-vmservicescrape.yaml
 │           ├── pxc-haproxy-vmservicescrape.yaml
 │           ├── pxc-vmrules.yaml
+│           ├── pxc-grafana-dashboard.yaml
+│           ├── rustfs-vmservicescrape.yaml
+│           ├── rustfs-vmrules.yaml
+│           ├── rustfs-grafana-dashboard.yaml
 │           ├── pvc-storage-vmrules.yaml
 │           ├── laptop-battery-vmrules.yaml
 │           ├── zfs-vmrules.yaml
@@ -398,49 +416,52 @@ After the first `just k8s::apply`, walk through these checks:
 
 ```sh
 # Monitoring stack is up.
-kubectl -n monitoring get deploy                      # prometheus-operator, grafana, kube-state-metrics
+kubectl -n monitoring get deploy                      # vmks-* deployments + grafana
 kubectl -n monitoring get pods                         # all Running
-kubectl -n monitoring get statefulset                  # prometheus, alertmanager
 
-# Operator is up.
+# CNPG operator is up.
 kubectl -n cnpg-system get deploy
-kubectl -n cnpg-system get pods                     # 1/1 Running
+kubectl -n cnpg-system get pods                        # 1/1 Running
 
 # CRDs installed.
-kubectl get crd | grep cnpg                         # cluster, pooler, backup, scheduledbackup
+kubectl get crd | grep cnpg                            # cluster, pooler, backup, scheduledbackup
+kubectl get crd | grep rustfs                           # tenants.rustfs.com
 
-# Cluster reaches "Cluster in healthy state".
-just k8s::cnpg-status                                 # kubectl cnpg status postgres
+# CNPG cluster reaches "Cluster in healthy state".
+just k8s::cnpg-status
 
-# All 3 instances Running, exactly one is primary.
-kubectl -n cnpg-clusters get pods -l cnpg.io/cluster=postgres -o wide
+# All 3 CNPG instances Running, exactly one is primary.
+kubectl -n cnpg-clusters get pods -l cnpg.io/cluster=postgres-cluster -o wide
 
 # PgBouncer pods Running.
 kubectl -n cnpg-clusters get pods -l cnpg.io/poolerName=postgres-pooler-rw
 
-# Tailscale ts-proxy pod up; device registered on the tailnet.
+# RustFS Tenant is Ready with all 4 pods.
+just k8s::rustfs-status                                 # STATE = Ready
+just k8s::rustfs-pods                                   # 4/4 Running
+
+# RustFS S3 health check.
+just k8s::rustfs-health
+
+# Tailscale ts-proxy pods up; devices registered on the tailnet.
 kubectl -n tailscale get pods
-tailscale status | grep pg-rw
+tailscale status | grep -E 'pg-rw|mysql-rw|s3|grafana'
 
-# WAL archiving active (run inside any instance pod).
-kubectl exec -n cnpg-clusters -it postgres-1 -- \
-  psql -c "SELECT last_archived_wal, last_failed_wal FROM pg_stat_archiver;"
-
-# Trigger an immediate backup; confirm it completes.
+# Trigger an immediate CNPG backup; confirm it completes.
 just k8s::cnpg-backup-now
 just k8s::cnpg-backup-list
 
 # Connect from a tailnet client.
-psql "postgres://app:$(kubectl -n cnpg-clusters get secret postgres-app -o jsonpath='{.data.password}' | base64 -d)@pg-rw.<tailnet>.ts.net:5432/app"
+psql "postgres://app:$(kubectl -n cnpg-clusters get secret postgres-cluster-app -o jsonpath='{.data.password}' | base64 -d)@pg-rw.<tailnet>.ts.net:5432/app"
 
 # Grafana reachable on the tailnet.
 curl -s http://grafana.<tailnet>.ts.net:3000/api/health | jq .
 
-# Prometheus is scraping CNPG metrics.
-just k8s::prom-targets | grep cnpg
+# VMAgent is scraping targets.
+just k8s::vmagent-targets
 
-# CNPG dashboard loaded in Grafana.
-curl -s http://grafana.<tailnet>.ts.net:3000/api/search?query=CloudNativePG | jq '.[].title'
+# RustFS console reachable.
+curl -s http://s3.<tailnet>.ts.net:9001/ -o /dev/null -w '%{http_code}\n'
 ```
 
 If any step fails, the `## 6. Day-2 operations` section of

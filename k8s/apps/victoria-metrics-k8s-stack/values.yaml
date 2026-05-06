@@ -195,8 +195,10 @@ alertmanager:
         cpu: "200m"
         memory: "256Mi"
 
-  # Default config: single null receiver that just logs.
-  # Replace with a real receiver (Slack, PagerDuty, Pushover) when ready.
+  # Alertmanager routing config.
+  # Critical/warning endpoint alerts are routed to jiralert for Jira ticket
+  # lifecycle management. All other alerts go to blackhole (until a real
+  # notification channel is configured).
   config:
     global:
       resolve_timeout: "5m"
@@ -204,13 +206,47 @@ alertmanager:
       receiver: "blackhole"
       group_by:
         - alertname
-        - namespace
+        - dst
+        - instance
       group_wait: "30s"
       group_interval: "5m"
       repeat_interval: "12h"
+      routes:
+        # Critical endpoint/SSL alerts → Jira (P1/P2 tickets)
+        - match_re:
+            alertname: "Endpoint.*|SSLCert.*"
+          match:
+            severity: critical
+          receiver: "jira-critical"
+          group_wait: "10s"
+          repeat_interval: "1h"
+        # Warning endpoint/SSL alerts → Jira (P3 tickets)
+        - match_re:
+            alertname: "Endpoint.*|SSLCert.*"
+          match:
+            severity: warning
+          receiver: "jira-warning"
+          group_wait: "30s"
+          repeat_interval: "4h"
     receivers:
       - name: "blackhole"
-    inhibit_rules: []
+      - name: "jira-critical"
+        webhook_configs:
+          - url: "http://jiralert.monitoring.svc:9097/alert"
+            send_resolved: true
+      - name: "jira-warning"
+        webhook_configs:
+          - url: "http://jiralert.monitoring.svc:9097/alert"
+            send_resolved: true
+    inhibit_rules:
+      # If EndpointDown is firing, suppress EndpointDegraded/HighLatency
+      # for the same endpoint (redundant noise).
+      - source_matchers:
+          - alertname = EndpointDown
+        target_matchers:
+          - alertname =~ "EndpointDegraded|EndpointHighLatency"
+        equal:
+          - dst
 
 # ===========================================================================
 # VMAuth — disabled (not needed for single-node)

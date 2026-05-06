@@ -27,6 +27,8 @@
 #   - RustFS VMRule (cluster health, capacity, S3 errors, healing).
 #   - PVC storage VMRule (cluster-wide PVC capacity alerts).
 #   - Laptop battery VMRule (AC power, charge level, health alerts).
+#   - Blackbox exporter Deployment/Service/ConfigMap (synthetic probing).
+#   - Endpoint VMProbe (OHC production endpoint HTTP probes).
 #
 # These resources are kustomize-managed because they are either
 # infrastructure-wide (Namespace) or front-end glue not expressed by the
@@ -77,3 +79,12 @@ resources:
   - laptop-battery-grafana-dashboard.yaml
   # Cluster Overview dashboard — single pane of glass.
   - cluster-overview-grafana-dashboard.yaml
+  # Cloudprober — active synthetic endpoint monitoring.
+  - cloudprober.yaml
+  - cloudprober-vmservicescrape.yaml
+  # Endpoint availability, latency, SSL, and SLO alerts (Cloudprober-based).
+  - endpoint-vmrules.yaml
+  # Endpoint uptime Grafana dashboard.
+  - endpoint-grafana-dashboard.yaml
+  # jiralert — Jira incident lifecycle management (create/escalate/resolve).
+  - jiralert.yaml
