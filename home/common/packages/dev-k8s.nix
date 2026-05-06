@@ -4,20 +4,23 @@
 # this module. Shell aliases are defined via home.shellAliases so they work
 # across both zsh and bash without duplicating configuration.
 #
-# Helm plugins (helm-secrets, helm-diff) are baked into the helm binary via
-# wrapHelm, and helmfile is configured to use the same plugin directory.
-# No manual `helm plugin install` step is needed.
+# Helm plugins (helm-secrets, helm-diff, helm-git) are baked into the helm
+# binary via wrapHelm, and helmfile is configured to use the same plugin
+# directory. No manual `helm plugin install` step is needed.
 #
 # NOTE: cmctl is packaged as pkgs.cmctl in nixpkgs (>= 24.05).  If the build
 # fails, check nixpkgs for the correct attribute name (it was briefly
 # pkgs.cert-manager in some branches).
 { pkgs, ... }:
 let
-  # Wrap helm with plugins so `helm secrets` and `helm diff` Just Work.
+  # Wrap helm with plugins so `helm secrets`, `helm diff`, and git-sourced
+  # charts Just Work. helm-git is needed for charts not published to a registry
+  # (e.g. rustfs-operator which lives at github.com/rustfs/operator).
   helm-with-plugins = pkgs.wrapHelm pkgs.kubernetes-helm {
     plugins = with pkgs.kubernetes-helmPlugins; [
       helm-secrets
       helm-diff
+      helm-git
     ];
   };
 

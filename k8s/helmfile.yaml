@@ -6,8 +6,9 @@
 #   helmfile diff  --file k8s/helmfile.yaml   # preview changes
 #
 # Prerequisites:
-#   helm-secrets and helm-diff are Nix-managed via wrapHelm in dev-k8s.nix.
-#   No manual `helm plugin install` step needed.
+#   helm-secrets, helm-diff, and helm-git are Nix-managed via wrapHelm in
+#   dev-k8s.nix. No manual `helm plugin install` step needed.
+#   helm-git is required for the rustfs-operator chart (sourced from git).
 #
 # Layered model:
 #   1. vm/victoria-metrics-k8s-stack → the monitoring stack (VMSingle,
@@ -37,8 +38,9 @@ repositories:
     url: https://cloudnative-pg.github.io/charts
   - name: percona
     url: https://percona.github.io/percona-helm-charts
-  - name: rustfs
-    url: https://rustfs.github.io/operator
+  # NOTE: The rustfs-operator chart is not published to a Helm registry.
+  # It lives in the source repo at deploy/rustfs-operator/. We reference it
+  # directly via the helm-git plugin (included in the Nix dev shell).
 
 helmDefaults:
   wait: true
@@ -148,10 +150,12 @@ releases:
   # for Tenant resources.
   #
   # Chart source: https://github.com/rustfs/operator/tree/main/deploy/rustfs-operator
+  # NOTE: This chart is NOT published to a Helm registry. We pull it directly
+  # from git via the helm-git plugin. Pin to a specific commit for stability.
   - name: rustfs-operator
     namespace: rustfs-system
     createNamespace: true
-    chart: rustfs/rustfs-operator
+    chart: "git+https://github.com/rustfs/operator@deploy/rustfs-operator?ref=main"
     version: "0.1.0"
     needs:
       - monitoring/victoria-metrics-k8s-stack
