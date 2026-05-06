@@ -158,6 +158,9 @@ just k8s::rustfs-port-forward      # port-forward S3 API to localhost:9000
 just k8s::rustfs-console           # port-forward Console UI to localhost:9001
 just k8s::rustfs-health            # test S3 API health
 just k8s::rustfs-apply-secret      # apply sops-decrypted credentials
+just k8s::rustfs-capacity          # query RustFS cluster capacity
+just k8s::rustfs-node-status       # query RustFS node/drive status
+just k8s::rustfs-error-rate        # query RustFS S3 error rate
 ```
 
 ### Monitoring
@@ -165,11 +168,13 @@ just k8s::rustfs-apply-secret      # apply sops-decrypted credentials
 ```sh
 just k8s::grafana-open             # open Grafana in browser via tailnet
 just k8s::grafana-port-forward     # fallback: port-forward Grafana to localhost:3000
-just k8s::prom-port-forward        # port-forward Prometheus UI to localhost:9090
-just k8s::prom-targets             # list Prometheus scrape targets
-just k8s::prom-operator-logs       # tail Prometheus operator logs
-just k8s::alerts                   # show all firing Prometheus alerts
-just k8s::cnpg-replication-lag     # query CNPG replication lag from Prometheus
+just k8s::vm-port-forward          # port-forward VMSingle UI to localhost:8428
+just k8s::vmagent-targets          # show VMAgent active scrape target count
+just k8s::vm-operator-logs         # tail VictoriaMetrics operator logs
+just k8s::vmagent-logs             # tail VMAgent logs
+just k8s::vmalert-logs             # tail VMAlert logs
+just k8s::alerts                   # show all firing alerts
+just k8s::cnpg-replication-lag     # query CNPG replication lag from VMSingle
 ```
 
 For switchover, drain, and restore procedures see [`docs/runbooks/`](docs/runbooks/).
@@ -187,6 +192,8 @@ Secrets live as sops-encrypted Helm values files:
 - `k8s/apps/pxc-operator/secrets.yaml` — PXC operator-side values (empty
   by default)
 - `k8s/apps/mysql/secrets.yaml` — S3 backup credentials for PXC
+- `k8s/clusters/glug-infra/rustfs/credentials-secret.enc.yaml` — RustFS
+  admin access/secret keys (applied via `just k8s::rustfs-apply-secret`)
 
 To edit either:
 

@@ -3,13 +3,17 @@
 #
 # `kubectl apply -k k8s/clusters/glug-infra/rustfs`
 #
-# What lives here:
+# What lives here (core Kubernetes types, no CRDs needed):
 #   - The `rustfs-clusters` Namespace (with PodSecurity labels).
 #   - NetworkPolicies guarding the namespace.
-#   - The RustFS Tenant CR (the actual storage cluster).
-#   - The credentials Secret for RustFS admin access.
 #   - The Tailscale LoadBalancer Service that exposes the S3 API
 #     as `s3.<tailnet>.ts.net:9000`.
+#
+# What lives here but is applied AFTER helmfile (requires CRDs):
+#   - The RustFS Tenant CR (the actual storage cluster) — applied by
+#     `kubectl apply -f tenant.yaml` in the `just k8s::apply` recipe.
+#   - The credentials Secret (sops-encrypted) — applied by
+#     `just k8s::rustfs-apply-secret`.
 #
 # What does NOT live here (managed by helmfile instead):
 #   - The RustFS operator chart (rustfs-system namespace).
@@ -27,9 +31,14 @@ labels:
 resources:
   - namespace.yaml
   - networkpolicy.yaml
-  # NOTE: credentials-secret.enc.yaml is NOT listed here. It is sops-encrypted
-  # and must be decrypted at apply time:
-  #   sops --decrypt credentials-secret.enc.yaml | kubectl apply -f -
-  # Use: just k8s::rustfs-apply-secret
-  - tenant.yaml
   - tailscale-s3-service.yaml
+  # NOTE: The following are NOT listed here — they require the RustFS operator
+  # CRDs which are installed by helmfile. They are applied post-helmfile:
+  #
+  #   tenant.yaml
+  #     Applied by: kubectl apply -f clusters/glug-infra/rustfs/tenant.yaml
+  #     (done automatically by `just k8s::apply` after helmfile sync)
+  #
+  #   credentials-secret.enc.yaml
+  #     Applied by: sops --decrypt credentials-secret.enc.yaml | kubectl apply -f -
+  #     Use: just k8s::rustfs-apply-secret

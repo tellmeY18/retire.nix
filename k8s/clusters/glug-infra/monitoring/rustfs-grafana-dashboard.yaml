@@ -1,0 +1,629 @@
+# rustfs-grafana-dashboard.yaml — Operational dashboard for RustFS
+# (MinIO-compatible S3 object storage) running on the k3s cluster.
+#
+# Node-agnostic: all queries use generic minio_* metrics with label
+# selectors — new RustFS pods/nodes are auto-discovered without any
+# dashboard changes. The $instance template variable lets you drill
+# down to a specific node when needed.
+#
+# Metric source assumptions:
+#   - RustFS exposes the MinIO v2 metrics API (minio_* prefix)
+#   - Metrics are scraped by VictoriaMetrics via a VMPodScrape or
+#     VMServiceScrape targeting the RustFS metrics port
+#   - Key metric families:
+#       minio_cluster_health_status, minio_cluster_nodes_*,
+#       minio_cluster_drive_*, minio_cluster_capacity_*,
+#       minio_s3_requests_total, minio_s3_requests_errors_total,
+#       minio_s3_traffic_received_bytes_total,
+#       minio_s3_traffic_sent_bytes_total,
+#       minio_node_drive_free_bytes, minio_node_syscall_*
+#
+# Panels use color-coded thresholds for instant visual priority:
+#   - Cluster status: green=healthy, red=unhealthy
+#   - Offline nodes/drives: green=0, red>0
+#   - Capacity usage gauge: green<60%, orange<80%, red<90%, dark-red>=90%
+#   - Error rates: warm colors when non-zero
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rustfs-grafana-dashboard
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+    app.kubernetes.io/name: rustfs
+    app.kubernetes.io/component: dashboard
+    app.kubernetes.io/part-of: victoria-metrics-k8s-stack
+    app.kubernetes.io/managed-by: kustomize
+  annotations:
+    grafana_folder: "Storage"
+data:
+  rustfs-dashboard.json: |
+    {
+      "annotations": { "list": [] },
+      "description": "Operational overview of the RustFS (MinIO-compatible) S3 storage cluster. Color-coded thresholds provide instant visual priority \u2014 red panels mean something needs immediate attention.",
+      "editable": true,
+      "fiscalYearStartMonth": 0,
+      "graphTooltip": 1,
+      "links": [],
+      "panels": [
+        {
+          "id": 1,
+          "title": "Cluster Health",
+          "type": "row",
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+          "collapsed": false,
+          "panels": []
+        },
+        {
+          "id": 2,
+          "title": "Cluster Status",
+          "description": "Overall cluster health. 1 = healthy (green), 0 = unhealthy (red). If this is red, investigate immediately.",
+          "type": "stat",
+          "gridPos": { "h": 4, "w": 6, "x": 0, "y": 1 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "minio_cluster_health_status",
+              "instant": true,
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "mappings": [
+                {
+                  "type": "value",
+                  "options": {
+                    "1": { "text": "Healthy \u2713", "color": "green" },
+                    "0": { "text": "UNHEALTHY \u2717", "color": "red" }
+                  }
+                }
+              ],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "value": null, "color": "red" },
+                  { "value": 1, "color": "green" }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "graphMode": "none",
+            "colorMode": "background",
+            "textMode": "auto",
+            "justifyMode": "auto",
+            "orientation": "auto"
+          }
+        },
+        {
+          "id": 3,
+          "title": "Total Nodes",
+          "description": "Number of RustFS nodes currently online in the cluster.",
+          "type": "stat",
+          "gridPos": { "h": 4, "w": 6, "x": 6, "y": 1 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "minio_cluster_nodes_online_total",
+              "instant": true,
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "value": null, "color": "red" },
+                  { "value": 1, "color": "green" }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "graphMode": "none",
+            "colorMode": "background",
+            "textMode": "auto",
+            "justifyMode": "auto",
+            "orientation": "auto"
+          }
+        },
+        {
+          "id": 4,
+          "title": "Offline Nodes",
+          "description": "Nodes currently offline. Should always be 0 (green). Any non-zero value turns red.",
+          "type": "stat",
+          "gridPos": { "h": 4, "w": 6, "x": 12, "y": 1 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "minio_cluster_nodes_offline_total",
+              "instant": true,
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "value": null, "color": "green" },
+                  { "value": 1, "color": "red" }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "graphMode": "none",
+            "colorMode": "background",
+            "textMode": "auto",
+            "justifyMode": "auto",
+            "orientation": "auto"
+          }
+        },
+        {
+          "id": 5,
+          "title": "Offline Drives",
+          "description": "Drives currently offline across all nodes. Should always be 0 (green). Non-zero = data availability risk.",
+          "type": "stat",
+          "gridPos": { "h": 4, "w": 6, "x": 18, "y": 1 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "minio_cluster_drive_offline_total",
+              "instant": true,
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "value": null, "color": "green" },
+                  { "value": 1, "color": "red" }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "graphMode": "none",
+            "colorMode": "background",
+            "textMode": "auto",
+            "justifyMode": "auto",
+            "orientation": "auto"
+          }
+        },
+        {
+          "id": 6,
+          "title": "Capacity",
+          "type": "row",
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 },
+          "collapsed": false,
+          "panels": []
+        },
+        {
+          "id": 7,
+          "title": "Total Capacity",
+          "description": "Total raw capacity of the RustFS cluster across all drives.",
+          "type": "stat",
+          "gridPos": { "h": 4, "w": 6, "x": 0, "y": 6 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "minio_cluster_capacity_total_bytes",
+              "instant": true,
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "bytes",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "value": null, "color": "blue" }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "graphMode": "none",
+            "colorMode": "value",
+            "textMode": "auto",
+            "justifyMode": "auto",
+            "orientation": "auto"
+          }
+        },
+        {
+          "id": 8,
+          "title": "Used Capacity",
+          "description": "Total bytes currently stored across all drives.",
+          "type": "stat",
+          "gridPos": { "h": 4, "w": 6, "x": 6, "y": 6 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "minio_cluster_capacity_used_bytes",
+              "instant": true,
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "bytes",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "value": null, "color": "orange" }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "graphMode": "none",
+            "colorMode": "value",
+            "textMode": "auto",
+            "justifyMode": "auto",
+            "orientation": "auto"
+          }
+        },
+        {
+          "id": 9,
+          "title": "Free Capacity",
+          "description": "Remaining free bytes across all drives.",
+          "type": "stat",
+          "gridPos": { "h": 4, "w": 6, "x": 12, "y": 6 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "minio_cluster_capacity_free_bytes",
+              "instant": true,
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "bytes",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "value": null, "color": "green" }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "graphMode": "none",
+            "colorMode": "value",
+            "textMode": "auto",
+            "justifyMode": "auto",
+            "orientation": "auto"
+          }
+        },
+        {
+          "id": 10,
+          "title": "Usage %",
+          "description": "Cluster capacity utilization percentage. Thresholds: green <60%, orange <80%, red <90%, dark-red >=90%.",
+          "type": "gauge",
+          "gridPos": { "h": 4, "w": 6, "x": 18, "y": 6 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "(minio_cluster_capacity_used_bytes / minio_cluster_capacity_total_bytes) * 100",
+              "instant": true,
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "min": 0,
+              "max": 100,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "value": null, "color": "green" },
+                  { "value": 60, "color": "yellow" },
+                  { "value": 80, "color": "orange" },
+                  { "value": 90, "color": "red" }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "showThresholdLabels": false,
+            "showThresholdMarkers": true,
+            "orientation": "auto"
+          }
+        },
+        {
+          "id": 11,
+          "title": "S3 Traffic",
+          "type": "row",
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 10 },
+          "collapsed": false,
+          "panels": []
+        },
+        {
+          "id": 12,
+          "title": "S3 Request Rate",
+          "description": "Rate of S3 API requests per second, grouped by API method. Helps identify traffic patterns and hot APIs.",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 8, "x": 0, "y": 11 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "sum by (api) (rate(minio_s3_requests_total[5m]))",
+              "legendFormat": "{{api}}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "reqps",
+              "custom": {
+                "drawStyle": "line",
+                "lineInterpolation": "smooth",
+                "fillOpacity": 10,
+                "gradientMode": "none",
+                "spanNulls": false,
+                "showPoints": "never",
+                "lineWidth": 1,
+                "stacking": { "mode": "none" },
+                "axisPlacement": "auto"
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "value": null, "color": "green" }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom", "calcs": [] },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          }
+        },
+        {
+          "id": 13,
+          "title": "S3 Error Rate",
+          "description": "Rate of S3 API errors per second, grouped by API method. Non-zero errors deserve investigation.",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 8, "x": 8, "y": 11 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "sum by (api) (rate(minio_s3_requests_errors_total[5m]))",
+              "legendFormat": "{{api}}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "reqps",
+              "custom": {
+                "drawStyle": "line",
+                "lineInterpolation": "smooth",
+                "fillOpacity": 10,
+                "gradientMode": "none",
+                "spanNulls": false,
+                "showPoints": "never",
+                "lineWidth": 1,
+                "stacking": { "mode": "none" },
+                "axisPlacement": "auto"
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "value": null, "color": "green" },
+                  { "value": 0.01, "color": "orange" },
+                  { "value": 1, "color": "red" }
+                ]
+              },
+              "color": { "mode": "palette-classic" }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom", "calcs": [] },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          }
+        },
+        {
+          "id": 14,
+          "title": "S3 Traffic In/Out",
+          "description": "S3 data transfer rates: bytes received (ingress) and bytes sent (egress) per second.",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 8, "x": 16, "y": 11 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "sum(rate(minio_s3_traffic_received_bytes_total[5m]))",
+              "legendFormat": "Received (in)",
+              "refId": "A"
+            },
+            {
+              "expr": "sum(rate(minio_s3_traffic_sent_bytes_total[5m]))",
+              "legendFormat": "Sent (out)",
+              "refId": "B"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "Bps",
+              "custom": {
+                "drawStyle": "line",
+                "lineInterpolation": "smooth",
+                "fillOpacity": 15,
+                "gradientMode": "none",
+                "spanNulls": false,
+                "showPoints": "never",
+                "lineWidth": 1,
+                "stacking": { "mode": "none" },
+                "axisPlacement": "auto"
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "value": null, "color": "green" }
+                ]
+              }
+            },
+            "overrides": [
+              {
+                "matcher": { "id": "byName", "options": "Received (in)" },
+                "properties": [
+                  { "id": "color", "value": { "fixedColor": "blue", "mode": "fixed" } }
+                ]
+              },
+              {
+                "matcher": { "id": "byName", "options": "Sent (out)" },
+                "properties": [
+                  { "id": "color", "value": { "fixedColor": "purple", "mode": "fixed" } }
+                ]
+              }
+            ]
+          },
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom", "calcs": [] },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          }
+        },
+        {
+          "id": 15,
+          "title": "Per-Node Metrics",
+          "type": "row",
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 19 },
+          "collapsed": false,
+          "panels": []
+        },
+        {
+          "id": 16,
+          "title": "Node Drive Free Space",
+          "description": "Free bytes per drive, per node instance. Helps identify individual nodes running low on storage.",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 20 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "minio_node_drive_free_bytes",
+              "legendFormat": "{{instance}} - {{drive}}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "bytes",
+              "custom": {
+                "drawStyle": "line",
+                "lineInterpolation": "smooth",
+                "fillOpacity": 10,
+                "gradientMode": "none",
+                "spanNulls": false,
+                "showPoints": "never",
+                "lineWidth": 1,
+                "stacking": { "mode": "none" },
+                "axisPlacement": "auto"
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "value": null, "color": "green" }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom", "calcs": [] },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          }
+        },
+        {
+          "id": 17,
+          "title": "Node Syscalls (Read/Write)",
+          "description": "Rate of read and write syscalls per node. Useful for identifying I/O hotspots across the cluster.",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 20 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "sum by (instance) (rate(minio_node_syscall_read_total[5m]))",
+              "legendFormat": "{{instance}} read",
+              "refId": "A"
+            },
+            {
+              "expr": "sum by (instance) (rate(minio_node_syscall_write_total[5m]))",
+              "legendFormat": "{{instance}} write",
+              "refId": "B"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "ops",
+              "custom": {
+                "drawStyle": "line",
+                "lineInterpolation": "smooth",
+                "fillOpacity": 10,
+                "gradientMode": "none",
+                "spanNulls": false,
+                "showPoints": "never",
+                "lineWidth": 1,
+                "stacking": { "mode": "none" },
+                "axisPlacement": "auto"
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "value": null, "color": "green" }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom", "calcs": [] },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          }
+        }
+      ],
+      "refresh": "30s",
+      "schemaVersion": 39,
+      "tags": ["rustfs", "s3", "storage", "minio"],
+      "templating": {
+        "list": [
+          {
+            "name": "datasource",
+            "type": "datasource",
+            "query": "prometheus",
+            "current": { "selected": true, "text": "VictoriaMetrics", "value": "VictoriaMetrics" }
+          }
+        ]
+      },
+      "time": { "from": "now-1h", "to": "now" },
+      "timezone": "browser",
+      "title": "RustFS Overview",
+      "uid": "rustfs-overview",
+      "version": 1
+    }
