@@ -1,0 +1,66 @@
+# values.yaml — RustFS Tenant configuration for the glug-infra cluster.
+#
+# This is NOT a Helm chart — it's a plain values file that helmfile renders
+# into a Tenant CR + supporting resources via the rustfs-operator/tenant chart.
+# Since the rustfs-operator does not yet publish a tenant chart, we use a raw
+# manifest approach: helmfile's `needs` ensures the operator is installed first,
+# then we apply the Tenant CR directly via kustomize.
+#
+# This file documents the intended Tenant spec. The actual CR lives in
+# k8s/clusters/glug-infra/rustfs/tenant.yaml (applied by kustomize).
+#
+# ----- Configuration Reference -----
+#
+# RustFS Tenant CRD (rustfs.com/v1alpha1):
+#   pools[].servers            — number of StatefulSet replicas per pool
+#   pools[].persistence        — PVC template + volumesPerServer
+#   pools[].resources          — CPU/memory for RustFS containers
+#   pools[].topologySpread     — distribute across nodes
+#   credsSecret.name           — Secret with accesskey + secretkey
+#   image                      — RustFS container image
+#
+# Erasure coding constraint:
+#   servers * volumesPerServer >= 4  (minimum for distributed mode)
+#
+# Architecture note:
+#   All pools in a Tenant form ONE unified erasure-coded cluster.
+#   Multiple pools = capacity expansion, NOT performance tiering.
+#   For separate clusters, create separate Tenants.
+#
+# HA strategy:
+#   Phase 1 (single node): 4 servers on 1 node — no node-level HA, but
+#   RustFS erasure coding protects against volume/drive failures.
+#   Phase 2 (multi-node): pods spread via topologySpreadConstraints;
+#   survives single node loss.
+#
+# Storage:
+#   Uses the default `zfs-localpv` StorageClass (8k recordsize).
+#   RustFS uses its own block format on top of the filesystem, so
+#   recordsize alignment is less critical than for databases.
+
+# -- Tenant name (used by kustomize, not Helm) --
+tenantName: rustfs-storage
+
+# -- Pool configuration --
+# Single pool, 4 servers, 2 volumes each = 8 total volumes.
+# Satisfies the minimum erasure coding requirement (4*2=8 >= 4).
+# Provides redundancy: can tolerate loss of up to 4 drives (EC:4 default).
+pools:
+  - name: pool-0
+    servers: 4
+    volumesPerServer: 2
+    storageClassName: zfs-localpv
+    storageSize: 50Gi
+    resources:
+      requests:
+        cpu: "200m"
+        memory: "512Mi"
+      limits:
+        cpu: "1000m"
+        memory: "2Gi"
+
+# -- RustFS image --
+image: rustfs/rustfs:latest
+
+# -- Pod management --
+podManagementPolicy: Parallel

@@ -1,0 +1,107 @@
+---
+# tenant.yaml — RustFS Tenant CR for the glug-infra cluster.
+#
+# This creates a distributed, erasure-coded S3-compatible object storage
+# cluster managed by the RustFS operator.
+#
+# Architecture:
+#   - 4 servers × 2 volumes = 8 total volumes (erasure coded)
+#   - Tolerates up to 4 drive failures (EC:4 default parity)
+#   - S3 API on port 9000, Console UI on port 9001
+#   - Credentials from the `rustfs-credentials` Secret
+#
+# HA strategy:
+#   Phase 1 (single node, chopper): all 4 pods on one node. No node-level
+#   HA, but erasure coding protects against individual volume corruption.
+#   Off-site backups (via mc mirror to R2/B2) are the DR strategy.
+#
+#   Phase 2 (multi-node): topologySpreadConstraints distribute pods across
+#   nodes. Survives single node failure with no data loss.
+#
+# Storage:
+#   Uses `zfs-localpv` StorageClass — same ZFS pool as CNPG/PXC.
+#   50Gi per volume × 8 volumes = 400Gi raw, ~200Gi usable after EC.
+#
+# Accessing the S3 API:
+#   From the tailnet: s3.<tailnet>.ts.net:9000
+#   From within the cluster: rustfs-storage-io.rustfs-clusters.svc:9000
+#
+# Credentials:
+#   The `credsSecret` references the `rustfs-credentials` Secret which
+#   must exist before the Tenant is created. The operator validates the
+#   Secret and retries every 60s if missing.
+
+apiVersion: rustfs.com/v1alpha1
+kind: Tenant
+metadata:
+  name: rustfs-storage
+  namespace: rustfs-clusters
+  labels:
+    app.kubernetes.io/part-of: rustfs
+    app.kubernetes.io/managed-by: kustomize
+    environment: production
+spec:
+  # RustFS container image — pin to a specific tag for production.
+  # Check releases: https://github.com/rustfs/rustfs/releases
+  image: rustfs/rustfs:latest
+
+  # Reference the credentials Secret (RECOMMENDED for production).
+  # The operator validates this Secret exists with valid accesskey/secretkey.
+  credsSecret:
+    name: rustfs-credentials
+
+  # Pod management policy: Parallel starts all pods simultaneously.
+  # Recommended for RustFS — nodes coordinate via gossip, no ordered boot needed.
+  podManagementPolicy: Parallel
+
+  # Storage pool configuration.
+  # Single pool, 4 servers, 2 volumes each = 8 total erasure-coded volumes.
+  pools:
+    - name: pool-0
+      # 4 servers = 4 StatefulSet replicas.
+      # Minimum for meaningful erasure coding with volumesPerServer=2.
+      servers: 4
+
+      persistence:
+        # 2 volumes per server (4×2=8 total, satisfies >=4 requirement).
+        volumesPerServer: 2
+
+        # PVC template — uses the default ZFS StorageClass.
+        volumeClaimTemplate:
+          accessModes: ["ReadWriteOnce"]
+          storageClassName: zfs-localpv
+          resources:
+            requests:
+              storage: 50Gi
+
+        # Labels for PVC identification and backup tooling.
+        labels:
+          app.kubernetes.io/part-of: rustfs
+          environment: production
+
+      # Topology spread — distribute pods across nodes when available.
+      # Phase 1 (single node): constraint is satisfied trivially.
+      # Phase 2 (multi-node): pods spread across failure domains.
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              rustfs.pool: pool-0
+
+      # Resource requests — conservative for laptop hardware.
+      resources:
+        requests:
+          cpu: "200m"
+          memory: "512Mi"
+        limits:
+          cpu: "1000m"
+          memory: "2Gi"
+
+  # Optional environment variables.
+  # RUSTFS_VOLUMES, RUSTFS_ADDRESS, RUSTFS_CONSOLE_ADDRESS, and
+  # RUSTFS_CONSOLE_ENABLE are set automatically by the operator.
+  env:
+    - name: RUST_LOG
+      value: info

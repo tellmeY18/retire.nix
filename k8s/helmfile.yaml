@@ -24,6 +24,8 @@
 #   - Add another release block below with `name: analytics`.
 #   - `just k8s::apply`.
 #
+#   6. rustfs/rustfs-operator → RustFS operator (Tenant CRD + controller).
+#
 # Version policy:
 #   - Always pin chart versions explicitly. Never use "*" or floating tags.
 #   - When bumping, read the chart CHANGELOG for breaking changes.
@@ -35,6 +37,8 @@ repositories:
     url: https://cloudnative-pg.github.io/charts
   - name: percona
     url: https://percona.github.io/percona-helm-charts
+  - name: rustfs
+    url: https://rustfs.github.io/operator
 
 helmDefaults:
   wait: true
@@ -135,3 +139,23 @@ releases:
       - apps/mysql/values.yaml
     secrets:
       - apps/mysql/secrets.yaml
+
+  # ---------------------------------------------------------------------------
+  # 6. RustFS operator (CRDs + controller).
+  # ---------------------------------------------------------------------------
+  # Manages Tenant CRs that provision erasure-coded S3-compatible object
+  # storage clusters via StatefulSets. The operator watches all namespaces
+  # for Tenant resources.
+  #
+  # Chart source: https://github.com/rustfs/operator/tree/main/deploy/rustfs-operator
+  - name: rustfs-operator
+    namespace: rustfs-system
+    createNamespace: true
+    chart: rustfs/rustfs-operator
+    version: "0.1.0"
+    needs:
+      - monitoring/victoria-metrics-k8s-stack
+    values:
+      - apps/rustfs-operator/values.yaml
+    secrets:
+      - apps/rustfs-operator/secrets.yaml

@@ -1,0 +1,23 @@
+---
+# namespace.yaml — Namespace declaration for RustFS workloads.
+#
+# The RustFS *operator* lives in `rustfs-system` (managed by helmfile,
+# namespace created by the chart's `createNamespace: true`).
+#
+# All RustFS *workload* resources (Tenant, StatefulSets, PVCs) live in
+# `rustfs-clusters` and are created by kustomize.
+#
+# Labels:
+#   pod-security.kubernetes.io/enforce=restricted
+#     RustFS operator sets proper security contexts on StatefulSet pods:
+#     runAsNonRoot, no privilege escalation, seccomp RuntimeDefault.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: rustfs-clusters
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: latest
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+    app.kubernetes.io/part-of: rustfs

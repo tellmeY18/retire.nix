@@ -1,0 +1,70 @@
+# values.yaml — Plain Helm values for the rustfs-operator chart 0.1.x.
+#
+# Renders the RustFS Kubernetes Operator (controller + CRDs + RBAC).
+# The operator watches Tenant CRs in all namespaces and reconciles
+# StatefulSets, Services, ConfigMaps, and Secrets for RustFS clusters.
+#
+# Encrypted / secret values belong in secrets.yaml (sops-encrypted, referenced
+# from helmfile.yaml via the `secrets://` prefix).
+#
+# Reference for all available keys:
+#   helm show values rustfs-operator --repo https://rustfs.github.io/operator
+#
+# Source: https://github.com/rustfs/operator/tree/main/deploy/rustfs-operator
+
+# Operator pod sizing — chopper is an old laptop, keep it light.
+operator:
+  replicas: 1
+
+  image:
+    repository: rustfs/operator
+    tag: latest
+    pullPolicy: IfNotPresent
+
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+    limits:
+      cpu: "500m"
+      memory: "256Mi"
+
+  env:
+    - name: RUST_LOG
+      value: info
+
+  # Pod security — follow restricted PSA profile.
+  podSecurityContext:
+    fsGroup: 65534
+
+  securityContext:
+    allowPrivilegeEscalation: false
+    runAsNonRoot: true
+    runAsUser: 65534
+    capabilities:
+      drop:
+        - ALL
+    seccompProfile:
+      type: RuntimeDefault
+
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+# ServiceAccount + RBAC for the operator controller.
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+rbac:
+  create: true
+
+# Common labels applied to all chart resources.
+commonLabels: {}
+commonAnnotations: {}
+
+# Console web UI — disabled for now; we don't need a GUI.
+# Enable later if you want the management dashboard.
+console:
+  enabled: false

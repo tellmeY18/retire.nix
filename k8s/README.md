@@ -51,6 +51,8 @@ nodes are present; the Tailscale `pg-rw` MagicDNS endpoint stays stable.
 | `cnpg-clusters` | `namespace.yaml` (kustomize) | Postgres `Cluster`, `Pooler`, `ScheduledBackup`, `Service`, `NetworkPolicy`, `Secret` (rendered by chart) |
 | `pxc-system` | helmfile chart `createNamespace: true` | PXC operator Deployment |
 | `pxc-clusters` | `pxc/namespace.yaml` (kustomize) | `PerconaXtraDBCluster`, HAProxy, backup schedules, `NetworkPolicy`, Tailscale `Service` |
+| `rustfs-system` | helmfile chart `createNamespace: true` | RustFS operator Deployment (Tenant CRD controller) |
+| `rustfs-clusters` | `rustfs/namespace.yaml` (kustomize) | RustFS `Tenant`, StatefulSets, credentials `Secret`, `NetworkPolicy`, Tailscale `Service` |
 | `monitoring` | `monitoring/namespace.yaml` (kustomize) | VMSingle, VMAgent, VMAlert, VMAlertmanager, Grafana, node-exporter, kube-state-metrics, Grafana Tailscale Service |
 
 The `cnpg-clusters` namespace carries `pod-security.kubernetes.io/enforce=restricted`
@@ -141,6 +143,21 @@ just k8s::pxc-pods                 # list all PXC pods
 just k8s::pxc-backup-list          # list backup objects
 just k8s::pxc-backup-now           # trigger on-demand backup
 just k8s::pxc-shell                # MySQL CLI via HAProxy
+```
+
+### RustFS (S3-compatible object storage)
+
+```sh
+just k8s::rustfs-status            # show Tenant status
+just k8s::rustfs-describe          # detailed Tenant description
+just k8s::rustfs-operator-logs     # tail operator logs
+just k8s::rustfs-pod-logs          # tail storage pod logs
+just k8s::rustfs-pods              # list all RustFS pods
+just k8s::rustfs-pvcs              # list PVCs with capacity
+just k8s::rustfs-port-forward      # port-forward S3 API to localhost:9000
+just k8s::rustfs-console           # port-forward Console UI to localhost:9001
+just k8s::rustfs-health            # test S3 API health
+just k8s::rustfs-apply-secret      # apply sops-decrypted credentials
 ```
 
 ### Monitoring
@@ -262,6 +279,22 @@ webservice
 When Galera promotes a new writer the HAProxy health checks detect the change
 and re-route within seconds. Webservices see at most a brief connection drop.
 
+### RustFS S3 traffic path
+
+```
+client / webservice
+  → s3.<tailnet>.ts.net:9000          (Tailscale MagicDNS)
+  → ts-proxy pod                       (LoadBalancer Service in rustfs-clusters)
+  → RustFS IO Service                  (operator-created, port 9000)
+  → RustFS StatefulSet pods            (erasure-coded cluster, 4 servers)
+```
+
+RustFS distributes objects across all servers using erasure coding. Any server
+can handle any S3 request — the cluster rebalances internally. With 4 servers
+and EC:4 parity, the cluster tolerates up to 4 volume failures with no data
+loss. On a single node (phase 1), this means drive-level resilience; with
+multiple nodes, it provides full node-failure tolerance.
+
 ---
 
 ## Runbooks
@@ -279,7 +312,7 @@ and re-route within seconds. Webservices see at most a brief connection drop.
 ```
 k8s/
 ├── README.md                                # this file
-├── helmfile.yaml                            # victoria-metrics-k8s-stack + cnpg + pxc charts
+├── helmfile.yaml                            # victoria-metrics-k8s-stack + cnpg + pxc + rustfs charts
 ├── apps/
 │   ├── cnpg-operator/
 │   │   ├── values.yaml                      # plain Helm values
@@ -293,9 +326,15 @@ k8s/
 │   ├── postgres/
 │   │   ├── values.yaml                      # Cluster + Pooler + Backup config
 │   │   └── secrets.yaml                     # sops-encrypted S3 credentials
-│   └── pxc-operator/
-│       ├── values.yaml                      # plain Helm values
-│       └── secrets.yaml                     # sops-encrypted Helm values
+│   ├── pxc-operator/
+│   │   ├── values.yaml                      # plain Helm values
+│   │   └── secrets.yaml                     # sops-encrypted Helm values
+│   ├── rustfs-operator/
+│   │   ├── values.yaml                      # RustFS operator Helm values
+│   │   └── secrets.yaml                     # sops-encrypted (empty placeholder)
+│   └── rustfs/
+│       ├── values.yaml                      # Tenant configuration reference
+│       └── secrets.yaml                     # sops-encrypted S3 admin credentials
 ├── clusters/
 │   └── glug-infra/
 │       ├── kustomization.yaml               # entry point (cnpg-clusters namespace)
@@ -307,6 +346,13 @@ k8s/
 │       │   ├── namespace.yaml               # pxc-clusters + PSA labels
 │       │   ├── networkpolicy.yaml           # default-deny + HAProxy + PXC rules
 │       │   └── tailscale-mysql-service.yaml # Tailscale LB: mysql-rw
+│       ├── rustfs/
+│       │   ├── kustomization.yaml           # entry point (rustfs-clusters namespace)
+│       │   ├── namespace.yaml               # rustfs-clusters + PSA restricted labels
+│       │   ├── networkpolicy.yaml           # default-deny + S3 + inter-node rules
+│       │   ├── credentials-secret.enc.yaml  # RustFS admin credentials (sops-encrypted)
+│       │   ├── tenant.yaml                  # RustFS Tenant CR (4 servers × 2 vols)
+│       │   └── tailscale-s3-service.yaml    # Tailscale LB: s3
 │       └── monitoring/
 │           ├── kustomization.yaml           # entry point (monitoring namespace)
 │           ├── namespace.yaml               # monitoring + PSA labels
