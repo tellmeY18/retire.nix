@@ -1,0 +1,32 @@
+# endpoints.yaml — List of HTTPS endpoints to monitor.
+#
+# This is the ONLY file you need to edit to add/remove monitored endpoints.
+# After editing, run:
+#
+#   just k8s::endpoints-sync
+#
+# Format:
+#   - name:  Short identifier (lowercase, hyphens OK, used in metrics + alerts)
+#     url:   Full URL including protocol and path
+#     team:  Team label (used in Jira ticket routing)
+#     tier:  "frontend" or "backend" (used in dashboard grouping)
+#
+# The sync recipe regenerates the Cloudprober ConfigMap and restarts the pod.
+# New endpoints start being probed within ~30 seconds.
+#
+# Example:
+#   - name: myapp-frontend
+#     url: https://myapp.example.com
+#     team: platform
+#     tier: frontend
+
+endpoints:
+  - name: care-frontend
+    url: https://care.ohc.network
+    team: ohc
+    tier: frontend
+
+  - name: care-api-health
+    url: https://careapi.ohc.network/health/
+    team: ohc
+    tier: backend

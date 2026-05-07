@@ -177,6 +177,12 @@ spec:
         # VMAgent self-metrics
         - protocol: TCP
           port: 8429
+        # Cloudprober metrics
+        - protocol: TCP
+          port: 9313
+        # jiralert metrics
+        - protocol: TCP
+          port: 9097
 ---
 # ---- 6. Allow VM operator webhook & API access -------------------------------
 # The VictoriaMetrics operator needs to be reached by the Kubernetes API server
