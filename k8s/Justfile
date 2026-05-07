@@ -244,6 +244,34 @@ rustfs-error-rate:
       wget -qO- "http://localhost:8428/api/v1/query?query=rate(minio_s3_requests_errors_total%5B5m%5D)" | jq '.data.result[]'
 
 # ---------------------------------------------------------------------------
+# Endpoint monitoring (Cloudprober)
+# ---------------------------------------------------------------------------
+
+# Regenerate Cloudprober ConfigMap from endpoints.yaml and restart the pod.
+# Run this after editing endpoints.yaml.
+[doc('Sync endpoints.yaml → Cloudprober ConfigMap + restart')]
+endpoints-sync:
+    @echo "Generating Cloudprober config from endpoints.yaml..."
+    python3 gen-cloudprober-config.py endpoints.yaml | kubectl apply -f -
+    kubectl -n monitoring rollout restart deploy/cloudprober
+    @echo "Done. New endpoints will be probed within ~30s."
+
+# Add a new endpoint to monitor.
+# Usage: just k8s::endpoints-add myapp https://myapp.example.com myteam frontend
+[doc('Add endpoint: <name> <url> <team> <tier>')]
+endpoints-add name url team="ops" tier="backend":
+    @echo "\n  - name: {{ name }}" >> endpoints.yaml
+    @echo "    url: {{ url }}" >> endpoints.yaml
+    @echo "    team: {{ team }}" >> endpoints.yaml
+    @echo "    tier: {{ tier }}" >> endpoints.yaml
+    @echo "Added {{ name }} ({{ url }}). Run 'just k8s::endpoints-sync' to apply."
+
+# List currently configured endpoints.
+[doc('List all monitored endpoints')]
+endpoints-list:
+    @python3 -c "import yaml; d=yaml.safe_load(open('endpoints.yaml')); [print(f\"  {e['name']:30s} {e['url']}\") for e in d['endpoints']]"
+
+# ---------------------------------------------------------------------------
 # Monitoring helpers (VictoriaMetrics stack)
 # ---------------------------------------------------------------------------
 

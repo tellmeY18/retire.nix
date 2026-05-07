@@ -66,6 +66,7 @@ data:
       interval_msec: 30000
       timeout_msec: 10000
       validator {
+        name: "status_2xx"
         http_validator {
           success_status_codes: "200-399"
         }
@@ -98,6 +99,7 @@ data:
       interval_msec: 30000
       timeout_msec: 10000
       validator {
+        name: "status_2xx"
         http_validator {
           success_status_codes: "200-399"
         }
@@ -170,6 +172,9 @@ spec:
     spec:
       securityContext:
         runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        fsGroup: 65534
         seccompProfile:
           type: RuntimeDefault
       containers:
@@ -191,6 +196,7 @@ spec:
               memory: 128Mi
           securityContext:
             runAsNonRoot: true
+            runAsUser: 65534
             readOnlyRootFilesystem: true
             allowPrivilegeEscalation: false
             capabilities:
