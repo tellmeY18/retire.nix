@@ -132,6 +132,10 @@ spec:
           # --- Volume mounts ---
           volumeMounts:
             - name: config
+              mountPath: /app/atrg.toml
+              subPath: atrg.toml
+              readOnly: true
+            - name: config
               mountPath: /etc/nsswitch.conf
               subPath: nsswitch.conf
               readOnly: true
