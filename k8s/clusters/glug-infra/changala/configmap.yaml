@@ -66,3 +66,10 @@ data:
     access_key = "placeholder"
     secret_key = "placeholder"
     path_style = true
+
+  # Nix-built container images are minimal and lack /etc/nsswitch.conf.
+  # Without it, glibc's getaddrinfo() cannot resolve hostnames (or even
+  # parse IP addresses properly in some cases). This file is mounted at
+  # /etc/nsswitch.conf in the container.
+  nsswitch.conf: |
+    hosts: files dns

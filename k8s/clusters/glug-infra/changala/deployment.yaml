@@ -161,6 +161,10 @@ spec:
               mountPath: /app/atrg.toml
               subPath: atrg.toml
               readOnly: true
+            - name: config
+              mountPath: /etc/nsswitch.conf
+              subPath: nsswitch.conf
+              readOnly: true
             - name: data
               mountPath: /app/data
 
