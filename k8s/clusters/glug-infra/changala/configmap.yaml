@@ -41,3 +41,47 @@ data:
   # glibc's getaddrinfo() cannot resolve hostnames.
   nsswitch.conf: |
     hosts: files dns
+
+  # --- Minimal atrg.toml skeleton ---
+  # The atrg framework requires this file on disk at startup. All values
+  # are overridden by ATRG_* and CHANGALA_* env vars at runtime.
+  atrg.toml: |
+    [app]
+    name = "changala"
+    host = "0.0.0.0"
+    port = 3000
+    secret_key = "placeholder-overridden-by-env"
+    cors_origins = ["*"]
+    environment = "production"
+
+    [auth]
+    client_id = "https://placeholder"
+    redirect_uri = "https://placeholder"
+    scope = "atproto transition:generic"
+
+    [database]
+    url = "sqlite:///app/data/atrg.db"
+
+    [jetstream]
+    host = "jetstream1.us-east.bsky.network"
+    collections = [
+        "app.changala.membership",
+        "app.changala.keyword",
+        "app.changala.note",
+        "app.changala.vote",
+        "app.changala.collectivenote.proposal",
+        "app.changala.label",
+        "app.changala.brain.node",
+        "app.changala.brain.link",
+    ]
+
+    [changala]
+    database_url = "postgres://placeholder:placeholder@localhost:5432/placeholder"
+
+    [changala.s3]
+    endpoint = "http://placeholder:9000"
+    bucket = "placeholder"
+    region = "us-east-1"
+    access_key = "placeholder"
+    secret_key = "placeholder"
+    path_style = true
