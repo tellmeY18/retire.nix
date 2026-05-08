@@ -1,19 +1,11 @@
 ---
-# configmap.yaml — atrg.toml configuration for the Changala Ring server.
+# configmap.yaml — Non-sensitive environment variables for the Changala Ring server.
 #
-# The [changala] section values (database_url, s3.*) are overridden by
-# environment variables sourced from the changala-credentials Secret.
-# Only the non-sensitive structural config matters here.
+# Sensitive values (database password, S3 credentials, app secret key)
+# live in the sops-encrypted credentials-secret.enc.yaml.
 #
-# The app's [app].secret_key is also overridden by the
-# CHANGALA_APP_SECRET_KEY... wait, it's NOT overridable by env.
-# So we put a placeholder here. The real secret_key goes in the Secret
-# and is mounted differently... Actually the app only supports env
-# overrides for [changala] section fields.
-#
-# For production, the secret_key in [app] should be set properly.
-# Since this is mounted as a ConfigMap, it's visible to anyone with
-# namespace access — acceptable for a homelab cluster.
+# The app reads ATRG_* env vars (framework config) and CHANGALA_* env vars
+# (app-specific config). Both override atrg.toml values at runtime.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -25,53 +17,27 @@ metadata:
     app.kubernetes.io/part-of: changala
     app.kubernetes.io/managed-by: kustomize
 data:
-  atrg.toml: |
-    [app]
-    name = "changala"
-    host = "0.0.0.0"
-    port = 3000
-    secret_key = "placeholder-overridden-at-deploy-time"
-    cors_origins = []
-    environment = "production"
+  # --- Framework config (ATRG_*) ---
+  ATRG_APP__NAME: "changala"
+  ATRG_APP__HOST: "0.0.0.0"
+  ATRG_APP__PORT: "3000"
+  ATRG_APP__ENVIRONMENT: "production"
+  ATRG_APP__CORS_ORIGINS: "*"
+  ATRG_AUTH__CLIENT_ID: "https://changala.tail477f2f.ts.net/client-metadata.json"
+  ATRG_AUTH__REDIRECT_URI: "https://changala.tail477f2f.ts.net/auth/callback"
+  ATRG_AUTH__SCOPE: "atproto transition:generic"
+  # ATRG_DATABASE__URL is in the Secret (contains password).
 
-    [auth]
-    client_id = "https://your-domain.example.com/client-metadata.json"
-    redirect_uri = "https://your-domain.example.com/auth/callback"
-    scope = "atproto transition:generic"
+  # --- App config (CHANGALA_*) ---
+  # CHANGALA_DATABASE_URL is in the Secret (contains password).
+  CHANGALA_S3_ENDPOINT: "http://rustfs-storage-io.rustfs-clusters.svc.cluster.local:9000"
+  CHANGALA_S3_BUCKET: "changala-blobs"
+  CHANGALA_S3_REGION: "us-east-1"
+  CHANGALA_S3_PATH_STYLE: "true"
+  # CHANGALA_S3_ACCESS_KEY and CHANGALA_S3_SECRET_KEY are in the Secret.
 
-    [database]
-    url = "sqlite:///app/data/atrg.db"
-
-    [jetstream]
-    host = "jetstream1.us-east.bsky.network"
-    collections = [
-        "app.changala.membership",
-        "app.changala.keyword",
-        "app.changala.note",
-        "app.changala.vote",
-        "app.changala.collectivenote.proposal",
-        "app.changala.label",
-        "app.changala.brain.node",
-        "app.changala.brain.link",
-    ]
-
-    # Placeholder values — the real atrg.toml with credentials is mounted
-    # from the changala-credentials Secret (sops-encrypted). This ConfigMap
-    # copy is kept for reference only and is NOT mounted into the pod.
-    [changala]
-    database_url = "postgres://placeholder:placeholder@localhost:5432/placeholder"
-
-    [changala.s3]
-    endpoint = "http://placeholder:9000"
-    bucket = "placeholder"
-    region = "us-east-1"
-    access_key = "placeholder"
-    secret_key = "placeholder"
-    path_style = true
-
-  # Nix-built container images are minimal and lack /etc/nsswitch.conf.
-  # Without it, glibc's getaddrinfo() cannot resolve hostnames (or even
-  # parse IP addresses properly in some cases). This file is mounted at
-  # /etc/nsswitch.conf in the container.
+  # --- Nix container support ---
+  # Nix-built container images lack /etc/nsswitch.conf. Without it,
+  # glibc's getaddrinfo() cannot resolve hostnames.
   nsswitch.conf: |
     hosts: files dns

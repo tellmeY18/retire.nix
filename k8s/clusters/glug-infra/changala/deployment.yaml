@@ -7,14 +7,13 @@
 # HTTP API on port 3000.
 #
 # Configuration:
-#   - atrg.toml is mounted from the `changala-config` ConfigMap at
-#     /app/atrg.toml (read-only). This contains the structural config:
-#     [app], [auth], [database], [jetstream] sections.
-#   - The [changala] section fields (database_url, s3.*) are overridden
-#     at runtime by environment variables sourced from the
-#     `changala-credentials` Secret. The app reads CHANGALA_DATABASE_URL,
-#     CHANGALA_S3_ENDPOINT, etc. and uses them in preference to the
-#     values in atrg.toml.
+#   All config is delivered via environment variables:
+#   - ATRG_* env vars (framework config: app, auth, database) from
+#     the `changala-config` ConfigMap.
+#   - CHANGALA_* env vars (app-specific: database URL, S3) — non-sensitive
+#     values from the ConfigMap, sensitive values from the
+#     `changala-credentials` Secret.
+#   Both are injected via `envFrom`. No atrg.toml file is mounted.
 #
 # Security:
 #   Runs under the PSA `restricted` profile — non-root (UID 1000),
@@ -73,42 +72,18 @@ spec:
               protocol: TCP
 
           # --- Environment variables ---
-          # RUST_LOG is set directly; everything else comes from the
-          # changala-credentials Secret. The CHANGALA_* env vars override
-          # the [changala] section of atrg.toml at runtime.
+          # Non-sensitive ATRG_* and CHANGALA_* vars come from the ConfigMap.
+          # Sensitive vars (database passwords, S3 keys, secret_key) come
+          # from the changala-credentials Secret. Secret values win on
+          # collision because the secretRef is listed second.
+          envFrom:
+            - configMapRef:
+                name: changala-config
+            - secretRef:
+                name: changala-credentials
           env:
             - name: RUST_LOG
               value: info
-            - name: CHANGALA_DATABASE_URL
-              valueFrom:
-                secretKeyRef:
-                  name: changala-credentials
-                  key: CHANGALA_DATABASE_URL
-            - name: CHANGALA_S3_ENDPOINT
-              valueFrom:
-                secretKeyRef:
-                  name: changala-credentials
-                  key: CHANGALA_S3_ENDPOINT
-            - name: CHANGALA_S3_BUCKET
-              valueFrom:
-                secretKeyRef:
-                  name: changala-credentials
-                  key: CHANGALA_S3_BUCKET
-            - name: CHANGALA_S3_REGION
-              valueFrom:
-                secretKeyRef:
-                  name: changala-credentials
-                  key: CHANGALA_S3_REGION
-            - name: CHANGALA_S3_ACCESS_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: changala-credentials
-                  key: CHANGALA_S3_ACCESS_KEY
-            - name: CHANGALA_S3_SECRET_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: changala-credentials
-                  key: CHANGALA_S3_SECRET_KEY
 
           # --- Resource limits ---
           # Conservative for laptop hardware. The Rust binary is efficient;
@@ -156,10 +131,6 @@ spec:
 
           # --- Volume mounts ---
           volumeMounts:
-            - name: secret-config
-              mountPath: /app/atrg.toml
-              subPath: atrg.toml
-              readOnly: true
             - name: config
               mountPath: /etc/nsswitch.conf
               subPath: nsswitch.conf
@@ -168,9 +139,6 @@ spec:
               mountPath: /app/data
 
       volumes:
-        - name: secret-config
-          secret:
-            secretName: changala-credentials
         - name: config
           configMap:
             name: changala-config
