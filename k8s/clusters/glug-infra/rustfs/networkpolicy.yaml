@@ -43,7 +43,7 @@ spec:
   policyTypes:
     - Ingress
   ingress:
-    # Rule 1: S3 API (9000) from tailscale, intra-namespace, and monitoring.
+    # Rule 1: S3 API (9000) from tailscale, intra-namespace, monitoring, and changala.
     - from:
         - namespaceSelector:
             matchLabels:
@@ -54,6 +54,10 @@ spec:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: monitoring
+        # Changala app stores blobs in the changala-blobs bucket.
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: changala
       ports:
         - protocol: TCP
           port: 9000
