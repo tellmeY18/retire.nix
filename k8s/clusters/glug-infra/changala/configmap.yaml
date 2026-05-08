@@ -30,7 +30,7 @@ data:
 
   # --- App config (CHANGALA_*) ---
   # CHANGALA_DATABASE_URL is in the Secret (contains password).
-  CHANGALA_S3_ENDPOINT: "http://rustfs-storage-io.rustfs-clusters.svc.cluster.local:9000"
+  CHANGALA_S3_ENDPOINT: "https://s3.tail477f2f.ts.net"
   CHANGALA_S3_BUCKET: "changala-blobs"
   CHANGALA_S3_REGION: "us-east-1"
   CHANGALA_S3_PATH_STYLE: "true"
