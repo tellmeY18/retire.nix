@@ -55,6 +55,7 @@ nodes are present; the Tailscale `pg-rw` MagicDNS endpoint stays stable.
 | `pxc-clusters` | `pxc/namespace.yaml` (kustomize) | `PerconaXtraDBCluster`, HAProxy, backup schedules, `NetworkPolicy`, Tailscale `Service` |
 | `rustfs-system` | helmfile chart `createNamespace: true` | RustFS operator Deployment (Tenant CRD controller) |
 | `rustfs-clusters` | `rustfs/namespace.yaml` (kustomize) | RustFS `Tenant`, StatefulSets, credentials `Secret`, `NetworkPolicy`, Tailscale `Service` |
+| `changala` | `changala/namespace.yaml` (kustomize) | Changala Ring server `Deployment`, `ConfigMap` (atrg.toml), credentials `Secret` (sops), `NetworkPolicy`, Tailscale `Service` |
 | `monitoring` | `monitoring/namespace.yaml` (kustomize) | VMSingle, VMAgent, VMAlert, VMAlertmanager, Grafana, node-exporter, kube-state-metrics, Grafana Tailscale Service |
 
 The `cnpg-clusters` namespace carries `pod-security.kubernetes.io/enforce=restricted`

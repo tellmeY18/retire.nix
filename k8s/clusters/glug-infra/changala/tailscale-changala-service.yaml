@@ -1,0 +1,46 @@
+---
+# tailscale-changala-service.yaml — Expose the Changala Ring HTTP API on the
+# tailnet as a stable MagicDNS endpoint via the Tailscale Kubernetes operator.
+#
+# Traffic path:
+#   webservice / client
+#     → changala.<tailnet>.ts.net:3000     (Tailscale MagicDNS)
+#     → ts-proxy pod                       (this Service, ts-managed)
+#     → Changala Deployment pods           (port 3000)
+#
+# The Tailscale operator watches Services with `spec.loadBalancerClass:
+# tailscale` and provisions a ts-proxy StatefulSet that registers a device
+# on the tailnet.
+#
+# Prerequisites:
+#   - Tailscale Kubernetes operator installed (NixOS-bootstrapped).
+#   - Tailscale operator OAuth credentials applied.
+#   - Tailscale ACL allows tag:k8s traffic on port 3000.
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: changala-tailscale
+  namespace: changala
+  labels:
+    app.kubernetes.io/name: changala
+    app.kubernetes.io/component: tailnet-frontend
+    app.kubernetes.io/part-of: changala
+    app.kubernetes.io/managed-by: kustomize
+  annotations:
+    # MagicDNS hostname: changala.<tailnet>.ts.net
+    tailscale.com/hostname: "changala"
+    tailscale.com/tags: "tag:k8s"
+spec:
+  type: LoadBalancer
+  loadBalancerClass: tailscale
+
+  # Select the Changala Deployment pods.
+  selector:
+    app.kubernetes.io/name: changala
+
+  ports:
+    - name: http
+      protocol: TCP
+      port: 3000
+      targetPort: 3000
