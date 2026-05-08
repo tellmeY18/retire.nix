@@ -449,10 +449,9 @@ in
             chart = "tailscale-operator";
             # NOTE: Tailscale's chart index skips x.y.0 patches — the lowest
             # 1.76.x they publish is 1.76.1 (see
-            # https://pkgs.tailscale.com/helmcharts/index.yaml). 1.76.6 is the
-            # final patch in that minor and is what we pin to. When bumping,
+            # https://pkgs.tailscale.com/helmcharts/index.yaml). When bumping,
             # always cross-check the index.yaml above before changing this.
-            version = "1.76.6";
+            version = "1.96.5";
             targetNamespace = "tailscale";
             createNamespace = true;
             valuesContent = ''
