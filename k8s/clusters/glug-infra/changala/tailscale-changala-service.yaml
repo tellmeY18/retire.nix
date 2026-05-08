@@ -1,30 +1,59 @@
 ---
-# tailscale-changala-service.yaml — Expose the Changala Ring HTTP API to the
-# public internet via Tailscale Funnel + MagicDNS.
+# tailscale-changala-service.yaml — Expose Changala to the public internet
+# via Tailscale Funnel, and on the tailnet via MagicDNS.
+#
+# Two resources:
+#
+# 1. ClusterIP Service — internal backend for the Ingress.
+#    Only reachable inside the cluster.
+#
+# 2. Tailscale Ingress — the Tailscale operator provisions a ts-proxy that:
+#    - Registers as `changala` on the tailnet (MagicDNS).
+#    - Terminates TLS via `tailscale serve`.
+#    - Enables Funnel for public internet access.
+#    - Reverse-proxies HTTPS → http://changala-svc.changala:3000.
 #
 # Traffic path (public internet):
-#   browser / client
+#   browser
 #     → https://changala.<tailnet>.ts.net   (Tailscale Funnel, TLS terminated)
-#     → ts-proxy pod                        (this Service, ts-managed)
+#     → ts-proxy pod                        (Ingress-managed, tailscale serve)
+#     → changala-svc ClusterIP              (port 3000)
 #     → Changala Deployment pods            (port 3000, plain HTTP)
 #
-# Tailscale Funnel serves HTTPS on port 443. The ts-proxy terminates TLS
-# and forwards plain HTTP to the targetPort (3000) on the app pod.
-#
-# The Tailscale operator watches Services with `spec.loadBalancerClass:
-# tailscale` and provisions a ts-proxy StatefulSet that registers a device
-# on the tailnet. The `tailscale.com/funnel: "true"` annotation enables
-# public internet access via Funnel.
+# Traffic path (tailnet):
+#   tailnet client
+#     → https://changala.<tailnet>.ts.net   (MagicDNS, TLS terminated by ts-proxy)
+#     → ts-proxy pod
+#     → changala-svc ClusterIP → pods
 #
 # Prerequisites:
 #   - Tailscale Kubernetes operator installed (NixOS-bootstrapped).
 #   - Tailscale operator OAuth credentials applied.
-#   - Tailscale ACL: Funnel must be enabled for the tag (tag:k8s) in the
-#     tailnet policy file under the "nodeAttrs" section:
+#   - Tailscale ACL: Funnel enabled for tag:k8s:
 #       { "target": ["tag:k8s"], "attr": ["funnel"] }
 
 apiVersion: v1
 kind: Service
+metadata:
+  name: changala-svc
+  namespace: changala
+  labels:
+    app.kubernetes.io/name: changala
+    app.kubernetes.io/component: internal-service
+    app.kubernetes.io/part-of: changala
+    app.kubernetes.io/managed-by: kustomize
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: changala
+  ports:
+    - name: http
+      protocol: TCP
+      port: 3000
+      targetPort: 3000
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
 metadata:
   name: changala-tailscale
   namespace: changala
@@ -34,24 +63,15 @@ metadata:
     app.kubernetes.io/part-of: changala
     app.kubernetes.io/managed-by: kustomize
   annotations:
-    # MagicDNS hostname: changala.<tailnet>.ts.net
-    tailscale.com/hostname: "changala"
-    tailscale.com/tags: "tag:k8s"
-    # Enable Tailscale Funnel — exposes this service to the public internet
-    # at https://changala.<tailnet>.ts.net. TLS is handled by Tailscale.
     tailscale.com/funnel: "true"
+    tailscale.com/tags: "tag:k8s"
 spec:
-  type: LoadBalancer
-  loadBalancerClass: tailscale
-
-  # Select the Changala Deployment pods.
-  selector:
-    app.kubernetes.io/name: changala
-
-  ports:
-    # Funnel requires port 443. Tailscale terminates TLS and forwards
-    # plain HTTP to targetPort 3000 on the app container.
-    - name: https
-      protocol: TCP
-      port: 443
-      targetPort: 3000
+  defaultBackend:
+    service:
+      name: changala-svc
+      port:
+        number: 3000
+  ingressClassName: tailscale
+  tls:
+    - hosts:
+        - changala
