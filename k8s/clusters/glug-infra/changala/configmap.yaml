@@ -55,7 +55,9 @@ data:
         "app.changala.brain.link",
     ]
 
-    # Placeholder values — overridden by env vars from changala-credentials Secret.
+    # Placeholder values — the real atrg.toml with credentials is mounted
+    # from the changala-credentials Secret (sops-encrypted). This ConfigMap
+    # copy is kept for reference only and is NOT mounted into the pod.
     [changala]
     database_url = "postgres://placeholder:placeholder@localhost:5432/placeholder"
 
