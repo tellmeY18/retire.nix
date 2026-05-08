@@ -161,8 +161,12 @@ spec:
               mountPath: /app/atrg.toml
               subPath: atrg.toml
               readOnly: true
+            - name: data
+              mountPath: /app/data
 
       volumes:
         - name: config
           configMap:
             name: changala-config
+        - name: data
+          emptyDir: {}
