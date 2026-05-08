@@ -1,0 +1,46 @@
+---
+# kustomization.yaml — kustomize entry point for the Changala app.
+#
+# `kubectl apply -k k8s/clusters/glug-infra/changala`
+#
+# What lives here (core Kubernetes types, no CRDs needed):
+#   - The `changala` Namespace (with PodSecurity labels).
+#   - NetworkPolicies guarding the namespace.
+#   - The Tailscale LoadBalancer Service that exposes the Changala Ring
+#     server as `changala.<tailnet>.ts.net:3000`.
+#   - The ConfigMap containing atrg.toml (non-secret config).
+#   - The Deployment running the Changala container.
+#
+# What is applied AFTER kustomize (requires sops decryption):
+#   - The changala-credentials Secret (sops-encrypted) — applied by
+#     `sops --decrypt credentials-secret.enc.yaml | kubectl apply -f -`
+#     in the `just k8s::apply` recipe.
+#
+# This kustomization is applied before helmfile in `just k8s::apply`
+# because it contains only core Kubernetes types.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: changala
+
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: changala
+      app.kubernetes.io/managed-by: kustomize
+    includeSelectors: false
+
+resources:
+  # Namespace must be first.
+  - namespace.yaml
+  # NetworkPolicies — in place before workloads start.
+  - networkpolicy.yaml
+  # Tailscale LoadBalancer Service.
+  - tailscale-changala-service.yaml
+  # ConfigMap with atrg.toml.
+  - configmap.yaml
+  # Deployment — the Changala Ring server.
+  - deployment.yaml
+  # NOTE: credentials-secret.enc.yaml is NOT listed here.
+  # It is sops-encrypted and must be decrypted at apply time:
+  #   sops --decrypt credentials-secret.enc.yaml | kubectl apply -f -
+  # This is done automatically by `just k8s::apply`.

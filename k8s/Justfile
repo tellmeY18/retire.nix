@@ -31,24 +31,28 @@ default:
 #   1. kustomize creates the Namespaces (with PSA labels), NetworkPolicies,
 #      and Tailscale LoadBalancer Services. These contain NO CRD-dependent
 #      resources — only core Kubernetes types (Namespace, NetworkPolicy,
-#      Service).
+#      Service). Changala (Deployment + ConfigMap) is also pure kustomize.
 #   2. helmfile installs the victoria-metrics-k8s-stack (CRDs + operator +
 #      VMSingle + VMAgent + Grafana), then CNPG operator, then Postgres
 #      cluster, then PXC operator + MySQL cluster, then RustFS operator.
 #   3. AFTER helmfile (CRDs are now in place), apply CRD-dependent resources:
 #      - RustFS credentials Secret (sops-decrypted, must exist BEFORE Tenant)
 #      - RustFS Tenant CR (requires rustfs.com/v1alpha1 Tenant CRD)
+#      - Changala credentials Secret (sops-decrypted)
 #      - Monitoring custom resources (VMRule, VMServiceScrape, dashboards)
 [doc('Apply kustomize + helmfile to the cluster')]
 apply:
     kubectl apply -k clusters/glug-infra
     kubectl apply -k clusters/glug-infra/pxc
     kubectl apply -k clusters/glug-infra/rustfs
+    kubectl apply -k clusters/glug-infra/changala
     kubectl apply -f clusters/glug-infra/monitoring/namespace.yaml
     helmfile sync
     @echo "Applying RustFS credentials (sops-decrypt)..."
     sops --decrypt clusters/glug-infra/rustfs/credentials-secret.enc.yaml | kubectl apply -f -
     kubectl apply -f clusters/glug-infra/rustfs/tenant.yaml
+    @echo "Applying Changala credentials (sops-decrypt)..."
+    sops --decrypt clusters/glug-infra/changala/credentials-secret.enc.yaml | kubectl apply -f -
     kubectl apply -k clusters/glug-infra/monitoring
 
 # Preview k8s changes without applying.
@@ -58,6 +62,7 @@ diff:
     kubectl diff -k clusters/glug-infra/pxc || true
     kubectl diff -k clusters/glug-infra/rustfs || true
     kubectl diff -f clusters/glug-infra/rustfs/tenant.yaml 2>/dev/null || true
+    kubectl diff -k clusters/glug-infra/changala || true
     kubectl diff -k clusters/glug-infra/monitoring || true
     helmfile diff
 
@@ -242,6 +247,46 @@ rustfs-node-status:
 rustfs-error-rate:
     kubectl -n monitoring exec -it deploy/vmks-victoria-metrics-k8s-stack-vmsingle -- \
       wget -qO- "http://localhost:8428/api/v1/query?query=rate(minio_s3_requests_errors_total%5B5m%5D)" | jq '.data.result[]'
+
+# ---------------------------------------------------------------------------
+# Changala (Ring server) day-2 helpers
+# ---------------------------------------------------------------------------
+
+# Show the Changala Deployment status.
+[doc('Show Changala Deployment status')]
+changala-status:
+    kubectl get deploy,pods,svc -n changala -o wide
+
+# Show detailed Changala pod info.
+[doc('Show detailed Changala pod description')]
+changala-describe:
+    kubectl describe deploy/changala -n changala
+
+# Tail logs from the Changala Ring server.
+[doc('Tail Changala Ring server logs')]
+changala-logs:
+    kubectl logs -n changala -l app.kubernetes.io/name=changala -f --tail=200
+
+# Restart the Changala Deployment (e.g. to pull a new :latest image).
+[doc('Restart Changala Deployment (rolling)')]
+changala-restart:
+    kubectl rollout restart deploy/changala -n changala
+
+# Apply the Changala credentials Secret from sops-encrypted source.
+[doc('Apply sops-decrypted Changala credentials Secret')]
+changala-apply-secret:
+    @echo "Decrypting and applying Changala credentials..."
+    sops --decrypt clusters/glug-infra/changala/credentials-secret.enc.yaml | kubectl apply -f -
+
+# Open a shell in the running Changala pod (for debugging).
+[doc('Open a shell in the Changala pod')]
+changala-shell:
+    kubectl exec -n changala -it deploy/changala -- sh
+
+# Port-forward Changala to localhost:3000.
+[doc('Port-forward Changala to localhost:3000')]
+changala-port-forward:
+    kubectl -n changala port-forward svc/changala 3000:3000
 
 # ---------------------------------------------------------------------------
 # Endpoint monitoring (Cloudprober)

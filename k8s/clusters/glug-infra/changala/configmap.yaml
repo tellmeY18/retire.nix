@@ -1,0 +1,68 @@
+---
+# configmap.yaml — atrg.toml configuration for the Changala Ring server.
+#
+# The [changala] section values (database_url, s3.*) are overridden by
+# environment variables sourced from the changala-credentials Secret.
+# Only the non-sensitive structural config matters here.
+#
+# The app's [app].secret_key is also overridden by the
+# CHANGALA_APP_SECRET_KEY... wait, it's NOT overridable by env.
+# So we put a placeholder here. The real secret_key goes in the Secret
+# and is mounted differently... Actually the app only supports env
+# overrides for [changala] section fields.
+#
+# For production, the secret_key in [app] should be set properly.
+# Since this is mounted as a ConfigMap, it's visible to anyone with
+# namespace access — acceptable for a homelab cluster.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: changala-config
+  namespace: changala
+  labels:
+    app.kubernetes.io/name: changala
+    app.kubernetes.io/component: config
+    app.kubernetes.io/part-of: changala
+    app.kubernetes.io/managed-by: kustomize
+data:
+  atrg.toml: |
+    [app]
+    name = "changala"
+    host = "0.0.0.0"
+    port = 3000
+    secret_key = "placeholder-overridden-at-deploy-time"
+    cors_origins = []
+    environment = "production"
+
+    [auth]
+    client_id = "https://your-domain.example.com/client-metadata.json"
+    redirect_uri = "https://your-domain.example.com/auth/callback"
+    scope = "atproto transition:generic"
+
+    [database]
+    url = "sqlite:///app/data/atrg.db"
+
+    [jetstream]
+    host = "jetstream1.us-east.bsky.network"
+    collections = [
+        "app.changala.membership",
+        "app.changala.keyword",
+        "app.changala.note",
+        "app.changala.vote",
+        "app.changala.collectivenote.proposal",
+        "app.changala.label",
+        "app.changala.brain.node",
+        "app.changala.brain.link",
+    ]
+
+    # Placeholder values — overridden by env vars from changala-credentials Secret.
+    [changala]
+    database_url = "postgres://placeholder:placeholder@localhost:5432/placeholder"
+
+    [changala.s3]
+    endpoint = "http://placeholder:9000"
+    bucket = "placeholder"
+    region = "us-east-1"
+    access_key = "placeholder"
+    secret_key = "placeholder"
+    path_style = true

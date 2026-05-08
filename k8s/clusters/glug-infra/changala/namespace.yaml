@@ -1,0 +1,20 @@
+---
+# namespace.yaml — Namespace declaration for Changala app workloads.
+#
+# The Changala Ring server runs as a simple Deployment with a ConfigMap
+# (atrg.toml) and a Secret (database + S3 credentials) injected via env vars.
+#
+# Labels:
+#   pod-security.kubernetes.io/enforce=restricted
+#     The Changala container runs as a non-root, unprivileged process with
+#     no special capabilities — full restricted enforcement is safe.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: changala
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: latest
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+    app.kubernetes.io/part-of: changala

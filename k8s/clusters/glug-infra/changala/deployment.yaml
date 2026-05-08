@@ -1,0 +1,168 @@
+---
+# deployment.yaml — Changala Ring server Deployment.
+#
+# Runs the Changala Ring server as a single-replica Deployment.
+# The server is a Rust binary that serves the Changala AT Protocol
+# application, consuming a Bluesky Jetstream feed and exposing an
+# HTTP API on port 3000.
+#
+# Configuration:
+#   - atrg.toml is mounted from the `changala-config` ConfigMap at
+#     /app/atrg.toml (read-only). This contains the structural config:
+#     [app], [auth], [database], [jetstream] sections.
+#   - The [changala] section fields (database_url, s3.*) are overridden
+#     at runtime by environment variables sourced from the
+#     `changala-credentials` Secret. The app reads CHANGALA_DATABASE_URL,
+#     CHANGALA_S3_ENDPOINT, etc. and uses them in preference to the
+#     values in atrg.toml.
+#
+# Security:
+#   Runs under the PSA `restricted` profile — non-root (UID 1000),
+#   no capabilities, read-only root filesystem is NOT set (the app
+#   may need to write to /app/data for the SQLite DB), seccomp
+#   RuntimeDefault.
+#
+# HA:
+#   Single replica. The app is not horizontally scalable in its current
+#   form (single SQLite writer + Jetstream cursor). Scale-out would
+#   require upstream changes (shared Postgres + cursor coordination).
+#
+# Probes:
+#   Liveness and readiness both hit TCP port 3000. The app does not
+#   currently expose a dedicated /healthz endpoint, so a TCP socket
+#   check is the safest probe type.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: changala
+  namespace: changala
+  labels:
+    app.kubernetes.io/name: changala
+    app.kubernetes.io/component: server
+    app.kubernetes.io/part-of: changala
+    app.kubernetes.io/managed-by: kustomize
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: changala
+      app.kubernetes.io/component: server
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: changala
+        app.kubernetes.io/component: server
+        app.kubernetes.io/part-of: changala
+        app.kubernetes.io/managed-by: kustomize
+    spec:
+      # Pod-level security context — satisfies PSA `restricted`.
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+
+      containers:
+        - name: changala
+          image: ghcr.io/changala-social/changala.app:latest
+          ports:
+            - name: http
+              containerPort: 3000
+              protocol: TCP
+
+          # --- Environment variables ---
+          # RUST_LOG is set directly; everything else comes from the
+          # changala-credentials Secret. The CHANGALA_* env vars override
+          # the [changala] section of atrg.toml at runtime.
+          env:
+            - name: RUST_LOG
+              value: info
+            - name: CHANGALA_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: changala-credentials
+                  key: CHANGALA_DATABASE_URL
+            - name: CHANGALA_S3_ENDPOINT
+              valueFrom:
+                secretKeyRef:
+                  name: changala-credentials
+                  key: CHANGALA_S3_ENDPOINT
+            - name: CHANGALA_S3_BUCKET
+              valueFrom:
+                secretKeyRef:
+                  name: changala-credentials
+                  key: CHANGALA_S3_BUCKET
+            - name: CHANGALA_S3_REGION
+              valueFrom:
+                secretKeyRef:
+                  name: changala-credentials
+                  key: CHANGALA_S3_REGION
+            - name: CHANGALA_S3_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: changala-credentials
+                  key: CHANGALA_S3_ACCESS_KEY
+            - name: CHANGALA_S3_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: changala-credentials
+                  key: CHANGALA_S3_SECRET_KEY
+
+          # --- Resource limits ---
+          # Conservative for laptop hardware. The Rust binary is efficient;
+          # memory usage depends on Jetstream buffer depth and SQLite cache.
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+
+          # --- Container-level security context ---
+          # Satisfies PSA `restricted`: no privilege escalation, no
+          # capabilities, non-root, seccomp enforced.
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            seccompProfile:
+              type: RuntimeDefault
+
+          # --- Probes ---
+          # TCP socket on port 3000. Preferred over HTTP GET because the
+          # app may not expose a dedicated /healthz path. A listening
+          # socket is sufficient proof that the Rust binary is alive and
+          # accepting connections.
+          livenessProbe:
+            tcpSocket:
+              port: 3000
+            initialDelaySeconds: 15
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            tcpSocket:
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+
+          # --- Volume mounts ---
+          # atrg.toml from ConfigMap, mounted read-only at /app/atrg.toml.
+          volumeMounts:
+            - name: config
+              mountPath: /app/atrg.toml
+              subPath: atrg.toml
+              readOnly: true
+
+      volumes:
+        - name: config
+          configMap:
+            name: changala-config
