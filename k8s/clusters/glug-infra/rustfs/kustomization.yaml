@@ -32,6 +32,7 @@ resources:
   - namespace.yaml
   - networkpolicy.yaml
   - tailscale-s3-service.yaml
+  - tailscale-s3-funnel.yaml
   # NOTE: The following are NOT listed here — they require the RustFS operator
   # CRDs which are installed by helmfile. They are applied post-helmfile:
   #

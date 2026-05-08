@@ -1,0 +1,58 @@
+---
+# tailscale-s3-funnel.yaml — Expose the RustFS S3 API to the public internet
+# via Tailscale Funnel for frontend blob access.
+#
+# Traffic path (public internet):
+#   browser (Cloudflare Pages frontend)
+#     → https://s3.<tailnet>.ts.net        (Tailscale Funnel, TLS terminated)
+#     → ts-proxy pod                        (Ingress-managed, tailscale serve)
+#     → rustfs-s3-internal ClusterIP        (port 9000)
+#     → RustFS StatefulSet pods             (port 9000, S3 API)
+#
+# Prerequisites:
+#   - Tailscale Kubernetes operator installed.
+#   - Tailscale ACL: Funnel enabled for tag:k8s.
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: rustfs-s3-internal
+  namespace: rustfs-clusters
+  labels:
+    app.kubernetes.io/name: rustfs
+    app.kubernetes.io/component: s3-internal
+    app.kubernetes.io/part-of: rustfs
+    app.kubernetes.io/managed-by: kustomize
+spec:
+  type: ClusterIP
+  selector:
+    rustfs.tenant: rustfs-storage
+  ports:
+    - name: s3-api
+      protocol: TCP
+      port: 9000
+      targetPort: 9000
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: s3-funnel
+  namespace: rustfs-clusters
+  labels:
+    app.kubernetes.io/name: rustfs
+    app.kubernetes.io/component: s3-funnel
+    app.kubernetes.io/part-of: rustfs
+    app.kubernetes.io/managed-by: kustomize
+  annotations:
+    tailscale.com/funnel: "true"
+    tailscale.com/tags: "tag:k8s"
+spec:
+  defaultBackend:
+    service:
+      name: rustfs-s3-internal
+      port:
+        number: 9000
+  ingressClassName: tailscale
+  tls:
+    - hosts:
+        - s3
