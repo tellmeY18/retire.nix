@@ -13,6 +13,9 @@
     zfs = {
       package = lib.mkForce pkgs.zfs_unstable;
       forceImportAll = lib.mkForce true;
+      # New default from 26.11 — reduces risk of data loss by not
+      # force-importing the root pool if it wasn't cleanly exported.
+      forceImportRoot = false;
     };
   };
 }
