@@ -1,21 +1,27 @@
 ---
-# tailscale-changala-service.yaml — Expose the Changala Ring HTTP API on the
-# tailnet as a stable MagicDNS endpoint via the Tailscale Kubernetes operator.
+# tailscale-changala-service.yaml — Expose the Changala Ring HTTP API to the
+# public internet via Tailscale Funnel + MagicDNS.
 #
-# Traffic path:
-#   webservice / client
-#     → changala.<tailnet>.ts.net:3000     (Tailscale MagicDNS)
-#     → ts-proxy pod                       (this Service, ts-managed)
-#     → Changala Deployment pods           (port 3000)
+# Traffic path (public internet):
+#   browser / client
+#     → https://changala.<tailnet>.ts.net   (Tailscale Funnel, TLS terminated)
+#     → ts-proxy pod                        (this Service, ts-managed)
+#     → Changala Deployment pods            (port 3000, plain HTTP)
+#
+# Tailscale Funnel serves HTTPS on port 443. The ts-proxy terminates TLS
+# and forwards plain HTTP to the targetPort (3000) on the app pod.
 #
 # The Tailscale operator watches Services with `spec.loadBalancerClass:
 # tailscale` and provisions a ts-proxy StatefulSet that registers a device
-# on the tailnet.
+# on the tailnet. The `tailscale.com/funnel: "true"` annotation enables
+# public internet access via Funnel.
 #
 # Prerequisites:
 #   - Tailscale Kubernetes operator installed (NixOS-bootstrapped).
 #   - Tailscale operator OAuth credentials applied.
-#   - Tailscale ACL allows tag:k8s traffic on port 3000.
+#   - Tailscale ACL: Funnel must be enabled for the tag (tag:k8s) in the
+#     tailnet policy file under the "nodeAttrs" section:
+#       { "target": ["tag:k8s"], "attr": ["funnel"] }
 
 apiVersion: v1
 kind: Service
@@ -31,6 +37,9 @@ metadata:
     # MagicDNS hostname: changala.<tailnet>.ts.net
     tailscale.com/hostname: "changala"
     tailscale.com/tags: "tag:k8s"
+    # Enable Tailscale Funnel — exposes this service to the public internet
+    # at https://changala.<tailnet>.ts.net. TLS is handled by Tailscale.
+    tailscale.com/funnel: "true"
 spec:
   type: LoadBalancer
   loadBalancerClass: tailscale
@@ -40,7 +49,9 @@ spec:
     app.kubernetes.io/name: changala
 
   ports:
-    - name: http
+    # Funnel requires port 443. Tailscale terminates TLS and forwards
+    # plain HTTP to targetPort 3000 on the app container.
+    - name: https
       protocol: TCP
-      port: 3000
+      port: 443
       targetPort: 3000
