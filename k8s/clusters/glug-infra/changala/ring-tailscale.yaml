@@ -1,0 +1,63 @@
+---
+# ring-tailscale.yaml — Expose the Changala Ring server to the public internet
+# via Tailscale Funnel.
+#
+# Traffic path (public internet):
+#   browser / AT Protocol client
+#     → https://changala-ring.<tailnet>.ts.net  (Tailscale Funnel, TLS terminated)
+#     → ts-proxy pod                             (Ingress-managed, tailscale serve)
+#     → changala-ring-svc ClusterIP              (port 3000)
+#     → changala-ring Deployment pods            (port 3000, HTTP API)
+#
+# Why Funnel instead of a LoadBalancer Service?
+#   The Ring server serves OAuth callbacks and client-metadata.json that
+#   must be reachable from the public internet (AT Protocol requires it).
+#   Funnel provides public HTTPS without exposing any ports on the host.
+#
+# Prerequisites:
+#   - Tailscale Kubernetes operator installed.
+#   - Tailscale ACL: Funnel enabled for tag:k8s.
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: changala-ring-svc
+  namespace: changala
+  labels:
+    app.kubernetes.io/name: changala-ring
+    app.kubernetes.io/component: svc
+    app.kubernetes.io/part-of: changala
+    app.kubernetes.io/managed-by: kustomize
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: changala-ring
+  ports:
+    - name: http
+      protocol: TCP
+      port: 3000
+      targetPort: 3000
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: changala-ring-tailscale
+  namespace: changala
+  labels:
+    app.kubernetes.io/name: changala-ring
+    app.kubernetes.io/component: tailscale-funnel
+    app.kubernetes.io/part-of: changala
+    app.kubernetes.io/managed-by: kustomize
+  annotations:
+    tailscale.com/funnel: "true"
+    tailscale.com/tags: "tag:k8s"
+spec:
+  defaultBackend:
+    service:
+      name: changala-ring-svc
+      port:
+        number: 3000
+  ingressClassName: tailscale
+  tls:
+    - hosts:
+        - changala-ring

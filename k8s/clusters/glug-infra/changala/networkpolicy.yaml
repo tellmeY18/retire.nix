@@ -1,19 +1,9 @@
 ---
-# networkpolicy.yaml — Default-deny + explicit allow NetworkPolicies for the
-# changala namespace.
+# networkpolicy.yaml — NetworkPolicies for the changala namespace.
 #
-# Defense in depth: even though the cluster is reachable only over the
-# tailnet, NetworkPolicies prevent unauthorised intra-cluster traffic.
-#
-# Rules:
-#   1. Default-deny ingress for the namespace.
-#   2. Allow ingress to Changala pods on 3000 (HTTP API) from:
-#        - the Tailscale operator's ts-proxy pods (namespace: tailscale).
-#        - the monitoring namespace (metrics scrape, future).
-#   3. Allow egress from Changala pods to:
-#        - cnpg-clusters namespace on 5432 (PostgreSQL).
-#        - rustfs-clusters namespace on 9000 (S3 API / RustFS).
-#        - external internet on 443 (Bluesky Jetstream WebSocket).
+# Both changala-ring and changala-aggregator pods live here.
+# Rules cover ingress (from Tailscale/monitoring) and egress
+# (to CNPG, RustFS, external Jetstream/SMTP).
 
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -28,6 +18,7 @@ spec:
   policyTypes:
     - Ingress
 ---
+# Allow ingress to Ring + Aggregator pods on port 3000 from Tailscale and monitoring.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -37,22 +28,14 @@ metadata:
     app.kubernetes.io/part-of: changala
     app.kubernetes.io/managed-by: kustomize
 spec:
-  podSelector:
-    matchLabels:
-      app.kubernetes.io/name: changala
+  podSelector: {}
   policyTypes:
     - Ingress
   ingress:
-    # Rule 1: HTTP API (3000) from tailscale ts-proxy pods.
     - from:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: tailscale
-      ports:
-        - protocol: TCP
-          port: 3000
-    # Rule 2: Metrics scrape (3000) from monitoring namespace.
-    - from:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: monitoring
@@ -60,6 +43,7 @@ spec:
         - protocol: TCP
           port: 3000
 ---
+# Egress: PostgreSQL, S3, Jetstream, SMTP, DNS.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -69,13 +53,11 @@ metadata:
     app.kubernetes.io/part-of: changala
     app.kubernetes.io/managed-by: kustomize
 spec:
-  podSelector:
-    matchLabels:
-      app.kubernetes.io/name: changala
+  podSelector: {}
   policyTypes:
     - Egress
   egress:
-    # Rule 1: PostgreSQL (5432) in cnpg-clusters namespace.
+    # PostgreSQL (CNPG)
     - to:
         - namespaceSelector:
             matchLabels:
@@ -83,7 +65,7 @@ spec:
       ports:
         - protocol: TCP
           port: 5432
-    # Rule 2: S3 API (9000) in rustfs-clusters namespace.
+    # S3 (RustFS) — Ring only, but applying namespace-wide is harmless
     - to:
         - namespaceSelector:
             matchLabels:
@@ -91,10 +73,7 @@ spec:
       ports:
         - protocol: TCP
           port: 9000
-    # Rule 3: Bluesky Jetstream WebSocket (external, port 443).
-    # ipBlock 0.0.0.0/0 minus cluster-internal ranges covers all external
-    # destinations. The except list prevents this rule from being used to
-    # reach arbitrary cluster-internal services on 443.
+    # External HTTPS (Jetstream WSS, SMTP STARTTLS, ATProto PDS OAuth)
     - to:
         - ipBlock:
             cidr: 0.0.0.0/0
@@ -105,7 +84,9 @@ spec:
       ports:
         - protocol: TCP
           port: 443
-    # Rule 4: DNS resolution (required for all egress-restricted pods).
+        - protocol: TCP
+          port: 587
+    # DNS
     - to:
         - namespaceSelector: {}
       ports:
