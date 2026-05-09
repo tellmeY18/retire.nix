@@ -65,7 +65,7 @@ spec:
 
       containers:
         - name: changala
-          image: ghcr.io/changala-social/changala.app:v0.1.16
+          image: ghcr.io/changala-social/changala.app:v0.1.17
           ports:
             - name: http
               containerPort: 3000
