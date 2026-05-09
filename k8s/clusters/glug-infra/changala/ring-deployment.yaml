@@ -1,0 +1,126 @@
+---
+# ring-deployment.yaml — Deployment for the Changala Ring server.
+#
+# Runs the `changala-ring` binary from the multi-binary container image.
+# Non-sensitive config comes from the changala-ring-config ConfigMap;
+# credentials (database URL, S3 keys, secret key, SMTP password) come
+# from the changala-ring-credentials Secret (sops-encrypted, applied
+# separately by `just k8s::apply`).
+#
+# Security:
+#   Pod runs under PSA restricted profile — non-root UID 1000, all
+#   capabilities dropped, seccomp RuntimeDefault, no privilege escalation.
+#   The namespace enforces `pod-security.kubernetes.io/enforce: restricted`.
+#
+# Storage:
+#   - /app/atrg.toml    — ConfigMap volume (read-only).
+#   - /etc/nsswitch.conf — ConfigMap volume (read-only, fixes DNS in
+#                           distroless containers).
+#   - /app/data          — emptyDir for the SQLite database used by the
+#                           atrg OAuth state machine.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: changala-ring
+  namespace: changala
+  labels:
+    app.kubernetes.io/name: changala-ring
+    app.kubernetes.io/component: ring
+    app.kubernetes.io/part-of: changala
+    app.kubernetes.io/managed-by: kustomize
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: changala-ring
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: changala-ring
+        app.kubernetes.io/component: ring
+        app.kubernetes.io/part-of: changala
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+
+      containers:
+        - name: changala-ring
+          image: ghcr.io/changala-social/changala.app:v0.2.0
+          command: ["changala-ring"]
+
+          ports:
+            - name: http
+              containerPort: 3000
+              protocol: TCP
+
+          envFrom:
+            - configMapRef:
+                name: changala-ring-config
+            - secretRef:
+                name: changala-ring-credentials
+
+          env:
+            - name: RUST_LOG
+              value: info
+
+          volumeMounts:
+            - name: atrg-config
+              mountPath: /app/atrg.toml
+              subPath: atrg.toml
+              readOnly: true
+            - name: nsswitch
+              mountPath: /etc/nsswitch.conf
+              subPath: nsswitch.conf
+              readOnly: true
+            - name: data
+              mountPath: /app/data
+
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 3000
+            initialDelaySeconds: 15
+            periodSeconds: 30
+
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+
+      volumes:
+        - name: atrg-config
+          configMap:
+            name: changala-ring-config
+            items:
+              - key: atrg.toml
+                path: atrg.toml
+        - name: nsswitch
+          configMap:
+            name: changala-ring-config
+            items:
+              - key: nsswitch.conf
+                path: nsswitch.conf
+        - name: data
+          emptyDir: {}

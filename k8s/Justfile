@@ -51,8 +51,10 @@ apply:
     @echo "Applying RustFS credentials (sops-decrypt)..."
     sops --decrypt clusters/glug-infra/rustfs/credentials-secret.enc.yaml | kubectl apply -f -
     kubectl apply -f clusters/glug-infra/rustfs/tenant.yaml
-    @echo "Applying Changala credentials (sops-decrypt)..."
-    sops --decrypt clusters/glug-infra/changala/credentials-secret.enc.yaml | kubectl apply -f -
+    @echo "Applying Changala Ring credentials (sops-decrypt)..."
+    sops --decrypt clusters/glug-infra/changala/ring-credentials-secret.enc.yaml | kubectl apply -f -
+    @echo "Applying Changala Aggregator credentials (sops-decrypt)..."
+    sops --decrypt clusters/glug-infra/changala/aggregator-credentials-secret.enc.yaml | kubectl apply -f -
     kubectl apply -k clusters/glug-infra/monitoring
 
 # Preview k8s changes without applying.
@@ -249,44 +251,55 @@ rustfs-error-rate:
       wget -qO- "http://localhost:8428/api/v1/query?query=rate(minio_s3_requests_errors_total%5B5m%5D)" | jq '.data.result[]'
 
 # ---------------------------------------------------------------------------
-# Changala (Ring server) day-2 helpers
+# Changala day-2 helpers (Ring + Aggregator)
 # ---------------------------------------------------------------------------
 
-# Show the Changala Deployment status.
+# Show all Changala resources.
 [doc('Show Changala Deployment status')]
 changala-status:
-    kubectl get deploy,pods,svc -n changala -o wide
+    kubectl get deploy,pods,svc,ingress -n changala -o wide
 
-# Show detailed Changala pod info.
-[doc('Show detailed Changala pod description')]
-changala-describe:
-    kubectl describe deploy/changala -n changala
+# Tail Ring logs.
+[doc('Tail Changala Ring logs')]
+ring-logs:
+    kubectl logs -n changala -l app.kubernetes.io/name=changala-ring -f --tail=200
 
-# Tail logs from the Changala Ring server.
-[doc('Tail Changala Ring server logs')]
-changala-logs:
-    kubectl logs -n changala -l app.kubernetes.io/name=changala -f --tail=200
+# Tail Aggregator logs.
+[doc('Tail Changala Aggregator logs')]
+aggregator-logs:
+    kubectl logs -n changala -l app.kubernetes.io/name=changala-aggregator -f --tail=200
 
-# Restart the Changala Deployment (e.g. to pull a new :latest image).
-[doc('Restart Changala Deployment (rolling)')]
-changala-restart:
-    kubectl rollout restart deploy/changala -n changala
+# Restart Ring.
+[doc('Restart Changala Ring (rolling)')]
+ring-restart:
+    kubectl rollout restart deploy/changala-ring -n changala
 
-# Apply the Changala credentials Secret from sops-encrypted source.
-[doc('Apply sops-decrypted Changala credentials Secret')]
-changala-apply-secret:
-    @echo "Decrypting and applying Changala credentials..."
-    sops --decrypt clusters/glug-infra/changala/credentials-secret.enc.yaml | kubectl apply -f -
+# Restart Aggregator.
+[doc('Restart Changala Aggregator (rolling)')]
+aggregator-restart:
+    kubectl rollout restart deploy/changala-aggregator -n changala
 
-# Open a shell in the running Changala pod (for debugging).
-[doc('Open a shell in the Changala pod')]
-changala-shell:
-    kubectl exec -n changala -it deploy/changala -- sh
+# Apply Ring credentials.
+[doc('Apply sops-decrypted Ring credentials')]
+ring-apply-secret:
+    @echo "Decrypting and applying Ring credentials..."
+    sops --decrypt clusters/glug-infra/changala/ring-credentials-secret.enc.yaml | kubectl apply -f -
 
-# Port-forward Changala to localhost:3000.
-[doc('Port-forward Changala to localhost:3000')]
-changala-port-forward:
-    kubectl -n changala port-forward svc/changala 3000:3000
+# Apply Aggregator credentials.
+[doc('Apply sops-decrypted Aggregator credentials')]
+aggregator-apply-secret:
+    @echo "Decrypting and applying Aggregator credentials..."
+    sops --decrypt clusters/glug-infra/changala/aggregator-credentials-secret.enc.yaml | kubectl apply -f -
+
+# Port-forward Ring to localhost:3001.
+[doc('Port-forward Ring to localhost:3001')]
+ring-port-forward:
+    kubectl -n changala port-forward svc/changala-ring-svc 3001:3000
+
+# Port-forward Aggregator to localhost:3002.
+[doc('Port-forward Aggregator to localhost:3002')]
+aggregator-port-forward:
+    kubectl -n changala port-forward svc/changala-aggregator-svc 3002:3000
 
 # ---------------------------------------------------------------------------
 # Endpoint monitoring (Cloudprober)
