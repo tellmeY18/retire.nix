@@ -35,6 +35,7 @@ data:
   CHANGALA_S3_REGION: "us-east-1"
   CHANGALA_S3_PATH_STYLE: "true"
   CHANGALA_ALLOWED_EMAIL_DOMAINS: "nitc.ac.in"
+  CHANGALA_ADMIN_DIDS: "did:plc:j7krooxzkjpt7okzinzz3osu"
   CHANGALA_MCP_ENABLED: "true"
 
   nsswitch.conf: |
