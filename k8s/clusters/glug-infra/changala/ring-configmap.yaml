@@ -38,6 +38,7 @@ data:
   CHANGALA_SMTP_HOST: "smtp.gmail.com"
   CHANGALA_SMTP_PORT: "587"
   CHANGALA_SMTP_ENCRYPTION: "starttls"
+  CHANGALA_MCP_ENABLED: "true"
 
   nsswitch.conf: |
     hosts: files dns
