@@ -35,9 +35,6 @@ data:
   CHANGALA_S3_REGION: "us-east-1"
   CHANGALA_S3_PATH_STYLE: "true"
   CHANGALA_ALLOWED_EMAIL_DOMAINS: "nitc.ac.in"
-  CHANGALA_SMTP_HOST: "smtp.gmail.com"
-  CHANGALA_SMTP_PORT: "587"
-  CHANGALA_SMTP_ENCRYPTION: "starttls"
   CHANGALA_MCP_ENABLED: "true"
 
   nsswitch.conf: |
