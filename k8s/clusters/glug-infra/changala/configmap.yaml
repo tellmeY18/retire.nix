@@ -25,6 +25,7 @@ data:
   ATRG_APP__CORS_ORIGINS: "*"
   ATRG_AUTH__CLIENT_ID: "https://changala.tail477f2f.ts.net/client-metadata.json"
   ATRG_AUTH__REDIRECT_URI: "https://changala.tail477f2f.ts.net/auth/callback"
+  ATRG_AUTH__POST_LOGIN_REDIRECT: "http://localhost:5173/login"
   ATRG_AUTH__SCOPE: "atproto transition:generic"
   # ATRG_DATABASE__URL is in the Secret (contains password).
 
@@ -55,8 +56,8 @@ data:
     environment = "production"
 
     [auth]
-    client_id = "https://placeholder"
-    redirect_uri = "https://placeholder"
+    client_id = "https://changala.tail477f2f.ts.net/client-metadata.json"
+    redirect_uri = "https://changala.tail477f2f.ts.net/auth/callback"
     scope = "atproto transition:generic"
 
     [database]
