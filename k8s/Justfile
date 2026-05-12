@@ -22,6 +22,41 @@ default:
     @just --list
 
 # ---------------------------------------------------------------------------
+# Kubeconfig (remote fetch from chopper over Tailscale)
+# ---------------------------------------------------------------------------
+
+# Fetch the k3s kubeconfig from chopper over Tailscale and rewrite the
+# server URL so it works from any tailnet member (e.g. the MacBook).
+# The file is saved to .direnv/kubeconfig (picked up by .envrc) AND
+# to ~/.kube/chopper.yaml as a fallback.
+[doc('Fetch kubeconfig from chopper via Tailscale')]
+fetch-kubeconfig:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    REMOTE="vysakh@chopper"
+    REMOTE_PATH="/etc/rancher/k3s/k3s.yaml"
+    LOCAL_DIR="$(pwd)/.direnv"
+    LOCAL_PATH="${LOCAL_DIR}/kubeconfig"
+    FALLBACK="${HOME}/.kube/chopper.yaml"
+
+    mkdir -p "${LOCAL_DIR}" "${HOME}/.kube"
+    echo "Fetching kubeconfig from ${REMOTE}:${REMOTE_PATH}…"
+    scp "${REMOTE}:${REMOTE_PATH}" "${LOCAL_PATH}"
+
+    # Rewrite 127.0.0.1 → chopper so the apiserver is reachable over tailnet.
+    if command -v sed &>/dev/null; then
+      sed -i'' -e 's|https://127.0.0.1:6443|https://chopper:6443|g' "${LOCAL_PATH}"
+    fi
+
+    chmod 600 "${LOCAL_PATH}"
+    cp "${LOCAL_PATH}" "${FALLBACK}"
+    chmod 600 "${FALLBACK}"
+    echo "✓ Kubeconfig saved to:"
+    echo "    ${LOCAL_PATH}  (direnv)"
+    echo "    ${FALLBACK}  (fallback)"
+    echo "  cd into k8s/ to activate, or run: export KUBECONFIG=${FALLBACK}"
+
+# ---------------------------------------------------------------------------
 # Apply / diff / template
 # ---------------------------------------------------------------------------
 

@@ -1,0 +1,4 @@
+# k8s/.gitignore — keep secrets and runtime data out of git.
+
+# direnv layout directory (contains the fetched kubeconfig with embedded certs).
+.direnv/
