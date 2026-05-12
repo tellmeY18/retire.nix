@@ -21,12 +21,92 @@
 #     tier: frontend
 
 endpoints:
-  - name: care-frontend
+  - name: care-develop
     url: https://care.ohc.network
     team: ohc
     tier: frontend
 
-  - name: care-api-health
+  - name: care-develop-api-health
     url: https://careapi.ohc.network/health/
     team: ohc
+    tier: backend
+
+  - name: ka-care-frontend
+    url: https://ka-care.10bedicu.in
+    team: 10bedicu
+    tier: frontend
+
+  - name: mn-care-frontend
+    url: https://mn-care.10bedicu.in
+    team: 10bedicu
+    tier: frontend
+
+  - name: ml-care-frontend
+    url: https://ml-care.10bedicu.in
+    team: 10bedicu
+    tier: frontend
+
+  - name: nl-care-frontend
+    url: https://nl-care.10bedicu.in
+    team: 10bedicu
+    tier: frontend
+
+  - name: as-care-frontend
+    url: https://as-care.10bedicu.in
+    team: 10bedicu
+    tier: frontend
+
+  - name: sk-care-frontend
+    url: https://sk-care.10bedicu.in
+    team: 10bedicu
+    tier: frontend
+
+  - name: ssmm-care-frontend
+    url: https://care.ssmmhospital.com/
+    team: ssmm
+    tier: frontend
+
+  - name: plexus-frontend
+    url: https://plexus.coronasafe.in
+    team: coronasafe
+    tier: frontend
+
+  - name: ka-care-api-health
+    url: https://ka-careapi.10bedicu.in/health
+    team: 10bedicu
+    tier: backend
+
+  - name: mn-care-api-health
+    url: https://mn-careapi.10bedicu.in/health
+    team: 10bedicu
+    tier: backend
+
+  - name: ml-care-api-health
+    url: https://ml-careapi.10bedicu.in/health
+    team: 10bedicu
+    tier: backend
+
+  - name: nl-care-api-health
+    url: https://nl-careapi.10bedicu.in/health
+    team: 10bedicu
+    tier: backend
+
+  - name: as-care-api-health
+    url: https://as-careapi.10bedicu.in/health
+    team: 10bedicu
+    tier: backend
+
+  - name: sk-care-api-health
+    url: https://sk-careapi.10bedicu.in/health
+    team: 10bedicu
+    tier: backend
+
+  - name: ssmm-care-api-health
+    url: https://care-api.ssmmhospital.com/health
+    team: ssmm
+    tier: backend
+
+  - name: plexus-api-health
+    url: https://plexusapi.coronasafe.in/health
+    team: coronasafe
     tier: backend
