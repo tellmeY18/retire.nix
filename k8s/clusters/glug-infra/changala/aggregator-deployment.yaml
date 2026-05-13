@@ -56,7 +56,7 @@ spec:
 
       containers:
         - name: aggregator
-          image: ghcr.io/changala-social/changala.app:v0.4.1-amd64
+          image: ghcr.io/changala-social/changala.app:v0.4.2
           command: ["changala-aggregator"]
 
           ports:
