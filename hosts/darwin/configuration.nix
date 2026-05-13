@@ -78,11 +78,15 @@
     # These are the global Nix settings
     settings = {
       substituters = [
+        "https://tellmey18.cachix.org"
+        "https://devenv.cachix.org"
         "https://nix-community.cachix.org"
         "https://deploy-rs.cachix.org"
         "https://tranquil.cachix.org"
       ];
       trusted-public-keys = [
+        "tellmey18.cachix.org-1:udK9FzY4ZOHz4OapcTUHkwb/b10+5eQzCi44ZA6oFLw="
+        "devenv.cachix.org-1:w1cLUi8dv3hnoSPGAuibQv+f9TZLr6cv/Hm9XgU50cw="
         "nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs="
         "deploy-rs.cachix.org-1:xfNobmiwF/vzvK1gpfediPwpdIP0rpDV2rYqx40zdSI="
         "tranquil.cachix.org-1:PoO+mGL6a6LcJiPakMDHN4E218/ei/7v2sxeDtNkSRg="

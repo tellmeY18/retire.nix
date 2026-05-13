@@ -1,0 +1,219 @@
+# CI: Flake Update — automated nixpkgs-unstable upgrade pipeline.
+#
+# Every 3 days (or on manual trigger), this workflow:
+#   1. Runs `nix flake update` to pull the latest nixpkgs-unstable + inputs
+#   2. Builds ALL host configurations (real builds, not --dry-run)
+#   3. On success: pushes binaries to Cachix, auto-merges the PR
+#   4. On failure: leaves the PR open with a failure comment, discards the
+#      lock — next cron run does a FRESH `nix flake update` (retrying the
+#      same lock is pointless since the fix will be in a newer commit)
+#
+# Your local machines have `tellmey18.cachix.org` as a substituter, so
+# after a successful CI run, `nixos-rebuild switch` / `darwin-rebuild switch`
+# pulls pre-built binaries from Cachix instead of rebuilding from source.
+#
+# Required GitHub secrets:
+#   CACHIX_AUTH_TOKEN — push token for the tellmey18 Cachix cache
+name: Flake Update
+
+on:
+  schedule:
+    # Every 3 days at 06:00 UTC
+    - cron: "0 6 */3 * *"
+  workflow_dispatch:
+    inputs:
+      skip_cache:
+        description: "Skip pushing to Cachix (build-only)"
+        required: false
+        type: boolean
+        default: false
+
+concurrency:
+  group: flake-update
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+env:
+  CACHIX_CACHE: tellmey18
+  PR_BRANCH: automation/flake-update
+  PR_LABEL: flake-update
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # 1. Update flake.lock and open/update a PR
+  # ---------------------------------------------------------------------------
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      pr_number: ${{ steps.pr.outputs.pull-request-number }}
+      has_changes: ${{ steps.check.outputs.has_changes }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: DeterminateSystems/nix-installer-action@main
+
+      - name: Run nix flake update
+        run: nix flake update
+
+      - name: Check for flake.lock changes
+        id: check
+        run: |
+          if git diff --quiet flake.lock; then
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::flake.lock unchanged — nothing to do."
+          else
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::flake.lock updated — proceeding with builds."
+          fi
+
+      - name: Create or update PR
+        if: steps.check.outputs.has_changes == 'true'
+        id: pr
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: ${{ env.PR_BRANCH }}
+          commit-message: "chore(flake): update flake.lock"
+          title: "chore(flake): update flake.lock"
+          body: |
+            Automated `nix flake update` — builds are running.
+
+            | Config | Status |
+            |---|---|
+            | NixOS (chopper) | ⏳ building… |
+            | darwin (MacBook) | ⏳ building… |
+
+            This PR will auto-merge once all builds pass and binaries are cached.
+          labels: ${{ env.PR_LABEL }}
+          delete-branch: true
+
+  # ---------------------------------------------------------------------------
+  # 2. Build Linux configurations (NixOS + Home Manager)
+  # ---------------------------------------------------------------------------
+  build-linux:
+    needs: prepare
+    if: needs.prepare.outputs.has_changes == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.PR_BRANCH }}
+
+      - uses: DeterminateSystems/nix-installer-action@main
+
+      - uses: DeterminateSystems/magic-nix-cache-action@main
+
+      - name: Setup Cachix
+        uses: cachix/cachix-action@v15
+        with:
+          name: ${{ env.CACHIX_CACHE }}
+          authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
+
+      - name: Build NixOS system (chopper)
+        run: nix build .#nixosConfigurations.chopper.config.system.build.toplevel --print-build-logs
+
+      - name: Build Home Manager (chopper)
+        run: nix build .#homeConfigurations."vysakh@chopper".activationPackage --print-build-logs
+
+  # ---------------------------------------------------------------------------
+  # 3. Build macOS configurations (darwin + Home Manager)
+  # ---------------------------------------------------------------------------
+  build-darwin:
+    needs: prepare
+    if: needs.prepare.outputs.has_changes == 'true'
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.PR_BRANCH }}
+
+      - uses: DeterminateSystems/nix-installer-action@main
+
+      - uses: DeterminateSystems/magic-nix-cache-action@main
+
+      - name: Setup Cachix
+        uses: cachix/cachix-action@v15
+        with:
+          name: ${{ env.CACHIX_CACHE }}
+          authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
+
+      - name: Build macOS system (darwin)
+        run: nix build .#darwinConfigurations."Vysakhs-MacBook-Pro".system --print-build-logs
+
+      - name: Build Home Manager (darwin)
+        run: nix build .#homeConfigurations."mathewalex@Vysakhs-MacBook-Pro".activationPackage --print-build-logs
+
+  # ---------------------------------------------------------------------------
+  # 4. Finalize: merge PR on success, comment on failure
+  # ---------------------------------------------------------------------------
+  finalize:
+    needs: [prepare, build-linux, build-darwin]
+    if: always() && needs.prepare.outputs.has_changes == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Determine build result
+        id: result
+        run: |
+          if [[ "${{ needs.build-linux.result }}" == "success" && "${{ needs.build-darwin.result }}" == "success" ]]; then
+            echo "outcome=success" >> "$GITHUB_OUTPUT"
+          else
+            echo "outcome=failure" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Comment success and auto-merge
+        if: steps.result.outputs.outcome == 'success'
+        uses: peter-evans/create-or-update-comment@v4
+        with:
+          issue-number: ${{ needs.prepare.outputs.pr_number }}
+          body: |
+            ## ✅ All builds passed
+
+            | Config | Status |
+            |---|---|
+            | NixOS (chopper) | ✅ built + cached |
+            | darwin (MacBook) | ✅ built + cached |
+
+            Binaries pushed to [`tellmey18.cachix.org`](https://app.cachix.org/cache/tellmey18).
+            Auto-merging — run `nix flake update` locally to upgrade.
+
+      - name: Enable auto-merge
+        if: steps.result.outputs.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr merge "${{ needs.prepare.outputs.pr_number }}" \
+            --repo "${{ github.repository }}" \
+            --squash \
+            --auto \
+            --delete-branch
+
+      - name: Comment failure
+        if: steps.result.outputs.outcome == 'failure'
+        uses: peter-evans/create-or-update-comment@v4
+        with:
+          issue-number: ${{ needs.prepare.outputs.pr_number }}
+          body: |
+            ## ❌ Build failed
+
+            | Config | Status |
+            |---|---|
+            | NixOS (chopper) | ${{ needs.build-linux.result == 'success' && '✅' || '❌' }} ${{ needs.build-linux.result }} |
+            | darwin (MacBook) | ${{ needs.build-darwin.result == 'success' && '✅' || '❌' }} ${{ needs.build-darwin.result }} |
+
+            The flake.lock update broke something. This PR will **not** merge.
+            Next scheduled run will try a fresh `nix flake update` with newer inputs.
+
+            Check the [workflow logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) for details.
+
+      - name: Close PR on failure
+        if: steps.result.outputs.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr close "${{ needs.prepare.outputs.pr_number }}" \
+            --repo "${{ github.repository }}" \
+            --comment "Closing — builds failed. Next cron run will try a fresh update." \
+            --delete-branch
