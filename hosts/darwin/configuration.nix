@@ -16,12 +16,14 @@
     ../../packages/darwin
     ./programs.nix
     ./services.nix
+    ./sketchybar
   ];
   system = {
     defaults = {
       loginwindow = {
         LoginwindowText = "Declare Nix ! Not War";
       };
+
     };
     activationScripts = {
       applications = {
@@ -56,6 +58,14 @@
     # Used for backwards compatibility
     stateVersion = 5;
   };
+
+  # Fonts — Nerd Fonts for sketchybar icons + terminal ligatures.
+  fonts.packages = with pkgs; [
+    nerd-fonts.hack
+    nerd-fonts.jetbrains-mono
+    nerd-fonts.symbols-only
+  ];
+
   nix = {
     distributedBuilds = true;
     buildMachines = [

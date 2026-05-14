@@ -1,0 +1,18 @@
+-- main.lua — Sketchybar Lua entry point (invoked by sketchybarrc shell wrapper).
+
+-- Add our config directory to Lua's module search path.
+local config_dir = debug.getinfo(1, "S").source:match("@?(.*/)") or "./"
+package.path = config_dir .. "?.lua;" .. config_dir .. "?/init.lua;" .. package.path
+
+-- sbarlua provides the "sketchybar" module (native C binding via Mach IPC).
+sbar = require("sketchybar")
+
+sbar.begin_config()
+require("init")
+-- Disable hotload inside /nix/store (read-only); nix-darwin restarts the
+-- service on config change anyway.
+sbar.hotload(config_dir:sub(1, 11) ~= "/nix/store/")
+sbar.end_config()
+
+-- Enter the event loop — callbacks won't fire without this.
+sbar.event_loop()

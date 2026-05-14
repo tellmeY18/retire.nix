@@ -1,4 +1,5 @@
-{ ... }: {
+{ ... }:
+{
   homebrew = {
     enable = true;
 
@@ -7,7 +8,6 @@
       "minio/stable"
       "rockymadden/rockymadden"
       "koekeishiya/formulae"
-
     ];
     brews = [
       "mactop"

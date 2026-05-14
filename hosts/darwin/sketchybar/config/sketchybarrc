@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Sketchybar config entry point — exec into Lua with sbarlua.
+# sketchybar --config sources this as a shell script.
+DIR="$(cd "$(dirname "$0")" && pwd)"
+exec lua "$DIR/main.lua"

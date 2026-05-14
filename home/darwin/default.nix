@@ -11,6 +11,7 @@
     ./zsh/default.nix
     ./emacs/default.nix
     ./pulse/default.nix
+
     ../common/packages/dev-k8s.nix
   ];
 
