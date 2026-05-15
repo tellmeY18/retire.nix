@@ -96,6 +96,8 @@ spec:
                 secretKeyRef:
                   name: rustfs-credentials
                   key: secretkey
+            - name: MC_CONFIG_DIR
+              value: /tmp/.mc
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
