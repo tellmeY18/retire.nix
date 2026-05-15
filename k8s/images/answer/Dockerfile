@@ -11,7 +11,7 @@
 
 FROM apache/answer AS answer-builder
 
-FROM golang:1.22-alpine AS golang-builder
+FROM golang:1.23-alpine AS golang-builder
 
 COPY --from=answer-builder /usr/bin/answer /usr/bin/answer
 
@@ -24,7 +24,11 @@ COPY plugins.txt /tmp/plugins.txt
 
 # Build the answer binary with all plugins from the list.
 # Each line in plugins.txt is a --with argument.
-RUN set -e; \
+# Cache Go modules + pnpm store for faster rebuilds.
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    --mount=type=cache,target=/root/.local/share/pnpm/store \
+    set -e; \
   ARGS=""; \
   while IFS= read -r plugin || [ -n "$plugin" ]; do \
   plugin=$(echo "$plugin" | sed 's/#.*//;s/^[[:space:]]*//;s/[[:space:]]*$//'); \
