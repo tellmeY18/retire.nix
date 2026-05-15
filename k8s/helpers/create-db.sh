@@ -25,7 +25,14 @@ set -euo pipefail
 DB_NAME="${1:?Usage: create-db.sh <db_name> [password]}"
 DB_PASSWORD="${2:-$(openssl rand -hex 24)}"
 JOB_NAME="create-db-${DB_NAME}"
-NAMESPACE="cnpg-clusters"
+NAMESPACE="default"
+
+# Extract superuser URI from the CNPG secret (client-side).
+PGURI=$(kubectl get secret postgres-cluster-superuser -n cnpg-clusters -o jsonpath='{.data.uri}' | base64 -d)
+if [ -z "$PGURI" ]; then
+  echo "ERROR: Could not extract superuser URI. Is enableSuperuserAccess: true?"
+  exit 1
+fi
 
 echo "━━━ Creating database '${DB_NAME}' in CNPG cluster ━━━"
 echo "  User:     ${DB_NAME}"
@@ -82,10 +89,7 @@ spec:
               echo "Done."
           env:
             - name: PGURI
-              valueFrom:
-                secretKeyRef:
-                  name: postgres-cluster-superuser
-                  key: uri
+              value: "${PGURI}"
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
