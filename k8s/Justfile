@@ -472,3 +472,44 @@ battery-health:
 battery-energy:
     kubectl -n monitoring exec -it deploy/vmks-victoria-metrics-k8s-stack-vmsingle -- \
       wget -qO- "http://localhost:8428/api/v1/query?query=node_power_supply_energy_watthour%7Bpower_supply%3D%22BAT0%22%7D" | jq '.data.result[]'
+
+# ---------------------------------------------------------------------------
+# Apache Answer helpers
+# ---------------------------------------------------------------------------
+
+# Show Answer deployment status.
+[doc('Show Answer deployment status')]
+answer-status:
+    kubectl get deploy,pods,svc,ingress -n answer -o wide
+
+# Tail Answer logs.
+[doc('Tail Answer logs')]
+answer-logs:
+    kubectl logs -n answer -l app.kubernetes.io/name=answer -f --tail=200
+
+# Restart Answer.
+[doc('Restart Answer (rolling)')]
+answer-restart:
+    kubectl rollout restart deploy/answer -n answer
+
+# Port-forward Answer to localhost:9080.
+[doc('Port-forward Answer to localhost:9080')]
+answer-port-forward:
+    kubectl -n answer port-forward svc/answer-svc 9080:80
+
+# Extract config.yaml from running Answer pod (for ConfigMap).
+[doc('Extract config.yaml from Answer pod')]
+answer-extract-config:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    POD=$(kubectl get pods -n answer -l app.kubernetes.io/name=answer -o jsonpath='{.items[0].metadata.name}')
+    echo "Extracting config from pod: $POD"
+    kubectl cp "answer/$POD:/data/conf/config.yaml" ./clusters/glug-infra/answer/extracted-config.yaml
+    echo "\u2713 Saved to clusters/glug-infra/answer/extracted-config.yaml"
+    echo "  Review it, then paste into configmap.yaml and uncomment the volume mount in deployment.yaml"
+
+# Apply Answer credentials (sops-decrypt).
+[doc('Apply Answer credentials Secret (sops-decrypt)')]
+answer-apply-secret:
+    @echo "Decrypting and applying Answer credentials..."
+    sops --decrypt clusters/glug-infra/answer/credentials-secret.enc.yaml | kubectl apply -f -

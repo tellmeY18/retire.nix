@@ -1,0 +1,60 @@
+---
+# Default deny ingress.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: answer
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+---
+# Allow ingress from Tailscale proxy to Answer pods.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-answer-ingress
+  namespace: answer
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: answer
+  policyTypes:
+    - Ingress
+  ingress:
+    - ports:
+        - port: 80
+          protocol: TCP
+---
+# Allow egress to PostgreSQL (CNPG) + RustFS (S3) + DNS.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-answer-egress
+  namespace: answer
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: answer
+  policyTypes:
+    - Egress
+  egress:
+    # DNS
+    - ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    # PostgreSQL (CNPG in cnpg-clusters namespace)
+    - ports:
+        - port: 5432
+          protocol: TCP
+    # RustFS S3 (port 9000) + console (9001)
+    - ports:
+        - port: 9000
+          protocol: TCP
+    # HTTPS (for external APIs, OAuth, etc.)
+    - ports:
+        - port: 443
+          protocol: TCP
