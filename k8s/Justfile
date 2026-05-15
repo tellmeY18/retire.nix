@@ -513,3 +513,21 @@ answer-extract-config:
 answer-apply-secret:
     @echo "Decrypting and applying Answer credentials..."
     sops --decrypt clusters/glug-infra/answer/credentials-secret.enc.yaml | kubectl apply -f -
+
+# Provision the Answer database in CNPG (one-time).
+[doc('Create Answer database + user in PostgreSQL (one-time)')]
+answer-init-db:
+    kubectl apply -f clusters/glug-infra/answer/init-db-job.yaml
+    @echo "Waiting for job to complete..."
+    kubectl wait --for=condition=complete job/answer-init-db -n cnpg-clusters --timeout=60s
+    @echo "\u2713 Database ready. Cleaning up job..."
+    kubectl delete -f clusters/glug-infra/answer/init-db-job.yaml
+
+# Provision the Answer S3 bucket in RustFS (one-time).
+[doc('Create Answer bucket + credentials in RustFS (one-time)')]
+answer-init-s3:
+    kubectl apply -f clusters/glug-infra/answer/init-s3-bucket-job.yaml
+    @echo "Waiting for job to complete..."
+    kubectl wait --for=condition=complete job/answer-init-s3 -n rustfs-clusters --timeout=60s
+    @echo "\u2713 S3 bucket ready. Cleaning up job..."
+    kubectl delete -f clusters/glug-infra/answer/init-s3-bucket-job.yaml
