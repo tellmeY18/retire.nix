@@ -50,7 +50,7 @@ EOSQL
 )
 
 echo "⏳ Executing SQL in pod ${POD}..."
-kubectl exec -n "${NAMESPACE}" "${POD}" -- psql -U postgres -c "${SQL}"
+echo "${SQL}" | kubectl exec -i -n "${NAMESPACE}" "${POD}" -- psql -U postgres
 
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
