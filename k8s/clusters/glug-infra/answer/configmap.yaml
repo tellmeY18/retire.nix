@@ -12,5 +12,28 @@ metadata:
   namespace: answer
 data:
   config.yaml: |
-    # Placeholder — will be populated after initial setup wizard.
-    # See kustomization.yaml header for instructions.
+    debug: false
+    server:
+      http:
+        addr: 0.0.0.0:80
+    data:
+      database:
+        driver: postgres
+        connection: host=postgres-cluster-rw.cnpg-clusters.svc port=5432 user=answer password=afa14b2df6f9aabe7e10e057b3d81dcb5d5200d14b02557f dbname=answer sslmode=disable
+      cache:
+        file_path: /data/cache/cache.db
+    i18n:
+      bundle_dir: /data/i18n
+    service_config:
+      upload_path: /data/uploads
+      clean_up_uploads: true
+      clean_orphan_uploads_period_hours: 48
+      purge_deleted_files_period_days: 30
+    swaggerui:
+      show: false
+      protocol: https
+      host: 127.0.0.1
+      address: ':80'
+    ui:
+      base_url: ""
+      api_base_url: ""

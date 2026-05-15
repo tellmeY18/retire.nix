@@ -51,12 +51,11 @@ spec:
             # Runtime data directory (emptyDir — ephemeral).
             - name: data
               mountPath: /data
-            # Config overlay — mounts config.yaml from ConfigMap.
-            # Uncomment after initial setup wizard has been completed.
-            # - name: config
-            #   mountPath: /data/conf/config.yaml
-            #   subPath: config.yaml
-            #   readOnly: true
+            # Config from ConfigMap (overrides any /data/conf/config.yaml).
+            - name: config
+              mountPath: /data/conf/config.yaml
+              subPath: config.yaml
+              readOnly: true
 
           resources:
             requests:
@@ -68,7 +67,7 @@ spec:
 
           securityContext:
             allowPrivilegeEscalation: false
-            readOnlyRootFilesystem: false  # Answer writes to /data at runtime
+            readOnlyRootFilesystem: false # Answer writes to /data at runtime
             capabilities:
               drop:
                 - ALL
