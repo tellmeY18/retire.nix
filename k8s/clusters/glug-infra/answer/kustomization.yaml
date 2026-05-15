@@ -1,0 +1,31 @@
+---
+# kustomization.yaml — Apache Answer (stateless, S3 + PostgreSQL)
+#
+# Deploys Apache Answer with:
+#   - PostgreSQL via CNPG (postgres-cluster-rw.cnpg-clusters)
+#   - S3 uploads via RustFS (rustfs.<tailnet>.ts.net)
+#   - Tailscale ingress for access
+#
+# First-time setup:
+#   1. kubectl apply -k k8s/clusters/glug-infra/answer
+#   2. sops --decrypt credentials-secret.enc.yaml | kubectl apply -f -
+#   3. Visit answer.<tailnet>.ts.net/install to run the setup wizard
+#   4. Enable S3 storage plugin in admin panel
+#   5. Extract config.yaml → update configmap.yaml → redeploy
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: answer
+
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: answer
+      app.kubernetes.io/managed-by: kustomize
+    includeSelectors: false
+
+resources:
+  - namespace.yaml
+  - networkpolicy.yaml
+  - configmap.yaml
+  - deployment.yaml
+  - tailscale-service.yaml

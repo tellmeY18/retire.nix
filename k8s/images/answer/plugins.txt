@@ -1,0 +1,32 @@
+# Apache Answer plugins — one per line.
+# Lines starting with # are comments. Empty lines are ignored.
+# Format: github.com/apache/answer-plugins/<plugin-name>[@version]
+#
+# To add a plugin: add a line here and re-run the build workflow.
+# To remove a plugin: delete or comment the line, re-run.
+#
+# Available plugins: https://github.com/apache/answer-plugins
+
+# Storage — S3-compatible object storage (RustFS/MinIO/AWS)
+github.com/apache/answer-plugins/storage-s3
+
+# Connectors — OAuth login providers
+# github.com/apache/answer-plugins/connector-github
+# github.com/apache/answer-plugins/connector-google
+
+# Search — full-text search backends
+# github.com/apache/answer-plugins/search-elasticsearch
+# github.com/apache/answer-plugins/search-meilisearch
+
+# Editor — enhanced editor features
+# github.com/apache/answer-plugins/editor-formula
+# github.com/apache/answer-plugins/editor-chart
+
+# Captcha
+# github.com/apache/answer-plugins/captcha-basic
+
+# Reviewer
+# github.com/apache/answer-plugins/reviewer-basic
+
+# Notification
+# github.com/apache/answer-plugins/notification-slack

@@ -18,7 +18,10 @@ in
   system.defaults.NSGlobalDomain._HIHideMenuBar = true;
 
   # Install sketchybar-app-font for app-name-to-icon mapping.
-  fonts.packages = [ pkgs.sketchybar-app-font ];
+  fonts.packages = with pkgs; [
+    sketchybar-app-font
+    nerd-fonts.symbols-only
+  ];
 
   services.sketchybar = {
     enable = true;

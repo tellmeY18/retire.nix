@@ -1,0 +1,93 @@
+# CI: Build Apache Answer with Plugins
+#
+# Builds a custom Apache Answer Docker image with the plugins defined in
+# k8s/images/answer/plugins.txt, then pushes to ghcr.io/tellmey18/answer.
+#
+# Triggers:
+#   - Manual (workflow_dispatch) with optional tag override
+#   - On push to main/develop when plugins.txt or Dockerfile changes
+#
+# The plugin list is the single source of truth — add/remove a line in
+# plugins.txt and re-run this workflow to get a new image.
+name: Build Answer Image
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Image tag (default: latest)"
+        required: false
+        default: "latest"
+        type: string
+  push:
+    branches: [main]
+    paths:
+      - "k8s/images/answer/**"
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: tellmey18/answer
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Determine image tag
+        id: tag
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "tag=${{ inputs.tag || 'latest' }}" >> "$GITHUB_OUTPUT"
+          else
+            SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+            echo "tag=latest" >> "$GITHUB_OUTPUT"
+            echo "sha_tag=$SHA" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Extract plugin list for labels
+        id: plugins
+        run: |
+          PLUGINS=$(grep -v '^#' k8s/images/answer/plugins.txt | grep -v '^$' | tr '\n' ', ' | sed 's/,$//')
+          echo "list=$PLUGINS" >> "$GITHUB_OUTPUT"
+          echo "Plugins: $PLUGINS"
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: k8s/images/answer
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.tag }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.sha_tag || steps.tag.outputs.tag }}
+          labels: |
+            org.opencontainers.image.title=Apache Answer
+            org.opencontainers.image.description=Apache Answer with plugins: ${{ steps.plugins.outputs.list }}
+            org.opencontainers.image.source=https://github.com/tellmeY18/retire.nix
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Summary
+        run: |
+          echo "## 🎉 Image Published" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Image:** \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.tag }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Plugins:**" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          grep -v '^#' k8s/images/answer/plugins.txt | grep -v '^$' >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"

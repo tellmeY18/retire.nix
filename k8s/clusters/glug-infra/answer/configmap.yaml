@@ -1,0 +1,16 @@
+---
+# configmap.yaml — Apache Answer configuration.
+#
+# IMPORTANT: This is a PLACEHOLDER. After running the install wizard,
+# extract the generated config from the pod:
+#   kubectl cp answer/<pod>:/data/conf/config.yaml ./config.yaml
+# Then paste its contents here and redeploy.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: answer-config
+  namespace: answer
+data:
+  config.yaml: |
+    # Placeholder — will be populated after initial setup wizard.
+    # See kustomization.yaml header for instructions.
