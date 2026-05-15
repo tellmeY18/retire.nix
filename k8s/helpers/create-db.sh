@@ -62,25 +62,10 @@ spec:
               set -eu
               apk add --no-cache postgresql-client >/dev/null 2>&1
               echo "Connecting to CNPG cluster..."
-              psql "\$PGURI" <<-SQL
-                DO \$\$
-                BEGIN
-                  IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = '${DB_NAME}') THEN
-                    CREATE ROLE ${DB_NAME} WITH LOGIN PASSWORD '${DB_PASSWORD}';
-                    RAISE NOTICE 'Role ${DB_NAME} created';
-                  ELSE
-                    ALTER ROLE ${DB_NAME} WITH PASSWORD '${DB_PASSWORD}';
-                    RAISE NOTICE 'Role ${DB_NAME} already exists, password updated';
-                  END IF;
-                END
-                \$\$;
-
-                SELECT 'CREATE DATABASE ${DB_NAME} OWNER ${DB_NAME} ENCODING UTF8 LC_COLLATE "C.UTF-8" LC_CTYPE "C.UTF-8" TEMPLATE template0'
-                WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '${DB_NAME}')\gexec
-
-                GRANT ALL PRIVILEGES ON DATABASE ${DB_NAME} TO ${DB_NAME};
-              SQL
-              echo "✓ Done."
+              psql "\${PGURI}" -c "DO \$\$BEGIN IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = '${DB_NAME}') THEN CREATE ROLE ${DB_NAME} WITH LOGIN PASSWORD '${DB_PASSWORD}'; ELSE ALTER ROLE ${DB_NAME} WITH PASSWORD '${DB_PASSWORD}'; END IF; END\$\$;"
+              psql "\${PGURI}" -c "SELECT 'CREATE DATABASE ${DB_NAME} OWNER ${DB_NAME}' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '${DB_NAME}')" -t | grep -q CREATE && psql "\${PGURI}" -c "CREATE DATABASE ${DB_NAME} OWNER ${DB_NAME}" || true
+              psql "\${PGURI}" -c "GRANT ALL PRIVILEGES ON DATABASE ${DB_NAME} TO ${DB_NAME}"
+              echo "Done."
           env:
             - name: PGURI
               valueFrom:
