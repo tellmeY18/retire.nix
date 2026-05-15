@@ -6,15 +6,10 @@
 #
 # If password is omitted, a random 48-char hex password is generated.
 #
-# Prerequisites:
-#   - CNPG cluster with enableSuperuserAccess: true
-#   - Secret `postgres-cluster-superuser` exists in cnpg-clusters namespace
-#   - kubectl access to the cluster
-#
-# What it does:
-#   1. Generates a one-time Kubernetes Job that connects as superuser
-#   2. Creates the database and role (idempotent — safe to re-run)
-#   3. Waits for completion, prints the connection string, cleans up
+# How it works:
+#   Execs psql directly inside a running CNPG pod (bypasses NetworkPolicy
+#   and avoids Job/container escaping hell). The superuser URI is extracted
+#   from the postgres-cluster-superuser Secret.
 #
 # Example:
 #   ./helpers/create-db.sh answer
@@ -24,95 +19,50 @@ set -euo pipefail
 
 DB_NAME="${1:?Usage: create-db.sh <db_name> [password]}"
 DB_PASSWORD="${2:-$(openssl rand -hex 24)}"
-JOB_NAME="create-db-${DB_NAME}"
-NAMESPACE="default"
-
-# Extract superuser URI from the CNPG secret (client-side).
-PGURI=$(kubectl get secret postgres-cluster-superuser -n cnpg-clusters -o jsonpath='{.data.uri}' | base64 -d)
-if [ -z "$PGURI" ]; then
-  echo "ERROR: Could not extract superuser URI. Is enableSuperuserAccess: true?"
-  exit 1
-fi
+NAMESPACE="cnpg-clusters"
+POD="postgres-cluster-1"
 
 echo "━━━ Creating database '${DB_NAME}' in CNPG cluster ━━━"
 echo "  User:     ${DB_NAME}"
 echo "  Password: ${DB_PASSWORD}"
-echo "  Host:     postgres-cluster-rw.cnpg-clusters.svc:5432"
+echo "  Host:     postgres-cluster-rw.${NAMESPACE}.svc:5432"
 echo ""
 
-# Generate and apply the Job manifest.
-cat <<EOF | kubectl apply -f -
-apiVersion: batch/v1
-kind: Job
-metadata:
-  name: ${JOB_NAME}
-  namespace: ${NAMESPACE}
-  labels:
-    app.kubernetes.io/component: db-provisioning
-spec:
-  ttlSecondsAfterFinished: 120
-  template:
-    spec:
-      restartPolicy: OnFailure
-      securityContext:
-        runAsNonRoot: true
-        runAsUser: 70
-        runAsGroup: 70
-        fsGroup: 70
-        seccompProfile:
-          type: RuntimeDefault
-      containers:
-        - name: psql
-          image: postgres:17-alpine
-          command: ["/bin/sh", "-c"]
-          args:
-            - |
-              set -eu
-              echo "Connecting to CNPG cluster..."
-              printf '%s\n' \
-                "DO" \
-                "\$\$" \
-                "BEGIN" \
-                "  IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = '${DB_NAME}') THEN" \
-                "    CREATE ROLE ${DB_NAME} WITH LOGIN PASSWORD '${DB_PASSWORD}';" \
-                "  ELSE" \
-                "    ALTER ROLE ${DB_NAME} WITH PASSWORD '${DB_PASSWORD}';" \
-                "  END IF;" \
-                "END" \
-                "\$\$;" \
-                "" \
-                "SELECT 'CREATE DATABASE ${DB_NAME} OWNER ${DB_NAME}' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '${DB_NAME}')\\gexec" \
-                "" \
-                "GRANT ALL PRIVILEGES ON DATABASE ${DB_NAME} TO ${DB_NAME};" \
-                > /tmp/init.sql
-              psql "\${PGURI}" -f /tmp/init.sql
-              echo "Done."
-          env:
-            - name: PGURI
-              value: "${PGURI}"
-          securityContext:
-            allowPrivilegeEscalation: false
-            capabilities:
-              drop: ["ALL"]
-EOF
+# Build the SQL.
+SQL=$(cat <<EOSQL
+DO \$\$
+BEGIN
+  IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = '${DB_NAME}') THEN
+    CREATE ROLE ${DB_NAME} WITH LOGIN PASSWORD '${DB_PASSWORD}';
+    RAISE NOTICE 'Created role ${DB_NAME}';
+  ELSE
+    ALTER ROLE ${DB_NAME} WITH PASSWORD '${DB_PASSWORD}';
+    RAISE NOTICE 'Role ${DB_NAME} exists, password updated';
+  END IF;
+END
+\$\$;
 
-echo "⏳ Waiting for job to complete..."
-kubectl wait --for=condition=complete "job/${JOB_NAME}" -n "${NAMESPACE}" --timeout=90s
+SELECT 'CREATE DATABASE ${DB_NAME} OWNER ${DB_NAME}'
+WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '${DB_NAME}')\gexec
+
+GRANT ALL PRIVILEGES ON DATABASE ${DB_NAME} TO ${DB_NAME};
+EOSQL
+)
+
+echo "⏳ Executing SQL in pod ${POD}..."
+kubectl exec -n "${NAMESPACE}" "${POD}" -- psql -U postgres -c "${SQL}"
 
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "✓ Database '${DB_NAME}' ready!"
 echo ""
 echo "  Connection string:"
-echo "    postgresql://${DB_NAME}:${DB_PASSWORD}@postgres-cluster-rw.cnpg-clusters.svc:5432/${DB_NAME}"
+echo "    postgresql://${DB_NAME}:${DB_PASSWORD}@postgres-cluster-rw.${NAMESPACE}.svc:5432/${DB_NAME}"
 echo ""
 echo "  For use in a Kubernetes Secret:"
-echo "    DB_HOST: postgres-cluster-rw.cnpg-clusters.svc"
+echo "    DB_HOST: postgres-cluster-rw.${NAMESPACE}.svc"
 echo "    DB_PORT: \"5432\""
 echo "    DB_USER: ${DB_NAME}"
 echo "    DB_PASSWORD: ${DB_PASSWORD}"
 echo "    DB_NAME: ${DB_NAME}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-
-# Cleanup
-kubectl delete "job/${JOB_NAME}" -n "${NAMESPACE}" --ignore-not-found >/dev/null 2>&1 &
