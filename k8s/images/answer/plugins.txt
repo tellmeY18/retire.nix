@@ -6,9 +6,25 @@
 # To remove a plugin: delete or comment the line, re-run.
 #
 # Available plugins: https://github.com/apache/answer-plugins
+# Official defaults: https://github.com/apache/answer/blob/main/script/plugin_list
+
+# ── Official defaults (shipped with apache/answer:latest) ─────────────
+github.com/apache/answer-plugins/connector-basic
+github.com/apache/answer-plugins/reviewer-basic
+github.com/apache/answer-plugins/captcha-basic
+github.com/apache/answer-plugins/quick-links
+
+# ── Custom additions ──────────────────────────────────────────────────
 
 # Storage — S3-compatible object storage (RustFS/MinIO/AWS)
 github.com/apache/answer-plugins/storage-s3
+
+# Editor — enhanced editor features
+github.com/apache/answer-plugins/editor-formula
+github.com/apache/answer-plugins/editor-chart
+
+# ── Available but not enabled ─────────────────────────────────────────
+# Uncomment and rebuild to add.
 
 # Connectors — OAuth login providers
 # github.com/apache/answer-plugins/connector-github
@@ -17,16 +33,6 @@ github.com/apache/answer-plugins/storage-s3
 # Search — full-text search backends
 # github.com/apache/answer-plugins/search-elasticsearch
 # github.com/apache/answer-plugins/search-meilisearch
-
-# Editor — enhanced editor features
-# github.com/apache/answer-plugins/editor-formula
-# github.com/apache/answer-plugins/editor-chart
-
-# Captcha
-# github.com/apache/answer-plugins/captcha-basic
-
-# Reviewer
-# github.com/apache/answer-plugins/reviewer-basic
 
 # Notification
 # github.com/apache/answer-plugins/notification-slack
