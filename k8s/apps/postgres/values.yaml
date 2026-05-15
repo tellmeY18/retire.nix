@@ -48,10 +48,10 @@ cluster:
 
   imagePullPolicy: IfNotPresent
 
-  # Lock the postgres superuser. All app access goes through the `app` user
-  # (see initdb below); DBA access uses operator-mediated paths.
-  # https://cloudnative-pg.io/documentation/current/postgresql_conf/#superuser-access
-  enableSuperuserAccess: false
+  # Superuser access — needed for creating per-app databases and users.
+  # The `postgres-cluster-superuser` Secret is used by the db-create helper.
+  # DBA access still goes through operator-mediated paths for day-to-day.
+  enableSuperuserAccess: true
 
   # Cluster description (shows up in `kubectl cnpg status`).
   description: "Production PostgreSQL for cloud webservices (glug-infra)"
