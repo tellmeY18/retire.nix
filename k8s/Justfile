@@ -136,6 +136,13 @@ encrypt-secret path:
 # All assume the kubectl-cnpg plugin is installed:
 #   kubectl krew install cnpg
 
+# Create a new database + user in the CNPG cluster.
+# Usage: just k8s::create-db <name> [password]
+# If password is omitted, a random one is generated and printed.
+[doc('Create a PostgreSQL database + user (e.g. just k8s::create-db answer)')]
+create-db name password="":
+    ./helpers/create-db.sh {{ name }} {{ password }}
+
 # Show the CNPG cluster status.
 cnpg-status:
     kubectl cnpg status postgres -n cnpg-clusters
