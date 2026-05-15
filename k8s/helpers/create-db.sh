@@ -49,8 +49,9 @@ spec:
       restartPolicy: OnFailure
       securityContext:
         runAsNonRoot: true
-        runAsUser: 1000
-        runAsGroup: 1000
+        runAsUser: 70
+        runAsGroup: 70
+        fsGroup: 70
         seccompProfile:
           type: RuntimeDefault
       containers:
