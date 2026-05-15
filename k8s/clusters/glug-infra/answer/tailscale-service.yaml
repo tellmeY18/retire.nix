@@ -1,13 +1,18 @@
 ---
-# Tailscale LoadBalancer — exposes Answer on the tailnet.
-# Access at: answer.<tailnet>.ts.net
+# Tailscale Funnel — exposes Answer publicly via HTTPS.
+#
+# Public URL: https://answer.<tailnet>.ts.net
+# Custom domain: CNAME ask.kenobi.win → answer.<tailnet>.ts.net
+#
+# Funnel serves HTTPS on port 443 from the public internet,
+# proxied through Tailscale's edge → ts-proxy pod → answer-svc:80.
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: answer-tailscale
   namespace: answer
   annotations:
-    tailscale.com/funnel: "false"
+    tailscale.com/funnel: "true"
 spec:
   ingressClassName: tailscale
   defaultBackend:
