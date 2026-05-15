@@ -35,6 +35,26 @@ spec:
         seccompProfile:
           type: RuntimeDefault
 
+      initContainers:
+        - name: wait-for-db
+          image: postgres:17-alpine
+          command: ["sh", "-c"]
+          args:
+            - |
+              echo "Waiting for PostgreSQL..."
+              until pg_isready -h postgres-cluster-rw.cnpg-clusters.svc -p 5432 -U answer; do
+                echo "  ...not ready, retrying in 2s"
+                sleep 2
+              done
+              echo "PostgreSQL is ready!"
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 70
+            runAsGroup: 70
+            capabilities:
+              drop: ["ALL"]
+
       containers:
         - name: answer
           image: ghcr.io/tellmey18/answer:latest
