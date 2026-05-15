@@ -62,9 +62,23 @@ spec:
             - |
               set -eu
               echo "Connecting to CNPG cluster..."
-              psql "\${PGURI}" -c "DO \$\$BEGIN IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = '${DB_NAME}') THEN CREATE ROLE ${DB_NAME} WITH LOGIN PASSWORD '${DB_PASSWORD}'; ELSE ALTER ROLE ${DB_NAME} WITH PASSWORD '${DB_PASSWORD}'; END IF; END\$\$;"
-              psql "\${PGURI}" -c "SELECT 'CREATE DATABASE ${DB_NAME} OWNER ${DB_NAME}' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '${DB_NAME}')" -t | grep -q CREATE && psql "\${PGURI}" -c "CREATE DATABASE ${DB_NAME} OWNER ${DB_NAME}" || true
-              psql "\${PGURI}" -c "GRANT ALL PRIVILEGES ON DATABASE ${DB_NAME} TO ${DB_NAME}"
+              printf '%s\n' \
+                "DO" \
+                "\$\$" \
+                "BEGIN" \
+                "  IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = '${DB_NAME}') THEN" \
+                "    CREATE ROLE ${DB_NAME} WITH LOGIN PASSWORD '${DB_PASSWORD}';" \
+                "  ELSE" \
+                "    ALTER ROLE ${DB_NAME} WITH PASSWORD '${DB_PASSWORD}';" \
+                "  END IF;" \
+                "END" \
+                "\$\$;" \
+                "" \
+                "SELECT 'CREATE DATABASE ${DB_NAME} OWNER ${DB_NAME}' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '${DB_NAME}')\\gexec" \
+                "" \
+                "GRANT ALL PRIVILEGES ON DATABASE ${DB_NAME} TO ${DB_NAME};" \
+                > /tmp/init.sql
+              psql "\${PGURI}" -f /tmp/init.sql
               echo "Done."
           env:
             - name: PGURI
