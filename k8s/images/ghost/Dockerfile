@@ -19,4 +19,8 @@ RUN apk add --no-cache git && \
     cp -r ./node_modules/ghost-object-store-storage-adapter/* /var/lib/ghost/versions/6.25.1/core/server/adapters/storage/object-store/ && \
     rm -rf /tmp/node_modules /tmp/package-lock.json /tmp/package.json
 
+# Bake custom themes into the content.orig directory so the entrypoint
+# copies them into /var/lib/ghost/content/themes/ on every start.
+COPY themes/ /var/lib/ghost/content.orig/themes/
+
 # The adapter is now available as "object-store" in Ghost config.
