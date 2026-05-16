@@ -97,7 +97,8 @@ data:
     wfLoadExtension( 'SpamBlacklist' );
     wfLoadExtension( 'DarkMode' );
     wfLoadExtension( 'RSS' );
-    wfLoadExtension( 'ContributionScores' );
+    # DISABLED: incompatible with MW 1.44 (uses removed rev_user column + ActorMigration)
+    # wfLoadExtension( 'ContributionScores' );
     wfLoadExtension( 'Comments' );
     wfLoadExtension( 'VoteNY' );
     wfLoadExtension( 'HitCounters' );
@@ -115,7 +116,8 @@ data:
     wfLoadExtension( 'Nuke' );
     wfLoadExtension( 'SmiteSpam' );
     wfLoadExtension( 'UserMerge' );
-    wfLoadExtension( 'WhosOnline' );
+    # DISABLED: incompatible with MW 1.44 (uses removed getDBLoadBalancer())
+    # wfLoadExtension( 'WhosOnline' );
     require_once "$IP/extensions/SocialProfile/SocialProfile.php";
     wfLoadExtension( 'BlogPage' );
 
