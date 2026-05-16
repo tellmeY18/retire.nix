@@ -68,6 +68,8 @@ spec:
               value: "us-east-1"
             - name: storage__objectStore__useSSL
               value: "false"
+            - name: storage__objectStore__staticFileURLPrefix
+              value: "content/"
 
             # Misc
             - name: security__staffDeviceVerification
