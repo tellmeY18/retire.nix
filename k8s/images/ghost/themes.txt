@@ -11,5 +11,5 @@
 # Note: Most official themes require purchase. If you own one, host the
 # archive in a GitHub Release on this repo.
 
-# Journal — official Ghost theme (hosted as release asset)
-https://github.com/tellmeY18/retire.nix/releases/download/ghost-themes-v1/journal-theme-1.0.0.tar.gz journal
+# Journal — official Ghost theme (hosted as release asset, cleaned of macOS ._ files)
+https://github.com/tellmeY18/retire.nix/releases/download/ghost-themes-v1/journal-theme-1.0.1.tar.gz journal
