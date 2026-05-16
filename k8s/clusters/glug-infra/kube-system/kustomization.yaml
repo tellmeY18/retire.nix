@@ -4,3 +4,4 @@ kind: Kustomization
 
 resources:
   - tailscale-cp-service.yaml
+  - pod-cleanup-cronjob.yaml

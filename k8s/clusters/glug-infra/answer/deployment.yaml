@@ -57,7 +57,7 @@ spec:
 
       containers:
         - name: answer
-          image: ghcr.io/tellmey18/answer:latest
+          image: ghcr.io/tellmey18/answer:build-5
           ports:
             - name: http
               containerPort: 80

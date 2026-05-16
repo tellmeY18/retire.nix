@@ -1,0 +1,82 @@
+---
+# pod-cleanup-cronjob.yaml — Automatically cleans up failed/evicted pods.
+#
+# Runs every 6 hours. Deletes pods in terminal states:
+#   - Failed (crash loops that gave up, failed Jobs)
+#   - Evicted (node pressure evictions)
+#   - Succeeded but not owned by a Job (stale completed pods)
+#
+# This prevents the 100+ dead backup pods from piling up.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: pod-cleanup
+  namespace: kube-system
+  labels:
+    app.kubernetes.io/name: pod-cleanup
+    app.kubernetes.io/component: maintenance
+spec:
+  schedule: "0 */6 * * *"
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      ttlSecondsAfterFinished: 3600
+      template:
+        spec:
+          serviceAccountName: pod-cleanup
+          restartPolicy: OnFailure
+          containers:
+            - name: kubectl
+              image: bitnami/kubectl:1.35
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  echo "=== Pod Cleanup $(date) ==="
+                  echo "Deleting Failed pods..."
+                  kubectl delete pods -A --field-selector status.phase=Failed --ignore-not-found
+                  echo "Deleting Evicted pods..."
+                  kubectl get pods -A -o json | \
+                    jq -r '.items[] | select(.status.reason == "Evicted") | "\(.metadata.namespace) \(.metadata.name)"' | \
+                    while read ns name; do
+                      kubectl delete pod "$name" -n "$ns" --ignore-not-found
+                    done
+                  echo "=== Cleanup complete ==="
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 32Mi
+                limits:
+                  cpu: 100m
+                  memory: 64Mi
+---
+# ServiceAccount + RBAC for the cleanup job.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: pod-cleanup
+  namespace: kube-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: pod-cleanup
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: pod-cleanup
+subjects:
+  - kind: ServiceAccount
+    name: pod-cleanup
+    namespace: kube-system
+roleRef:
+  kind: ClusterRole
+  name: pod-cleanup
+  apiGroup: rbac.authorization.k8s.io
