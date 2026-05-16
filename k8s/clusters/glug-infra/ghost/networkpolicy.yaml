@@ -1,0 +1,63 @@
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: ghost
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+---
+# Allow ingress to Ghost from Tailscale proxy.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ghost-ingress
+  namespace: ghost
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: ghost
+  policyTypes:
+    - Ingress
+  ingress:
+    - ports:
+        - port: 2368
+          protocol: TCP
+---
+# Allow egress to MySQL (PXC), RustFS (S3), DNS, HTTPS.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ghost-egress
+  namespace: ghost
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: ghost
+  policyTypes:
+    - Egress
+  egress:
+    # DNS
+    - ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    # MySQL (PXC HAProxy in pxc-clusters namespace)
+    - ports:
+        - port: 3306
+          protocol: TCP
+    # RustFS S3
+    - ports:
+        - port: 9000
+          protocol: TCP
+    # HTTPS (external APIs, oembed, etc.)
+    - ports:
+        - port: 443
+          protocol: TCP
+    # HTTP (oembed providers that still use plain HTTP)
+    - ports:
+        - port: 80
+          protocol: TCP

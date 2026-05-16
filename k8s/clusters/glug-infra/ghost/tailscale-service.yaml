@@ -1,0 +1,21 @@
+---
+# Tailscale Funnel — exposes Ghost publicly via HTTPS.
+# Public URL: https://ghost.<tailnet>.ts.net
+# Custom domain: redirect tellmey.fyi → ghost.<tailnet>.ts.net
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ghost-tailscale
+  namespace: ghost
+  annotations:
+    tailscale.com/funnel: "true"
+spec:
+  ingressClassName: tailscale
+  defaultBackend:
+    service:
+      name: ghost-svc
+      port:
+        number: 2368
+  tls:
+    - hosts:
+        - ghost

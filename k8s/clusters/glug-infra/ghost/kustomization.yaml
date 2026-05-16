@@ -1,0 +1,18 @@
+---
+# kustomization.yaml — Ghost CMS (stateless, S3 + MySQL)
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: ghost
+
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: ghost
+      app.kubernetes.io/managed-by: kustomize
+    includeSelectors: false
+
+resources:
+  - namespace.yaml
+  - networkpolicy.yaml
+  - deployment.yaml
+  - tailscale-service.yaml
