@@ -39,7 +39,7 @@ spec:
           env:
             # Ghost core config
             - name: url
-              value: "https://tellmey.fyi"
+              value: "https://ghost.tail477f2f.ts.net"
             - name: NODE_ENV
               value: "production"
 
