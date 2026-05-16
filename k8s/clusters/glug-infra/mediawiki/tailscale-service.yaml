@@ -1,0 +1,18 @@
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: mediawiki-tailscale
+  namespace: mediawiki
+  annotations:
+    tailscale.com/funnel: "true"
+spec:
+  ingressClassName: tailscale
+  defaultBackend:
+    service:
+      name: mediawiki-svc
+      port:
+        number: 80
+  tls:
+    - hosts:
+        - wiki
