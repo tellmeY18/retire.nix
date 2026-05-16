@@ -9,8 +9,9 @@
 
 FROM ghost:6.25-alpine
 
-# Install the S3 storage adapter.
-RUN mkdir -p /var/lib/ghost/content/adapters/storage/object-store && \
+# Install git (needed for npm to clone from GitHub) + the S3 storage adapter.
+RUN apk add --no-cache git && \
+    mkdir -p /var/lib/ghost/content/adapters/storage/object-store && \
     cd /tmp && \
     npm install https://github.com/CodeForAfrica/ghost-object-store-storage-adapter.git --omit=dev && \
     cp -r ./node_modules/ghost-object-store-storage-adapter/* /var/lib/ghost/content/adapters/storage/object-store/ && \
