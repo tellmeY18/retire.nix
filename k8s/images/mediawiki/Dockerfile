@@ -65,7 +65,7 @@ logfile=/dev/stdout
 logfile_maxbytes=0
 
 [program:php-fpm]
-command=php-fpm82 -F
+command=/usr/local/sbin/php-fpm -F
 autostart=true
 autorestart=true
 stdout_logfile=/dev/stdout
