@@ -34,7 +34,8 @@ RUN cd /var/www/html/extensions && \
     git clone --depth 1 https://github.com/edwardspec/mediawiki-aws-s3.git AWS
 
 # Install Composer dependencies for the AWS S3 extension
-RUN cd /var/www/html/extensions/AWS && composer install --no-dev --no-interaction
+RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer && \
+    cd /var/www/html/extensions/AWS && composer install --no-dev --no-interaction
 
 # Scribunto needs lua binary
 RUN ln -sf /usr/bin/lua5.1 /usr/bin/lua
