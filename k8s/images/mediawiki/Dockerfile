@@ -6,10 +6,10 @@
 # Build:
 #   docker build -t ghcr.io/tellmey18/mediawiki:latest .
 
-FROM mediawiki:stable-fpm-alpine
+FROM mediawiki:stable
 
 # Install dependencies for extensions
-RUN apk add --no-cache git lua5.1 lua5.1-dev unzip
+RUN apt-get update && apt-get install -y --no-install-recommends git lua5.1 unzip curl && rm -rf /var/lib/apt/lists/*
 
 # Install only extensions NOT bundled in the base mediawiki image.
 # The base image already includes: AbuseFilter, Cite, CiteThisPage, ConfirmEdit,
@@ -37,5 +37,5 @@ RUN cd /var/www/html/extensions && \
 RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer && \
     cd /var/www/html/extensions/AWS && composer install --no-dev --no-interaction
 
-# Scribunto needs lua binary
-RUN ln -sf /usr/bin/lua5.1 /usr/bin/lua
+# Scribunto needs lua binary in PATH
+RUN ln -sf /usr/bin/lua5.1 /usr/bin/lua || true
