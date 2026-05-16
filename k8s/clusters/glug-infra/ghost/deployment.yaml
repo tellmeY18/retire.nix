@@ -1,7 +1,7 @@
 ---
 # deployment.yaml — Ghost CMS (stateless).
 #
-# All content stored in RustFS (S3) via ghost-object-store-storage-adapter.
+# Images served DIRECTLY from RustFS S3 to the browser (not proxied through Ghost).
 # Database in PXC MySQL. No PVC needed.
 apiVersion: apps/v1
 kind: Deployment
@@ -42,8 +42,10 @@ spec:
               value: "https://ghost.tail477f2f.ts.net"
             - name: NODE_ENV
               value: "production"
+            - name: server__trustProxy
+              value: "true"
 
-            # Database
+            # Database (PXC MySQL via HAProxy)
             - name: database__client
               value: "mysql"
             - name: database__connection__host
@@ -53,30 +55,33 @@ spec:
             - name: database__connection__database
               value: "ghost"
 
-            # S3 Storage adapter
+            # S3 Storage — colinmeinke/ghost-storage-adapter-s3
+            # Images are served DIRECTLY from assetHost (public RustFS Funnel).
+            # Ghost never proxies image reads.
             - name: storage__active
-              value: "object-store"
-            - name: storage__files__adapter
-              value: "object-store"
-            - name: storage__media__adapter
-              value: "object-store"
-            - name: storage__objectStore__endpoint
+              value: "s3"
+            - name: storage__s3__endpoint
               value: "http://rustfs-storage-io.rustfs-clusters.svc:9000"
-            - name: storage__objectStore__bucket
+            - name: storage__s3__bucket
               value: "ghost"
-            - name: storage__objectStore__region
+            - name: storage__s3__region
               value: "us-east-1"
-            - name: storage__objectStore__useSSL
-              value: "false"
-            - name: storage__objectStore__staticFileURLPrefix
-              value: "content/"
+            - name: storage__s3__forcePathStyle
+              value: "true"
+            - name: storage__s3__assetHost
+              value: ""
+            - name: storage__s3__pathPrefix
+              value: ""
+            - name: storage__s3__acl
+              value: "public-read"
+            - name: storage__s3__signatureVersion
+              value: "v4"
 
             # Misc
             - name: security__staffDeviceVerification
               value: "false"
 
           volumeMounts:
-            # Writable content dir (emptyDir — themes + adapter are in image)
             - name: content
               mountPath: /var/lib/ghost/content
 
