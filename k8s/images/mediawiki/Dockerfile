@@ -38,8 +38,8 @@ RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local
 # Lua for Scribunto
 RUN ln -sf /usr/bin/lua5.1 /usr/bin/lua || true
 
-# Provide a default favicon (MW no longer ships one)
-RUN cp /var/www/html/resources/assets/change-your-logo-icon.svg /var/www/html/favicon.svg
+# FOSSCELL NITC favicon/logo
+COPY favicon.svg /var/www/html/favicon.svg
 
 # Caddyfile — serves MediaWiki with php_fastcgi
 RUN cat > /etc/caddy/Caddyfile <<'EOF'
