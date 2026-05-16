@@ -76,6 +76,7 @@ keys:
 
   # Host keys — each host can only decrypt its own Tier-1 secrets
   - &chopper age1y8v9n2z4y8kp8mfdytvxasud379n44dlrwkn88ynh5u2xnjt2aks8m0xz4
+  - &kenobi age1vexywt66s7fzakttu4tw0kyzyl6dc73u6jr870w08nsdegmanudshv3kjv
 
 creation_rules:
   # ---------------------------------------------------------------------------
@@ -95,6 +96,12 @@ creation_rules:
       - age:
           - *master
           - *chopper
+
+  - path_regex: secrets/kenobi/.*
+    key_groups:
+      - age:
+          - *master
+          - *kenobi
 
   # Example for a future host (add its age key anchor above first):
   # - path_regex: secrets/newhost/.*
@@ -128,3 +135,4 @@ creation_rules:
       - age:
           - *master
           - *chopper
+          - *kenobi

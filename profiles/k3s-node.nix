@@ -20,23 +20,12 @@
 #
 # helm-secrets and helm-diff are provided via home-manager (dev-k8s.nix) using
 # wrapHelm + helmfile-wrapped — no manual `helm plugin install` needed.
-{ pkgs, ... }:
+{ ... }:
 {
   imports = [ ../modules/services/k3s.nix ];
 
-  environment = {
-    systemPackages = with pkgs; [
-      kubectl
-      kubernetes-helm
-      helmfile
-      k9s
-      just
-      sops
-    ];
-
-    # Default KUBECONFIG for every user on this host. Combined with the
-    # 0640 root:wheel mode set by modules/services/k3s.nix, this gives any
-    # admin (wheel-group) user immediate kubectl access without sudo.
-    variables.KUBECONFIG = "/etc/rancher/k3s/k3s.yaml";
-  };
+  # No admin tools installed on server nodes. All cluster management
+  # (kubectl, helm, helmfile, k9s, sops, just) lives on the operator's
+  # Mac and is never needed on the node itself. deploy-rs handles all
+  # configuration pushes.
 }

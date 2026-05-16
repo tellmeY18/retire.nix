@@ -1,0 +1,12 @@
+---
+# Global HTTPS redirect middleware.
+# Referenced by all HTTP IngressRoutes.
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: redirect-to-https
+  namespace: traefik-system
+spec:
+  redirectScheme:
+    scheme: https
+    permanent: true

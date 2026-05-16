@@ -1,0 +1,39 @@
+---
+# Traefik IngressRoute for MediaWiki.
+# Public URL: https://wiki.kenobi.win
+# TLS: Let's Encrypt via Traefik ACME.
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: mediawiki-traefik
+  namespace: mediawiki
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`wiki.kenobi.win`)
+      kind: Rule
+      services:
+        - name: mediawiki-svc
+          port: 80
+  tls:
+    certResolver: letsencrypt
+---
+# HTTP → HTTPS redirect for MediaWiki.
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: mediawiki-traefik-redirect
+  namespace: mediawiki
+spec:
+  entryPoints:
+    - web
+  routes:
+    - match: Host(`wiki.kenobi.win`)
+      kind: Rule
+      middlewares:
+        - name: redirect-to-https
+          namespace: traefik-system
+      services:
+        - name: mediawiki-svc
+          port: 80

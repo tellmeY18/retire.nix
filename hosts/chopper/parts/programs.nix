@@ -1,15 +1,7 @@
 { ... }:
 
-let
-  vysakhMeta = import ../../../users/vysakh.nix;
-in
 {
   programs = {
-    lazygit.enable = true;
-    direnv.enable = true;
-    tmux.enable = true;
-    bat.enable = true;
-
     zsh = {
       enable = true;
       autosuggestions = {
@@ -24,7 +16,6 @@ in
           "git"
           "python"
           "man"
-          "direnv"
           "systemd"
           "docker-compose"
           "docker"
@@ -52,12 +43,5 @@ in
       flake = "/home/vysakh/nix-config";
     };
 
-    git = {
-      enable = true;
-      config = [
-        { user.name = vysakhMeta.fullName; }
-        { user.email = vysakhMeta.email; }
-      ];
-    };
   };
 }

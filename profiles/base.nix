@@ -18,15 +18,9 @@
 
   # Common packages available on all systems
   environment.systemPackages = with pkgs; [
-    vim
-    git
-    curl
-    wget
-    htop
-    tree
-    unzip
-    ripgrep
-    fd
-    jq
+    vim # emergency editing
+    curl # health checks
+    htop # process monitoring
+    jq # JSON parsing in scripts
   ];
 }

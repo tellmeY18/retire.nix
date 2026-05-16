@@ -1,0 +1,83 @@
+---
+# values.yaml — Traefik Helm chart values for glug-infra.
+#
+# Chart: traefik/traefik
+# Docs: https://doc.traefik.io/traefik/
+#
+# Traefik runs on compute nodes with hostNetwork to bind directly
+# to the node's public IP (68.233.115.209) on ports 80 and 443.
+# TLS is handled via Let's Encrypt (Traefik's built-in ACME).
+
+# Run on compute nodes only — these have public IPs.
+nodeSelector:
+  node-role.glug.infra/compute: "true"
+
+# Bind directly to the node's network stack (no kube-proxy hop).
+# Required because we don't have a cloud LoadBalancer or MetalLB.
+hostNetwork: true
+
+# Don't use hostPort (hostNetwork already exposes everything).
+ports:
+  web:
+    port: 8000
+    hostPort: 80
+    exposedPort: 80
+    protocol: TCP
+  websecure:
+    port: 8443
+    hostPort: 443
+    exposedPort: 443
+    protocol: TCP
+    tls:
+      enabled: true
+
+# Single replica — one compute node. Scale when more nodes join.
+deployment:
+  replicas: 1
+
+# ACME (Let's Encrypt) TLS certificate resolver.
+# Certificates stored in a PVC so they survive pod restarts.
+additionalArguments:
+  - "--certificatesresolvers.letsencrypt.acme.email=vysakhpr218@gmail.com"
+  - "--certificatesresolvers.letsencrypt.acme.storage=/data/acme.json"
+  - "--certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web"
+  # Use staging for testing, then remove this line for production:
+  # - "--certificatesresolvers.letsencrypt.acme.caserver=https://acme-staging-v02.api.letsencrypt.org/directory"
+
+# Persist ACME certificates across pod restarts.
+persistence:
+  enabled: true
+  size: 128Mi
+  storageClass: ""  # Use default StorageClass (or emptyDir if no PVC available on compute)
+  accessMode: ReadWriteOnce
+
+# Redirect HTTP → HTTPS globally.
+ingressRoute:
+  dashboard:
+    enabled: false  # Dashboard not exposed publicly
+
+# Log level
+logs:
+  general:
+    level: INFO
+  access:
+    enabled: true
+
+# Resource limits
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: "1"
+    memory: 256Mi
+
+# Providers — watch Kubernetes Ingress and IngressRoute CRDs.
+providers:
+  kubernetesIngress:
+    enabled: true
+    publishedService:
+      enabled: false  # hostNetwork mode — no Service IP to publish
+  kubernetesCRD:
+    enabled: true
+    allowCrossNamespace: true

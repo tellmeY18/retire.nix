@@ -12,8 +12,6 @@
     "laptop"
     "server"
     "zfs"
-    "wayland"
-    "dev"
     "k3s"
   ];
 

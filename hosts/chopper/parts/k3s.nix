@@ -1,38 +1,42 @@
-# hosts/chopper/parts/k3s.nix — k3s cluster configuration for chopper.
+# hosts/chopper/parts/k3s.nix — k3s control plane configuration for chopper.
 #
-# chopper is the FIRST (and currently only) k3s server node.
-# Role: server-init — bootstraps the embedded-etcd cluster.
+# chopper is the cluster's first control plane node (server-init).
+# Tailscale IP: 100.107.213.17
 #
-# Tailscale IP: 100.107.213.17 (static; matches deploy.host in metadata.nix).
-# When a second node is added it will join via serverAddr = "https://chopper:6443"
-# (or the Tailscale FQDN equivalent).
+# TLS SANs include every address the API server might be reached at:
+#   - Node's own Tailscale IP + MagicDNS name
+#   - The shared control plane LB endpoint (k3s-cp) managed by the
+#     Tailscale operator — this is what kubeconfig uses
+#   - Kubernetes internal names
 #
-# Secrets consumed here (both declared in hosts/chopper/sops.nix):
-#   sops.secrets.k3s-token               → tokenFile
-#   sops.secrets.tailscale-operator-oauth → companion bootstrap-manifests module
+# When adding more control plane nodes, they need the SAME shared SANs
+# (k3s-cp, k3s-cp.tail477f2f.ts.net) plus their own per-node entries.
 { config, ... }:
 {
   services.k3s-cluster = {
     enable = true;
 
-    # First and only server — bootstraps the etcd cluster.
+    # First server — bootstraps the embedded etcd cluster.
     role = "server-init";
     clusterInit = true;
 
-    # Static Tailscale IP so all k3s traffic (apiserver, etcd, flannel)
-    # binds to the tailnet interface rather than the physical NIC.
-    # This IP is stable for this device on the tailnet.
+    # Static Tailscale IP — all k3s traffic binds to the tailnet.
     nodeIP = "100.107.213.17";
 
-    # Join token — sops-nix decrypts secrets/chopper/k3s-token at activation.
+    # Join token — sops-nix decrypts at activation.
     tokenFile = config.sops.secrets.k3s-token.path;
 
-    # TLS SAN: include the Tailscale FQDN so the kubeconfig `server` URL
-    # works from any tailnet member without certificate errors.
-    # Replace <tailnet> with your actual tailnet name (e.g. "tail1234.ts.net").
     extraFlags = [
+      # ── Per-node SANs ──
       "--tls-san=chopper"
-      # "--tls-san=chopper.<tailnet>.ts.net"   # uncomment once tailnet name is known
+      "--tls-san=100.107.213.17"
+      "--tls-san=chopper.tail477f2f.ts.net"
+
+      # ── Shared control plane SANs ──
+      # The Tailscale operator creates a LB device with hostname "k3s-cp".
+      # All kubeconfig clients connect via this stable address.
+      "--tls-san=k3s-cp"
+      "--tls-san=k3s-cp.tail477f2f.ts.net"
     ];
   };
 }

@@ -13,7 +13,6 @@
     ../../modules/services/cloudflared-dns.nix
     ../../profiles/k3s-storage-node.nix
     ./default.nix
-    ../../packages/chopper
   ];
 
   # Core system settings

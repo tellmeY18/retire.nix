@@ -130,13 +130,16 @@
           chopper = [
             {
               nixpkgs.overlays = [
-                fenix.overlays.default
                 (import ./overlays).custom-packages
               ];
             }
-            ./modules/dev/rust.nix
             ./hosts/chopper/hardware-configuration.nix
             ./hosts/chopper/disko-config.nix
+            sops-nix.nixosModules.sops
+            disko.nixosModules.disko
+          ];
+          kenobi = [
+            ./hosts/kenobi/disko-config.nix
             sops-nix.nixosModules.sops
             disko.nixosModules.disko
           ];
