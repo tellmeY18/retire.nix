@@ -41,17 +41,20 @@ RUN ln -sf /usr/bin/lua5.1 /usr/bin/lua || true
 RUN cat > /etc/caddy/Caddyfile <<'EOF'
 :80 {
     root * /var/www/html
-    file_server
-
-    @php path *.php
-    php_fastcgi @php 127.0.0.1:9000
-
-    # Short URLs: /wiki/Article → index.php
-    try_files {path} {path}/ /index.php?{query}
 
     # Block access to sensitive paths
     @blocked path /images/deleted/* /cache/* /includes/* /maintenance/*
     respond @blocked 403
+
+    # PHP handler for MediaWiki entry points
+    @phpFiles path *.php
+    php_fastcgi @phpFiles 127.0.0.1:9000
+
+    # Short URLs + fallback to index.php
+    try_files {path} {path}/ /index.php?{query}
+    php_fastcgi 127.0.0.1:9000
+
+    file_server
 
     header /images/* X-Content-Type-Options nosniff
 }
