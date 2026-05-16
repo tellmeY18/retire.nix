@@ -15,10 +15,10 @@ data:
     $wgScriptPath = "";
     $wgServer = "https://wiki.tail477f2f.ts.net";
     $wgResourceBasePath = $wgScriptPath;
-    $wgFavicon = "$wgResourceBasePath/resources/assets/favicon.svg";
+    $wgFavicon = "$wgResourceBasePath/favicon.svg";
     $wgLogos = [
-        '1x' => "$wgResourceBasePath/resources/assets/favicon.svg",
-        'icon' => "$wgResourceBasePath/resources/assets/favicon.svg",
+        '1x' => "$wgResourceBasePath/resources/assets/change-your-logo.svg",
+        'icon' => "$wgResourceBasePath/favicon.svg",
     ];
 
     ## Database
@@ -115,6 +115,7 @@ data:
     wfLoadExtension( 'Nuke' );
     wfLoadExtension( 'SmiteSpam' );
     wfLoadExtension( 'UserMerge' );
+    wfLoadExtension( 'WhosOnline' );
     require_once "$IP/extensions/SocialProfile/SocialProfile.php";
     wfLoadExtension( 'BlogPage' );
 
