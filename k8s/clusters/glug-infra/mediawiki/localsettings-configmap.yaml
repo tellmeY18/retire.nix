@@ -118,14 +118,14 @@ data:
     wfLoadExtensions([ 'ConfirmEdit', 'ConfirmEdit/QuestyCaptcha' ]);
     wfLoadExtension( 'SpamBlacklist' );
     wfLoadExtension( 'DarkMode' );
-    wfLoadExtension( 'RSS' );
-    wfLoadExtension( 'ContributionScores' );
+    # wfLoadExtension( 'RSS' );
+    # wfLoadExtension( 'ContributionScores' );
     # Legacy extensions disabled — incompatible with MW 1.42 (Title namespace change)
     # wfLoadExtension( 'Comments' );
     # wfLoadExtension( 'VoteNY' );
     # wfLoadExtension( 'BlogPage' );
-    wfLoadExtension( 'HitCounters' );
-    wfLoadExtension( 'Popups' );
+    # wfLoadExtension( 'HitCounters' );
+    # wfLoadExtension( 'Popups' );
     wfLoadExtension( 'TextExtracts' );
     wfLoadExtension( 'MobileFrontend' );
     wfLoadExtension( 'Cite' );
@@ -137,9 +137,9 @@ data:
     wfLoadExtension( 'PageImages' );
     wfLoadExtension( 'RelatedArticles' );
     wfLoadExtension( 'Nuke' );
-    wfLoadExtension( 'SmiteSpam' );
+    # wfLoadExtension( 'SmiteSpam' );
     wfLoadExtension( 'UserMerge' );
-    wfLoadExtension( 'UserExport' );
+    # wfLoadExtension( 'UserExport' );
     # SocialProfile disabled — incompatible with MW 1.42 (Title namespace change)
     # require_once "$IP/extensions/SocialProfile/SocialProfile.php";
 
