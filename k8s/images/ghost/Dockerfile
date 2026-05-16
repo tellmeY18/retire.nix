@@ -7,7 +7,7 @@
 # Build:
 #   docker build -t ghcr.io/tellmey18/ghost:latest .
 
-FROM ghost:6-alpine
+FROM ghost:6.25-alpine
 
 # Install the S3 storage adapter.
 RUN mkdir -p /var/lib/ghost/content/adapters/storage/object-store && \

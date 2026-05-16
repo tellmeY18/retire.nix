@@ -59,6 +59,10 @@ spec:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: monitoring
+        # Ghost CMS connects to HAProxy for MySQL access.
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ghost
       ports:
         - protocol: TCP
           port: 3306
