@@ -1,0 +1,67 @@
+---
+# tailscale-cp-service.yaml — Stable Tailscale endpoint for the k3s control plane.
+#
+# Registers `k3s-cp.tail477f2f.ts.net:6443` on the tailnet via the Tailscale
+# Kubernetes operator. All kubectl/kubeconfig clients connect to this address
+# instead of individual node IPs.
+#
+# Why this exists:
+#   - kubeconfig uses a SINGLE stable address that survives node failures
+#   - When more control plane nodes join, add their IPs to the Endpoints
+#   - Tailscale handles LB/failover — if a CP node dies, traffic routes
+#     to the remaining healthy ones
+#   - No cert errors: k3s SANs include `k3s-cp` and its Tailscale IP
+#
+# k3s embeds the API server in its own process — there are no separate
+# apiserver pods to select. This Service is selector-less with manual
+# Endpoints pointing to control plane nodes' Tailscale IPs.
+#
+# Traffic path:
+#   kubectl (Mac)
+#     → k3s-cp.tail477f2f.ts.net:6443  (Tailscale MagicDNS)
+#     → ts-proxy pod                    (Tailscale operator managed)
+#     → Endpoints (100.107.213.17)      (chopper's Tailscale IP)
+#     → k3s apiserver on chopper:6443
+#
+# Adding a second control plane node:
+#   1. Add the node's Tailscale IP to the Endpoints subsets below
+#   2. Add the same --tls-san entries to the new node's k3s config
+#   3. Redeploy: `just deploy <new-node> && just k8s::apply`
+apiVersion: v1
+kind: Service
+metadata:
+  name: k3s-cp-tailscale
+  namespace: kube-system
+  labels:
+    app.kubernetes.io/name: k3s
+    app.kubernetes.io/component: control-plane
+    app.kubernetes.io/managed-by: kustomize
+  annotations:
+    tailscale.com/hostname: "k3s-cp"
+    tailscale.com/tags: "tag:k8s"
+spec:
+  type: LoadBalancer
+  loadBalancerClass: tailscale
+  # NO selector — k3s embeds the apiserver, no pods to match.
+  # Traffic is routed via the Endpoints object below.
+  ports:
+    - name: kubernetes-api
+      protocol: TCP
+      port: 6443
+      targetPort: 6443
+---
+# Manual Endpoints — one entry per control plane node.
+# When adding a new server node, append its Tailscale IP here.
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: k3s-cp-tailscale
+  namespace: kube-system
+subsets:
+  - addresses:
+      - ip: "100.107.213.17"    # chopper (server-init)
+        nodeName: chopper
+    ports:
+      - name: kubernetes-api
+        port: 6443
+        protocol: TCP

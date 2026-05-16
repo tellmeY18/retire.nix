@@ -12,14 +12,11 @@ in
       isNormalUser = vysakhMeta.isNormalUser;
       extraGroups = vysakhMeta.extraGroups;
       openssh.authorizedKeys.keys = vysakhMeta.sshKeys;
-      packages = with pkgs; [ opentofu ];
     };
 
     root = {
       shell = pkgs.zsh;
       openssh.authorizedKeys.keys = vysakhMeta.sshKeys;
     };
-
-    greeter = { };
   };
 }

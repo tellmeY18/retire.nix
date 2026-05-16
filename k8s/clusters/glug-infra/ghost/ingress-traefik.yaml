@@ -1,0 +1,39 @@
+---
+# Traefik IngressRoute for Ghost.
+# Public URL: https://tellmey.fyi
+# TLS: Let's Encrypt via Traefik ACME.
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: ghost-traefik
+  namespace: ghost
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`tellmey.fyi`) || Host(`www.tellmey.fyi`)
+      kind: Rule
+      services:
+        - name: ghost-svc
+          port: 2368
+  tls:
+    certResolver: letsencrypt
+---
+# HTTP → HTTPS redirect for Ghost.
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: ghost-traefik-redirect
+  namespace: ghost
+spec:
+  entryPoints:
+    - web
+  routes:
+    - match: Host(`tellmey.fyi`) || Host(`www.tellmey.fyi`)
+      kind: Rule
+      middlewares:
+        - name: redirect-to-https
+          namespace: traefik-system
+      services:
+        - name: ghost-svc
+          port: 2368

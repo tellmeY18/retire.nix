@@ -16,3 +16,4 @@ resources:
   - networkpolicy.yaml
   - deployment.yaml
   - tailscale-service.yaml
+  # - ingress-traefik.yaml  # TODO: enable after Traefik is deployed on kenobi

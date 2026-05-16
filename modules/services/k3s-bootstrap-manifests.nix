@@ -99,66 +99,76 @@ let
 
 in
 {
-  config = mkIf config.services.k3s-cluster.enable {
+  config =
+    mkIf
+      (
+        config.services.k3s-cluster.enable
+        && builtins.elem config.services.k3s-cluster.role [
+          "server-init"
+          "server"
+          "quorum"
+        ]
+      )
+      {
 
-    # -------------------------------------------------------------------------
-    # sops-nix secret declarations
-    #
-    # Both keys live in the host's defaultSopsFile (secrets/chopper/secrets.yaml).
-    # sops-nix decrypts them to /run/secrets/ at activation — tmpfs only,
-    # never persisted to disk.
-    # -------------------------------------------------------------------------
-    sops.secrets."tailscale-operator-client-id" = {
-      restartUnits = [ "k3s-tailscale-oauth-secret.service" ];
-    };
-    sops.secrets."tailscale-operator-client-secret" = {
-      restartUnits = [ "k3s-tailscale-oauth-secret.service" ];
-    };
+        # -------------------------------------------------------------------------
+        # sops-nix secret declarations
+        #
+        # Both keys live in the host's defaultSopsFile (secrets/chopper/secrets.yaml).
+        # sops-nix decrypts them to /run/secrets/ at activation — tmpfs only,
+        # never persisted to disk.
+        # -------------------------------------------------------------------------
+        sops.secrets."tailscale-operator-client-id" = {
+          restartUnits = [ "k3s-tailscale-oauth-secret.service" ];
+        };
+        sops.secrets."tailscale-operator-client-secret" = {
+          restartUnits = [ "k3s-tailscale-oauth-secret.service" ];
+        };
 
-    # -------------------------------------------------------------------------
-    # Systemd oneshot: write the Tailscale operator OAuth Secret manifest
-    #
-    # Runs before k3s so the manifest is in place when k3s's manifest watcher
-    # first scans the directory. Also runs when sops-nix rotates the secret
-    # (via restartUnits above) so the manifest stays current without a full
-    # nixos-rebuild.
-    # -------------------------------------------------------------------------
-    systemd.services.k3s-tailscale-oauth-secret = {
-      description = "Write Tailscale operator OAuth Secret manifest for k3s";
+        # -------------------------------------------------------------------------
+        # Systemd oneshot: write the Tailscale operator OAuth Secret manifest
+        #
+        # Runs before k3s so the manifest is in place when k3s's manifest watcher
+        # first scans the directory. Also runs when sops-nix rotates the secret
+        # (via restartUnits above) so the manifest stays current without a full
+        # nixos-rebuild.
+        # -------------------------------------------------------------------------
+        systemd.services.k3s-tailscale-oauth-secret = {
+          description = "Write Tailscale operator OAuth Secret manifest for k3s";
 
-      # Must complete before k3s starts so the manifest is present during the
-      # initial manifest-watcher scan.
-      wantedBy = [ "k3s.service" ];
-      before = [ "k3s.service" ];
+          # Must complete before k3s starts so the manifest is present during the
+          # initial manifest-watcher scan.
+          wantedBy = [ "k3s.service" ];
+          before = [ "k3s.service" ];
 
-      # sops-nix decrypts secrets during NixOS activation (before any service
-      # starts), so /run/secrets/ is already populated by the time this unit
-      # runs. No dependency on a sops-nix.service is needed — it doesn't exist
-      # as a systemd unit; it's an activation script.
-      after = [ "network-online.target" ];
-      wants = [ "network-online.target" ];
+          # sops-nix decrypts secrets during NixOS activation (before any service
+          # starts), so /run/secrets/ is already populated by the time this unit
+          # runs. No dependency on a sops-nix.service is needed — it doesn't exist
+          # as a systemd unit; it's an activation script.
+          after = [ "network-online.target" ];
+          wants = [ "network-online.target" ];
 
-      serviceConfig = {
-        Type = "oneshot";
-        # Remain in the "started" state after the oneshot exits so that
-        # systemd's dependency graph doesn't re-trigger it unnecessarily.
-        RemainAfterExit = true;
-        ExecStart = oauthScript;
+          serviceConfig = {
+            Type = "oneshot";
+            # Remain in the "started" state after the oneshot exits so that
+            # systemd's dependency graph doesn't re-trigger it unnecessarily.
+            RemainAfterExit = true;
+            ExecStart = oauthScript;
 
-        # Harden the unit — it only needs to write one file to a specific path.
-        User = "root";
-        Group = "root";
+            # Harden the unit — it only needs to write one file to a specific path.
+            User = "root";
+            Group = "root";
 
-        # Prevent the script text (in the Nix store) from being confused with
-        # the secret values — belt-and-suspenders.
-        PrivateTmp = true;
-        ProtectSystem = "strict";
-        ReadWritePaths = [ manifestDir ];
-        ReadOnlyPaths = [ "/run/secrets" ];
-        ProtectHome = true;
-        NoNewPrivileges = true;
+            # Prevent the script text (in the Nix store) from being confused with
+            # the secret values — belt-and-suspenders.
+            PrivateTmp = true;
+            ProtectSystem = "strict";
+            ReadWritePaths = [ manifestDir ];
+            ReadOnlyPaths = [ "/run/secrets" ];
+            ProtectHome = true;
+            NoNewPrivileges = true;
+          };
+        };
+
       };
-    };
-
-  };
 }

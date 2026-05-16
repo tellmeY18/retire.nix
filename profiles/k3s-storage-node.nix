@@ -39,7 +39,6 @@
 {
   config,
   lib,
-  pkgs,
   ...
 }:
 
@@ -65,13 +64,6 @@
     "--node-label=node-role.glug.infra/storage=true"
     "--node-label=topology.kubernetes.io/zone=on-prem"
     "--node-taint=node-role.glug.infra/storage-only=true:PreferNoSchedule"
-  ];
-
-  # ---------------------------------------------------------------------------
-  # ZFS tools — required for OpenEBS ZFS LocalPV to manage datasets.
-  # ---------------------------------------------------------------------------
-  environment.systemPackages = with pkgs; [
-    zfs # already pulled in by profiles/zfs.nix, but explicit here for clarity
   ];
 
   # ---------------------------------------------------------------------------

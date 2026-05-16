@@ -1,29 +1,10 @@
-{ pkgs, ... }:
+# hosts/chopper/parts/display.nix
+# Display stack disabled — chopper is a headless k3s server node
+# managed exclusively via deploy-rs. No local GUI needed.
+#
+# To re-enable for local desktop use, uncomment the blocks below
+# and add "wayland" back to metadata.nix roles.
+{ ... }:
 {
-  services.greetd = {
-    enable = true;
-    settings.default_session = {
-      command = "${pkgs.tuigreet}/bin/tuigreet --time --cmd sway";
-      user = "greeter";
-    };
-  };
-
-  # Enable the gnome-keyring secrets vault.
-  # Will be exposed through DBus to programs willing to store secrets.
-  services.gnome.gnome-keyring.enable = true;
-
-  security.polkit.enable = true;
-  security.pam.services.swaylock = { };
-
-  programs.sway.enable = true;
-  programs.dconf.enable = true;
-
-  environment.sessionVariables.NIXOS_OZONE_WL = "1";
-  environment.systemPackages = with pkgs; [
-    grim
-    mako
-    slurp
-    sway
-    wl-clipboard
-  ];
+  # Headless — no greeter, no Sway, no audio.
 }

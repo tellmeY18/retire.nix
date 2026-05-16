@@ -78,6 +78,7 @@ fetch-kubeconfig:
 [doc('Apply kustomize + helmfile to the cluster')]
 apply:
     kubectl apply -k clusters/glug-infra
+    kubectl apply -k clusters/glug-infra/kube-system
     kubectl apply -k clusters/glug-infra/pxc
     kubectl apply -k clusters/glug-infra/rustfs
     kubectl apply -k clusters/glug-infra/changala

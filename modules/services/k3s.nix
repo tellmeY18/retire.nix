@@ -216,58 +216,51 @@ in
       tokenFile = cfg.tokenFile;
       serverAddr = cfg.serverAddr;
 
-      extraFlags = lib.concatStringsSep " " (
-        [
-          "--node-name=${cfg.nodeName}"
+      extraFlags =
+        let
+          isServer = elem cfg.role [
+            "server-init"
+            "server"
+            "quorum"
+          ];
+        in
+        lib.concatStringsSep " " (
+          # ── Flags valid for BOTH server and agent ──
+          [
+            "--node-name=${cfg.nodeName}"
+            "--flannel-iface=${cfg.tailscaleInterface}"
+          ]
 
-          # Bind flannel overlay to the tailscale interface so that all pod-to-pod
-          # traffic is encrypted by WireGuard — never exposed on the physical NIC.
-          "--flannel-iface=${cfg.tailscaleInterface}"
+          # ── Server-only flags ──
+          ++ optionals isServer [
+            # Embedded containerd image registry mirror.
+            "--embedded-registry"
+            # Make kubeconfig group-readable for wheel users.
+            "--write-kubeconfig-mode=0640"
+            # Disable components we replace with our own.
+            "--disable=traefik,servicelb,local-storage"
+          ]
 
-          # Disable components we do not use:
-          #   traefik       — we expose nothing over HTTP/S from the cluster;
-          #                   only Postgres over tailnet via the Tailscale
-          #                   operator.
-          #   servicelb     — replaced by the Tailscale operator which
-          #                   manages a ts-proxy pod per LoadBalancer Service.
-          #   local-storage — k3s ships a `local-path` provisioner +
-          #                   StorageClass (marked default) by default. We
-          #                   replace it with OpenEBS ZFS LocalPV via the
-          #                   bootstrap manifests below; without disabling
-          #                   this, the cluster would have two default
-          #                   StorageClasses and emit a warning on every PVC.
-          "--disable=traefik,servicelb,local-storage"
+          # Quorum-only nodes: taint so workloads never schedule here.
+          ++ optionals (cfg.role == "quorum") [
+            "--node-taint=node-role.kubernetes.io/control-plane:NoSchedule"
+            "--node-taint=quorum-only=true:NoExecute"
+          ]
 
-          # Embedded containerd image registry mirror — useful for air-gap /
-          # slow connections; harmless when not configured.
-          "--embedded-registry"
+          # Static tailscale IP — bind k3s traffic to the tailnet interface.
+          # --advertise-address is server-only (apiserver bind).
+          ++ optionals (cfg.nodeIP != "") (
+            [
+              "--node-ip=${cfg.nodeIP}"
+              "--bind-address=${cfg.nodeIP}"
+            ]
+            ++ optionals isServer [
+              "--advertise-address=${cfg.nodeIP}"
+            ]
+          )
 
-          # Make /etc/rancher/k3s/k3s.yaml group-readable so that members of
-          # the wheel group (i.e. the laptop's primary admin user) can run
-          # kubectl/k9s/helm without sudo. The cluster API is only reachable
-          # over tailnet, so widening file mode here does not widen network
-          # exposure. The kubeconfig is then chgrp'd to `wheel` by a tmpfiles
-          # rule below.
-          "--write-kubeconfig-mode=0640"
-        ]
-
-        # Quorum-only nodes: taint so that the scheduler never places workloads
-        # (especially CNPG pods) here. The node still participates in etcd and
-        # holds the apiserver, giving us the odd-quorum member we need.
-        ++ optionals (cfg.role == "quorum") [
-          "--node-taint=node-role.kubernetes.io/control-plane:NoSchedule"
-          "--node-taint=quorum-only=true:NoExecute"
-        ]
-
-        # Static tailscale IP — see option description for when/why to set this.
-        ++ optionals (cfg.nodeIP != "") [
-          "--node-ip=${cfg.nodeIP}"
-          "--bind-address=${cfg.nodeIP}"
-          "--advertise-address=${cfg.nodeIP}"
-        ]
-
-        ++ cfg.extraFlags
-      );
+          ++ cfg.extraFlags
+        );
 
       # -----------------------------------------------------------------------
       # Bootstrap manifests — k3s applies everything under

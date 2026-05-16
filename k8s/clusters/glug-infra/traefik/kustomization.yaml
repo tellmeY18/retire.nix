@@ -1,0 +1,12 @@
+---
+# kustomization.yaml — Traefik infrastructure resources.
+#
+# Traefik itself is deployed via helmfile (k8s/apps/traefik/).
+# This kustomize layer manages the namespace and any additional
+# infrastructure that the Helm chart doesn't provide.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - namespace.yaml
+  - middleware.yaml
