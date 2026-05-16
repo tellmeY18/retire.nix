@@ -55,9 +55,6 @@ data:
 
     ## File uploads — stored in RustFS S3
     $wgEnableUploads = true;
-    $wgUploadPath = "https://s3-1.tail477f2f.ts.net/mediawiki";
-    $wgUploadDirectory = false;
-    $wgHashedUploadDirectory = true;
     $wgGenerateThumbnailOnParse = true;
 
     ## AWS S3 storage backend
@@ -68,38 +65,18 @@ data:
     ];
     $wgAWSRegion = 'us-east-1';
     $wgAWSBucketName = 'mediawiki';
-    $wgAWSBucketTopSubdirectory = '';
+
+    # Hash levels must match how files were migrated from local images/ dir.
+    # 2 = S3 keys are a/ab/Filename.png (matching local hashed structure)
+    $wgAWSRepoHashLevels = '2';
+    $wgAWSRepoDeletedHashLevels = '3';
+
+    # Custom S3-compatible endpoint (RustFS via path-style)
+    $wgFileBackends['s3']['endpoint'] = 'http://rustfs-storage-io.rustfs-clusters.svc:9000';
+    $wgFileBackends['s3']['use_path_style_endpoint'] = true;
+
+    # Public URL for images — $1 is replaced with bucket name
     $wgAWSBucketDomain = 's3-1.tail477f2f.ts.net/$1';
-
-    $wgFileBackends['s3'] = [
-        'class' => 'AmazonS3FileBackend',
-        'name' => 's3',
-        'wikiId' => 'mediawiki',
-        'lockManager' => 'nullLockManager',
-        'containerPaths' => [
-            'mediawiki-local-public' => '',
-            'mediawiki-local-thumb' => 'thumb',
-            'mediawiki-local-deleted' => 'deleted',
-            'mediawiki-local-temp' => 'temp',
-        ],
-        'endpoint' => 'http://rustfs-storage-io.rustfs-clusters.svc:9000',
-        'use_path_style_endpoint' => true,
-    ];
-
-    $wgLocalFileRepo = [
-        'class' => 'LocalRepo',
-        'name' => 'local',
-        'backend' => 's3',
-        'url' => 'https://s3-1.tail477f2f.ts.net/mediawiki',
-        'hashLevels' => 2,
-        'deletedHashLevels' => 3,
-        'zones' => [
-            'public' => [ 'url' => 'https://s3-1.tail477f2f.ts.net/mediawiki' ],
-            'thumb' => [ 'url' => 'https://s3-1.tail477f2f.ts.net/mediawiki/thumb' ],
-            'deleted' => [ 'container' => 'mediawiki-local-deleted' ],
-            'temp' => [ 'container' => 'mediawiki-local-temp' ],
-        ],
-    ];
 
     ## Permissions
     $wgGroupPermissions['*']['edit'] = false;
