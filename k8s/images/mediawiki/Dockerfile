@@ -28,6 +28,7 @@ RUN cd /var/www/html/extensions && \
     git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/UserMerge && \
     git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/SocialProfile && \
     git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/SmiteSpam && \
+    git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/WhosOnline && \
     git clone --depth 1 https://github.com/edwardspec/mediawiki-aws-s3.git AWS
 
 # Install Composer for AWS extension
@@ -36,6 +37,9 @@ RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local
 
 # Lua for Scribunto
 RUN ln -sf /usr/bin/lua5.1 /usr/bin/lua || true
+
+# Provide a default favicon (MW no longer ships one)
+RUN cp /var/www/html/resources/assets/change-your-logo-icon.svg /var/www/html/favicon.svg
 
 # Caddyfile — serves MediaWiki with php_fastcgi
 RUN cat > /etc/caddy/Caddyfile <<'EOF'
