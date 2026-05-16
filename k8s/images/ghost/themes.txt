@@ -1,0 +1,15 @@
+# Ghost themes — downloaded at Docker build time.
+# Format: <url> <directory-name>
+# The URL should point to a .tar.gz or .zip containing the theme.
+#
+# To add a theme:
+#   1. Upload the theme archive to a GitHub Release or any stable URL
+#   2. Add a line here: <url> <theme-name>
+#   3. Rebuild the image
+#
+# Official Ghost themes: https://ghost.org/themes/
+# Note: Most official themes require purchase. If you own one, host the
+# archive in a GitHub Release on this repo.
+
+# Journal — official Ghost theme (hosted as release asset)
+https://github.com/tellmeY18/retire.nix/releases/download/ghost-themes-v1/journal-theme-1.0.0.tar.gz journal
