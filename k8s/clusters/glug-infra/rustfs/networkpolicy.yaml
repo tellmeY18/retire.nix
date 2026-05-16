@@ -58,6 +58,14 @@ spec:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: changala
+        # Ghost CMS stores images/files in the ghost bucket.
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ghost
+        # Answer stores uploads in the answer bucket.
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: answer
       ports:
         - protocol: TCP
           port: 9000
