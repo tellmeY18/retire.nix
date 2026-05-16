@@ -12,22 +12,22 @@ FROM mediawiki:stable-fpm-alpine
 RUN apk add --no-cache git lua5.1 unzip curl caddy supervisor
 
 # Install only extensions NOT bundled in the base image.
+# Branch MUST match the base image MW version (stable = 1.45.x → REL1_45).
 RUN cd /var/www/html/extensions && \
-    git clone --depth 1 -b REL1_42 https://gerrit.wikimedia.org/r/mediawiki/extensions/DarkMode && \
-    git clone --depth 1 -b REL1_42 https://gerrit.wikimedia.org/r/mediawiki/extensions/RSS && \
-    git clone --depth 1 -b REL1_42 https://gerrit.wikimedia.org/r/mediawiki/extensions/ContributionScores && \
-    git clone --depth 1 -b REL1_42 https://gerrit.wikimedia.org/r/mediawiki/extensions/Comments && \
-    git clone --depth 1 -b REL1_42 https://gerrit.wikimedia.org/r/mediawiki/extensions/VoteNY && \
-    git clone --depth 1 -b REL1_42 https://gerrit.wikimedia.org/r/mediawiki/extensions/BlogPage && \
-    git clone --depth 1 -b REL1_42 https://gerrit.wikimedia.org/r/mediawiki/extensions/HitCounters && \
-    git clone --depth 1 -b REL1_42 https://gerrit.wikimedia.org/r/mediawiki/extensions/Popups && \
-    git clone --depth 1 -b REL1_42 https://gerrit.wikimedia.org/r/mediawiki/extensions/MobileFrontend && \
-    git clone --depth 1 -b REL1_42 https://gerrit.wikimedia.org/r/mediawiki/extensions/Description2 && \
-    git clone --depth 1 -b REL1_42 https://gerrit.wikimedia.org/r/mediawiki/extensions/RelatedArticles && \
-    git clone --depth 1 -b REL1_42 https://gerrit.wikimedia.org/r/mediawiki/extensions/UserMerge && \
-    git clone --depth 1 -b REL1_42 https://gerrit.wikimedia.org/r/mediawiki/extensions/SocialProfile && \
-    git clone --depth 1 -b REL1_42 https://gerrit.wikimedia.org/r/mediawiki/extensions/UserExport && \
-    git clone --depth 1 -b REL1_42 https://gerrit.wikimedia.org/r/mediawiki/extensions/SmiteSpam && \
+    git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/DarkMode && \
+    git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/RSS && \
+    git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/ContributionScores && \
+    git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/Comments && \
+    git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/VoteNY && \
+    git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/BlogPage && \
+    git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/HitCounters && \
+    git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/Popups && \
+    git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/MobileFrontend && \
+    git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/Description2 && \
+    git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/RelatedArticles && \
+    git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/UserMerge && \
+    git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/SocialProfile && \
+    git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/SmiteSpam && \
     git clone --depth 1 https://github.com/edwardspec/mediawiki-aws-s3.git AWS
 
 # Install Composer for AWS extension
