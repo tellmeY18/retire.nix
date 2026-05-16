@@ -24,21 +24,6 @@ spec:
         app.kubernetes.io/component: blog
         app.kubernetes.io/part-of: ghost
     spec:
-      initContainers:
-        # Copy the S3 storage adapter from the image into the emptyDir
-        # (the emptyDir mount shadows /var/lib/ghost/content from the image).
-        - name: copy-adapter
-          image: ghcr.io/tellmey18/ghost:latest
-          command: ["sh", "-c"]
-          args:
-            - |
-              mkdir -p /mnt/content/adapters/storage
-              cp -r /var/lib/ghost/content/adapters/storage/object-store /mnt/content/adapters/storage/
-              echo "Adapter copied."
-          volumeMounts:
-            - name: content
-              mountPath: /mnt/content
-
       containers:
         - name: ghost
           image: ghcr.io/tellmey18/ghost:latest
