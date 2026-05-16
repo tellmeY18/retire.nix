@@ -139,7 +139,8 @@ data:
     wfLoadExtension( 'SmiteSpam' );
     wfLoadExtension( 'UserMerge' );
     wfLoadExtension( 'UserExport' );
-    require_once "$IP/extensions/SocialProfile/SocialProfile.php";
+    # SocialProfile disabled — incompatible with MW 1.42 (Title namespace change)
+    # require_once "$IP/extensions/SocialProfile/SocialProfile.php";
 
     ## Extension config
     $wgScribuntoDefaultEngine = 'luastandalone';
