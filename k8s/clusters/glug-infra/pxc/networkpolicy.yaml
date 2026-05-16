@@ -63,6 +63,10 @@ spec:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: ghost
+        # MediaWiki connects to HAProxy for MySQL access.
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: mediawiki
       ports:
         - protocol: TCP
           port: 3306

@@ -14,4 +14,5 @@ resources:
   - namespace.yaml
   - networkpolicy.yaml
   - deployment.yaml
+  - localsettings-configmap.yaml
   - tailscale-service.yaml
