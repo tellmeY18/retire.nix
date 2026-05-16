@@ -10,11 +10,13 @@
 FROM ghost:6.25-alpine
 
 # Install git (needed for npm to clone from GitHub) + the S3 storage adapter.
+# Install into the Ghost version's adapters directory (not /content/ which
+# gets overwritten by the Docker entrypoint on every start).
 RUN apk add --no-cache git && \
-    mkdir -p /var/lib/ghost/content/adapters/storage/object-store && \
     cd /tmp && \
     npm install https://github.com/CodeForAfrica/ghost-object-store-storage-adapter.git --omit=dev && \
-    cp -r ./node_modules/ghost-object-store-storage-adapter/* /var/lib/ghost/content/adapters/storage/object-store/ && \
+    mkdir -p /var/lib/ghost/versions/6.25.1/core/server/adapters/storage/object-store && \
+    cp -r ./node_modules/ghost-object-store-storage-adapter/* /var/lib/ghost/versions/6.25.1/core/server/adapters/storage/object-store/ && \
     rm -rf /tmp/node_modules /tmp/package-lock.json /tmp/package.json
 
 # The adapter is now available as "object-store" in Ghost config.
