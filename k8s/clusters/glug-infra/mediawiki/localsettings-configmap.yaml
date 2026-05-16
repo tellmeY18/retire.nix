@@ -1,0 +1,176 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mediawiki-localsettings
+  namespace: mediawiki
+data:
+  LocalSettings.php: |
+    <?php
+    if ( !defined( 'MEDIAWIKI' ) ) { exit; }
+
+    ## Core settings
+    $wgSitename = "WIKI FOSSCELL NITC";
+    $wgMetaNamespace = "WIKI_FOSSCELL_NITC";
+    $wgScriptPath = "";
+    $wgServer = "https://wiki.tail477f2f.ts.net";
+    $wgResourceBasePath = $wgScriptPath;
+    $wgFavicon = "$wgResourceBasePath/resources/assets/favicon.svg";
+    $wgLogos = [
+        '1x' => "$wgResourceBasePath/resources/assets/favicon.svg",
+        'icon' => "$wgResourceBasePath/resources/assets/favicon.svg",
+    ];
+
+    ## Database
+    $wgDBtype = "mysql";
+    $wgDBserver = "mysql-pxc-db-haproxy.pxc-clusters.svc";
+    $wgDBname = "mediawiki";
+    $wgDBuser = "mediawiki";
+    $wgDBpassword = getenv('MW_DB_PASSWORD');
+    $wgDBprefix = "";
+    $wgDBTableOptions = "ENGINE=InnoDB, DEFAULT CHARSET=binary";
+
+    ## Shared memory / caching
+    $wgMainCacheType = CACHE_ACCEL;
+    $wgMemCachedServers = [];
+
+    ## Security
+    $wgSecretKey = getenv('MW_SECRET_KEY');
+    $wgAuthenticationTokenVersion = "1";
+    $wgUpgradeKey = getenv('MW_UPGRADE_KEY') ?: "upgrade123";
+
+    ## Paths
+    $wgUsePathInfo = true;
+    $wgArticlePath = "/$1";
+
+    ## Email
+    $wgEnableEmail = true;
+    $wgEnableUserEmail = true;
+    $wgEmergencyContact = "wikinitc@gmail.com";
+    $wgPasswordSender = "wikinitc@gmail.com";
+    $wgEnotifUserTalk = false;
+    $wgEnotifWatchlist = false;
+    $wgEmailAuthentication = true;
+    $wgEmailConfirmToEdit = true;
+
+    ## File uploads — stored in RustFS S3
+    $wgEnableUploads = true;
+    $wgUploadPath = "https://s3-1.tail477f2f.ts.net/mediawiki";
+    $wgUploadDirectory = false;
+    $wgHashedUploadDirectory = true;
+    $wgGenerateThumbnailOnParse = true;
+
+    ## AWS S3 storage backend
+    wfLoadExtension( 'AWS' );
+    $wgAWSCredentials = [
+        'key' => getenv('MW_S3_ACCESS_KEY'),
+        'secret' => getenv('MW_S3_SECRET_KEY'),
+    ];
+    $wgAWSRegion = 'us-east-1';
+    $wgAWSBucketName = 'mediawiki';
+    $wgAWSBucketTopSubdirectory = '';
+
+    $wgFileBackends['s3'] = [
+        'class' => 'AmazonS3FileBackend',
+        'name' => 's3',
+        'wikiId' => 'mediawiki',
+        'lockManager' => 'nullLockManager',
+        'containerPaths' => [
+            'mediawiki-local-public' => 'mediawiki',
+            'mediawiki-local-thumb' => 'mediawiki/thumb',
+            'mediawiki-local-deleted' => 'mediawiki/deleted',
+            'mediawiki-local-temp' => 'mediawiki/temp',
+        ],
+        'endpoint' => 'http://rustfs-storage-io.rustfs-clusters.svc:9000',
+        'use_path_style_endpoint' => true,
+    ];
+
+    $wgLocalFileRepo = [
+        'class' => 'LocalRepo',
+        'name' => 'local',
+        'backend' => 's3',
+        'url' => 'https://s3-1.tail477f2f.ts.net/mediawiki',
+        'hashLevels' => 2,
+        'deletedHashLevels' => 3,
+        'zones' => [
+            'public' => [ 'url' => 'https://s3-1.tail477f2f.ts.net/mediawiki' ],
+            'thumb' => [ 'url' => 'https://s3-1.tail477f2f.ts.net/mediawiki/thumb' ],
+            'deleted' => [ 'container' => 'mediawiki-local-deleted' ],
+            'temp' => [ 'container' => 'mediawiki-local-temp' ],
+        ],
+    ];
+
+    ## Permissions
+    $wgGroupPermissions['*']['edit'] = false;
+    $wgGroupPermissions['*']['createaccount'] = true;
+    $wgGroupPermissions['student']['edit'] = true;
+    $wgGroupPermissions['bureaucrat']['smitespam'] = true;
+    $wgGroupPermissions['bureaucrat']['usermerge'] = true;
+    $wgGroupPermissions['sysop']['usermerge'] = true;
+
+    ## Skins
+    wfLoadSkin( 'Vector' );
+    wfLoadSkin( 'MinervaNeue' );
+    $wgDefaultSkin = "vector-2022";
+
+    ## Extensions
+    wfLoadExtension( 'AbuseFilter' );
+    wfLoadExtensions([ 'ConfirmEdit', 'ConfirmEdit/QuestyCaptcha' ]);
+    wfLoadExtension( 'SpamBlacklist' );
+    wfLoadExtension( 'DarkMode' );
+    wfLoadExtension( 'RSS' );
+    wfLoadExtension( 'ContributionScores' );
+    wfLoadExtension( 'Comments' );
+    wfLoadExtension( 'VoteNY' );
+    wfLoadExtension( 'BlogPage' );
+    wfLoadExtension( 'HitCounters' );
+    wfLoadExtension( 'Popups' );
+    wfLoadExtension( 'TextExtracts' );
+    wfLoadExtension( 'MobileFrontend' );
+    wfLoadExtension( 'Cite' );
+    wfLoadExtension( 'CiteThisPage' );
+    wfLoadExtension( 'Scribunto' );
+    wfLoadExtension( 'TemplateStyles' );
+    wfLoadExtension( 'ParserFunctions' );
+    wfLoadExtension( 'Description2' );
+    wfLoadExtension( 'PageImages' );
+    wfLoadExtension( 'RelatedArticles' );
+    wfLoadExtension( 'Nuke' );
+    wfLoadExtension( 'SmiteSpam' );
+    wfLoadExtension( 'UserMerge' );
+    wfLoadExtension( 'UserExport' );
+    require_once "$IP/extensions/SocialProfile/SocialProfile.php";
+
+    ## Extension config
+    $wgScribuntoDefaultEngine = 'luastandalone';
+    $wgPopupsHideOptInOnPreferencesPage = false;
+    $wgPopupsReferencePreviewsBetaFeature = false;
+    $wgHitcounterUpdateFreq = 1;
+
+    ## CAPTCHA
+    $wgCaptchaClass = 'QuestyCaptcha';
+    $wgCaptchaTriggers['edit'] = false;
+    $wgCaptchaTriggers['create'] = false;
+    $wgCaptchaTriggers['createtalk'] = false;
+    $wgCaptchaTriggers['addurl'] = false;
+    $wgCaptchaTriggers['createaccount'] = false;
+    $wgCaptchaTriggers['badlogin'] = true;
+    $myChallengeString = substr(md5(uniqid(mt_rand(), true)), 0, 8);
+    $myChallengeIndex = rand(0, 7) + 1;
+    $myChallengePositions = array('first','second','third','fourth','fifth','sixth','seventh','eighth');
+    $myChallengePositionName = $myChallengePositions[$myChallengeIndex - 1];
+    $wgCaptchaQuestions = [
+        "Please provide the $myChallengePositionName character from the sequence <code>$myChallengeString</code>:" => $myChallengeString[$myChallengeIndex - 1]
+    ];
+
+    ## Email restriction hook
+    $wgHooks["isValidEmailAddr"][] = function($email, &$result) {
+        if ($email !== 'vysakhpr218@gmail.com' && $email !== 'farisshajahan@protonmail.com' && $email !== 'akhilneelamparambil@gmail.com' && substr($email, -11) !== '@nitc.ac.in') {
+            $result = false;
+            return false;
+        }
+    };
+
+    ## Misc
+    $wgCachePages = false;
+    $wgEnableMetaDescriptionFunctions = true;

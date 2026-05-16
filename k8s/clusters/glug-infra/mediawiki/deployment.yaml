@@ -45,7 +45,7 @@ spec:
 
         # MediaWiki FPM
         - name: mediawiki
-          image: ghcr.io/tellmey18/mediawiki:latest
+          image: ghcr.io/tellmey18/mediawiki:build-3
           envFrom:
             - secretRef:
                 name: mediawiki-credentials
