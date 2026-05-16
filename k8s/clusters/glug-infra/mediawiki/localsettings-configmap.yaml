@@ -17,7 +17,7 @@ data:
     $wgResourceBasePath = $wgScriptPath;
     $wgFavicon = "$wgResourceBasePath/favicon.svg";
     $wgLogos = [
-        '1x' => "$wgResourceBasePath/resources/assets/change-your-logo.svg",
+        '1x' => "$wgResourceBasePath/favicon.svg",
         'icon' => "$wgResourceBasePath/favicon.svg",
     ];
 
