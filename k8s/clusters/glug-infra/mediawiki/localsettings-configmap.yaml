@@ -69,7 +69,7 @@ data:
     $wgAWSRegion = 'us-east-1';
     $wgAWSBucketName = 'mediawiki';
     $wgAWSBucketTopSubdirectory = '';
-    $wgAWSBucketDomain = 'https://s3-1.tail477f2f.ts.net/mediawiki';
+    $wgAWSBucketDomain = 's3-1.tail477f2f.ts.net/$1';
 
     $wgFileBackends['s3'] = [
         'class' => 'AmazonS3FileBackend',
