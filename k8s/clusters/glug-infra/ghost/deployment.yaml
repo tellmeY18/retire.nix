@@ -61,7 +61,7 @@ spec:
             - name: storage__media__adapter
               value: "object-store"
             - name: storage__objectStore__endpoint
-              value: "rustfs-storage-io.rustfs-clusters.svc:9000"
+              value: "http://rustfs-storage-io.rustfs-clusters.svc:9000"
             - name: storage__objectStore__bucket
               value: "ghost"
             - name: storage__objectStore__region
