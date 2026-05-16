@@ -21,6 +21,7 @@ RUN cd /var/www/html/extensions && \
     git clone --depth 1 -b REL1_42 https://gerrit.wikimedia.org/r/mediawiki/extensions/BlogPage && \
     git clone --depth 1 -b REL1_42 https://gerrit.wikimedia.org/r/mediawiki/extensions/HitCounters && \
     git clone --depth 1 -b REL1_42 https://gerrit.wikimedia.org/r/mediawiki/extensions/Popups && \
+    git clone --depth 1 -b REL1_42 https://gerrit.wikimedia.org/r/mediawiki/extensions/MobileFrontend && \
     git clone --depth 1 -b REL1_42 https://gerrit.wikimedia.org/r/mediawiki/extensions/Description2 && \
     git clone --depth 1 -b REL1_42 https://gerrit.wikimedia.org/r/mediawiki/extensions/RelatedArticles && \
     git clone --depth 1 -b REL1_42 https://gerrit.wikimedia.org/r/mediawiki/extensions/UserMerge && \
