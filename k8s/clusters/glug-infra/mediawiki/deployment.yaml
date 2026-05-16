@@ -1,5 +1,5 @@
 ---
-# MediaWiki — stateless deployment with nginx sidecar.
+# MediaWiki — stateless deployment (Apache variant, single container).
 # Images stored in RustFS S3, database in PXC MySQL.
 apiVersion: apps/v1
 kind: Deployment
@@ -20,47 +20,17 @@ spec:
         app.kubernetes.io/name: mediawiki
         app.kubernetes.io/part-of: mediawiki
     spec:
-      initContainers:
-        # Copy MediaWiki core files to the shared volume so nginx can serve static assets.
-        - name: copy-mediawiki
-          image: ghcr.io/tellmey18/mediawiki:build-3
-          command: ["sh", "-c", "cp -a /var/www/html/. /mnt/html/"]
-          volumeMounts:
-            - name: mediawiki-data
-              mountPath: /mnt/html
-
       containers:
-        # Nginx sidecar — serves static files + proxies PHP to FPM
-        - name: nginx
-          image: nginx:1.27-alpine
+        - name: mediawiki
+          image: ghcr.io/tellmey18/mediawiki:build-3
           ports:
             - name: http
               containerPort: 80
               protocol: TCP
-          volumeMounts:
-            - name: nginx-config
-              mountPath: /etc/nginx/conf.d/default.conf
-              subPath: default.conf
-            - name: mediawiki-data
-              mountPath: /var/www/html
-              readOnly: true
-          resources:
-            requests:
-              cpu: 50m
-              memory: 64Mi
-            limits:
-              cpu: 200m
-              memory: 128Mi
-
-        # MediaWiki FPM
-        - name: mediawiki
-          image: ghcr.io/tellmey18/mediawiki:build-3
           envFrom:
             - secretRef:
                 name: mediawiki-credentials
           volumeMounts:
-            - name: mediawiki-data
-              mountPath: /var/www/html
             - name: localsettings
               mountPath: /var/www/html/LocalSettings.php
               subPath: LocalSettings.php
@@ -71,16 +41,23 @@ spec:
             limits:
               cpu: "1"
               memory: 512Mi
+          livenessProbe:
+            httpGet:
+              path: /api.php?action=query&meta=siteinfo&format=json
+              port: 80
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /api.php?action=query&meta=siteinfo&format=json
+              port: 80
+            initialDelaySeconds: 15
+            periodSeconds: 10
 
       volumes:
-        - name: nginx-config
-          configMap:
-            name: mediawiki-nginx
         - name: localsettings
           configMap:
             name: mediawiki-localsettings
-        - name: mediawiki-data
-          emptyDir: {}
 ---
 apiVersion: v1
 kind: Service
@@ -95,53 +72,3 @@ spec:
       targetPort: 80
       protocol: TCP
       name: http
----
-# Nginx ConfigMap
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: mediawiki-nginx
-  namespace: mediawiki
-data:
-  default.conf: |
-    server {
-        listen 80;
-        server_name _;
-        root /var/www/html;
-        index index.php;
-
-        location /images {
-            add_header X-Content-Type-Options "nosniff";
-        }
-
-        location /resources {
-            add_header X-Content-Type-Options "nosniff";
-        }
-
-        location / {
-            try_files $uri $uri/ /index.php;
-        }
-
-        location ~ ^/(index|load|api|thumb|opensearch_desc|img_auth)\.php$ {
-            include fastcgi_params;
-            fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
-            fastcgi_pass 127.0.0.1:9000;
-            fastcgi_index index.php;
-        }
-
-        location ~ ^/rest\.php(/.*)?$ {
-            include fastcgi_params;
-            fastcgi_param SCRIPT_FILENAME $document_root/rest.php;
-            fastcgi_param PATH_INFO $1;
-            fastcgi_pass 127.0.0.1:9000;
-            fastcgi_index index.php;
-        }
-
-        location /images/deleted/ {
-            deny all;
-        }
-
-        location ~ /\.ht {
-            deny all;
-        }
-    }
