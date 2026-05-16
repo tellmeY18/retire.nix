@@ -54,7 +54,7 @@
   # Nextcloud        #
   ####################
   services.nextcloud = {
-    enable = true;
+    enable = false;
     hostName = "next.tellmey.fyi";
 
     # Manually increment with every major upgrade.
