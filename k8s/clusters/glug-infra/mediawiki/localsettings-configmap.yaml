@@ -96,14 +96,12 @@ data:
     wfLoadExtensions([ 'ConfirmEdit', 'ConfirmEdit/QuestyCaptcha' ]);
     wfLoadExtension( 'SpamBlacklist' );
     wfLoadExtension( 'DarkMode' );
-    # wfLoadExtension( 'RSS' );
-    # wfLoadExtension( 'ContributionScores' );
-    # Legacy extensions disabled — incompatible with MW 1.42 (Title namespace change)
-    # wfLoadExtension( 'Comments' );
-    # wfLoadExtension( 'VoteNY' );
-    # wfLoadExtension( 'BlogPage' );
-    # wfLoadExtension( 'HitCounters' );
-    # wfLoadExtension( 'Popups' );
+    wfLoadExtension( 'RSS' );
+    wfLoadExtension( 'ContributionScores' );
+    wfLoadExtension( 'Comments' );
+    wfLoadExtension( 'VoteNY' );
+    wfLoadExtension( 'HitCounters' );
+    wfLoadExtension( 'Popups' );
     wfLoadExtension( 'TextExtracts' );
     wfLoadExtension( 'MobileFrontend' );
     wfLoadExtension( 'Cite' );
@@ -115,17 +113,18 @@ data:
     wfLoadExtension( 'PageImages' );
     wfLoadExtension( 'RelatedArticles' );
     wfLoadExtension( 'Nuke' );
-    # wfLoadExtension( 'SmiteSpam' );
+    wfLoadExtension( 'SmiteSpam' );
     wfLoadExtension( 'UserMerge' );
-    # wfLoadExtension( 'UserExport' );
-    # SocialProfile disabled — incompatible with MW 1.42 (Title namespace change)
-    # require_once "$IP/extensions/SocialProfile/SocialProfile.php";
+    require_once "$IP/extensions/SocialProfile/SocialProfile.php";
+    wfLoadExtension( 'BlogPage' );
 
     ## Extension config
     $wgScribuntoDefaultEngine = 'luastandalone';
-    $wgPopupsHideOptInOnPreferencesPage = false;
+    $wgPopupsHideOptInOnPreferencesPage = true;
+    $wgPopupsOptInDefaultState = '1'; # Enable page previews by default
     $wgPopupsReferencePreviewsBetaFeature = false;
     $wgHitcounterUpdateFreq = 1;
+    $wgCommentsDefaultAvatar = 'https://s3-1.tail477f2f.ts.net/mediawiki/avatars/default.png';
 
     ## CAPTCHA
     $wgCaptchaClass = 'QuestyCaptcha';
