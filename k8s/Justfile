@@ -150,6 +150,13 @@ create-db name password="":
 create-bucket name access_key="" secret_key="":
     ./helpers/create-bucket.sh {{ name }} {{ access_key }} {{ secret_key }}
 
+# Create a new MySQL database + user in the PXC cluster.
+# Usage: just k8s::create-mysql-db <name> [password]
+# If password is omitted, a random one is generated and printed.
+[doc('Create a MySQL database + user (e.g. just k8s::create-mysql-db myapp)')]
+create-mysql-db name password="":
+    ./helpers/create-mysql-db.sh {{ name }} {{ password }}
+
 # Show the CNPG cluster status.
 cnpg-status:
     kubectl cnpg status postgres -n cnpg-clusters
