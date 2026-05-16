@@ -21,11 +21,7 @@
       "tailscale-auth-key" = {
         # Decrypted to /run/secrets/tailscale-auth-key
       };
-      "nextcloud-admin-pass" = {
-        owner = "nextcloud";
-        group = "nextcloud";
-        mode = "0400";
-      };
+      # nextcloud-admin-pass removed — Nextcloud is disabled, user doesn't exist.
       "cloudflare-cert" = {
         # Origin cert (cert.pem) for declarative DNS provisioning AND
         # tunnel auto-creation via services.cloudflared-{bootstrap,dns}.
