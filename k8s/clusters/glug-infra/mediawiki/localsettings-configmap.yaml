@@ -120,9 +120,10 @@ data:
     wfLoadExtension( 'DarkMode' );
     wfLoadExtension( 'RSS' );
     wfLoadExtension( 'ContributionScores' );
-    wfLoadExtension( 'Comments' );
-    wfLoadExtension( 'VoteNY' );
-    wfLoadExtension( 'BlogPage' );
+    # Legacy extensions disabled — incompatible with MW 1.42 (Title namespace change)
+    # wfLoadExtension( 'Comments' );
+    # wfLoadExtension( 'VoteNY' );
+    # wfLoadExtension( 'BlogPage' );
     wfLoadExtension( 'HitCounters' );
     wfLoadExtension( 'Popups' );
     wfLoadExtension( 'TextExtracts' );
