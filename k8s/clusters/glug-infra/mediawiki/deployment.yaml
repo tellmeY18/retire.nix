@@ -20,6 +20,15 @@ spec:
         app.kubernetes.io/name: mediawiki
         app.kubernetes.io/part-of: mediawiki
     spec:
+      initContainers:
+        # Copy MediaWiki core files to the shared volume so nginx can serve static assets.
+        - name: copy-mediawiki
+          image: ghcr.io/tellmey18/mediawiki:build-3
+          command: ["sh", "-c", "cp -a /var/www/html/. /mnt/html/"]
+          volumeMounts:
+            - name: mediawiki-data
+              mountPath: /mnt/html
+
       containers:
         # Nginx sidecar — serves static files + proxies PHP to FPM
         - name: nginx
