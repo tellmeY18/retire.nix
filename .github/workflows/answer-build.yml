@@ -51,13 +51,14 @@ jobs:
       - name: Determine image tag
         id: tag
         run: |
+          BUILD_NUM=${{ github.run_number }}
+          echo "build_tag=build-${BUILD_NUM}" >> "$GITHUB_OUTPUT"
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "tag=${{ inputs.tag || 'latest' }}" >> "$GITHUB_OUTPUT"
           else
-            SHA=$(echo "${{ github.sha }}" | cut -c1-7)
             echo "tag=latest" >> "$GITHUB_OUTPUT"
-            echo "sha_tag=$SHA" >> "$GITHUB_OUTPUT"
           fi
+          echo "Build #${BUILD_NUM}"
 
       - name: Extract plugin list for labels
         id: plugins
@@ -73,7 +74,7 @@ jobs:
           push: true
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.tag }}
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.sha_tag || steps.tag.outputs.tag }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.build_tag }}
           labels: |
             org.opencontainers.image.title=Apache Answer
             org.opencontainers.image.description=Apache Answer with plugins: ${{ steps.plugins.outputs.list }}

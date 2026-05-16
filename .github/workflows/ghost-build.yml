@@ -38,12 +38,30 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Generate build number tag
+        id: tag
+        run: |
+          BUILD_NUM=${{ github.run_number }}
+          echo "build_tag=build-${BUILD_NUM}" >> "$GITHUB_OUTPUT"
+          echo "custom_tag=${{ inputs.tag || 'latest' }}" >> "$GITHUB_OUTPUT"
+          echo "Build #${BUILD_NUM}"
+
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
           context: k8s/images/ghost
           push: true
           tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ inputs.tag || 'latest' }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.custom_tag }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.build_tag }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Summary
+        run: |
+          echo "## 🎉 Ghost Image Published" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Tag | Image |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| \`${{ steps.tag.outputs.custom_tag }}\` | \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.custom_tag }}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| \`${{ steps.tag.outputs.build_tag }}\` | \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.build_tag }}\` |" >> "$GITHUB_STEP_SUMMARY"
