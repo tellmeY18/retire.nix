@@ -174,3 +174,4 @@ data:
     ## Misc
     $wgCachePages = false;
     $wgEnableMetaDescriptionFunctions = true;
+    $wgShowExceptionDetails = true;
