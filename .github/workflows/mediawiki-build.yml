@@ -1,17 +1,13 @@
+# CI: Build MediaWiki with extensions (multi-arch, native runners)
 name: Build MediaWiki Image
 
 on:
   workflow_dispatch:
-    inputs:
-      tag:
-        description: "Image tag (default: latest)"
-        required: false
-        default: "latest"
-        type: string
   push:
     branches: [main, develop]
     paths:
       - "k8s/images/mediawiki/**"
+      - ".github/workflows/mediawiki-build.yml"
 
 permissions:
   contents: read
@@ -22,13 +18,18 @@ env:
   IMAGE_NAME: tellmey18/mediawiki
 
 jobs:
-  build-and-push:
-    runs-on: ubuntu-latest
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-latest
+          - platform: linux/arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
-
-      - name: Set up QEMU (multi-arch)
-        uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -40,29 +41,56 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Generate build number tag
-        id: tag
+      - name: Generate tags
+        id: meta
         run: |
-          BUILD_NUM=${{ github.run_number }}
-          echo "build_tag=build-${BUILD_NUM}" >> "$GITHUB_OUTPUT"
-          echo "custom_tag=${{ inputs.tag || 'latest' }}" >> "$GITHUB_OUTPUT"
+          BUILD_TAG="build-${{ github.run_number }}"
+          SHA_TAG="sha-${GITHUB_SHA::7}"
+          echo "build_tag=${BUILD_TAG}" >> "$GITHUB_OUTPUT"
+          echo "sha_tag=${SHA_TAG}" >> "$GITHUB_OUTPUT"
 
-      - name: Build and push
+      - name: Build and push by digest
         uses: docker/build-push-action@v6
         with:
           context: k8s/images/mediawiki
+          platforms: ${{ matrix.platform }}
           push: true
-          platforms: linux/amd64,linux/arm64
           tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.custom_tag }}
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.build_tag }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.build_tag }}-${{ matrix.platform == 'linux/amd64' && 'amd64' || 'arm64' }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          cache-from: type=gha,scope=${{ matrix.platform }}
+          cache-to: type=gha,scope=${{ matrix.platform }},mode=max
 
-      - name: Summary
+  manifest:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create multi-arch manifest
         run: |
+          BUILD_TAG="build-${{ github.run_number }}"
+          SHA_TAG="sha-${GITHUB_SHA::7}"
+          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
+
+          docker buildx imagetools create -t "${IMAGE}:${BUILD_TAG}" -t "${IMAGE}:${SHA_TAG}" \
+            "${IMAGE}:${BUILD_TAG}-amd64" \
+            "${IMAGE}:${BUILD_TAG}-arm64"
+
           echo "## 🎉 MediaWiki Image Published" >> "$GITHUB_STEP_SUMMARY"
           echo "| Tag | Image |" >> "$GITHUB_STEP_SUMMARY"
           echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
-          echo "| \`${{ steps.tag.outputs.custom_tag }}\` | \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.custom_tag }}\` |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| \`${{ steps.tag.outputs.build_tag }}\` | \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.build_tag }}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| \`${BUILD_TAG}\` | \`${IMAGE}:${BUILD_TAG}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| \`${SHA_TAG}\` | \`${IMAGE}:${SHA_TAG}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Update deployment: \`image: ${IMAGE}:${BUILD_TAG}\`" >> "$GITHUB_STEP_SUMMARY"
