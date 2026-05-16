@@ -105,3 +105,9 @@ spec:
   env:
     - name: RUST_LOG
       value: info
+    # RUSTFS_DOMAIN tells RustFS which domain to use for virtual-host style.
+    # Any Host header that doesn't match falls back to path-style routing.
+    # This fixes 403 errors when accessing via Tailscale Funnel (s3-1.tail477f2f.ts.net)
+    # which RustFS would otherwise interpret as a virtual-host bucket name.
+    - name: RUSTFS_DOMAIN
+      value: s3.internal
