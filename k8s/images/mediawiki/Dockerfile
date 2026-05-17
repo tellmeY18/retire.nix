@@ -120,6 +120,9 @@ RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local
 # Lua for Scribunto
 RUN ln -sf /usr/bin/lua5.1 /usr/bin/lua || true
 
+# Create file cache directory (used by $wgUseFileCache for anonymous users)
+RUN mkdir -p /tmp/mediawiki-cache && chmod 777 /tmp/mediawiki-cache
+
 # Tune PHP-FPM for higher concurrency (default max_children=5 is too low)
 RUN echo '[www]' > /usr/local/etc/php-fpm.d/zz-tuning.conf && \
     echo 'pm.max_children = 20' >> /usr/local/etc/php-fpm.d/zz-tuning.conf && \
