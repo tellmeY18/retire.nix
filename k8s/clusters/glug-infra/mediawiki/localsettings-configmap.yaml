@@ -182,11 +182,11 @@ data:
     wfLoadExtension( 'Elastica' );
     wfLoadExtension( 'CirrusSearch' );
     $wgSearchType = 'CirrusSearch';
-    $wgCirrusSearchServers = [ 'opensearch.mediawiki.svc:9200' ];
+    $wgCirrusSearchServers = [ 'opensearch.mediawiki.svc.cluster.local' ];
     # Connection timeouts — prevent CirrusSearch from blocking PHP workers
     # if OpenSearch is slow/down. Search degrades gracefully to DB fallback.
-    $wgCirrusSearchClientSideConnectTimeout = 3;
-    $wgCirrusSearchClientSideSearchTimeout = 10;
+    $wgCirrusSearchClientSideConnectTimeout = [ 'default' => 3 ];
+    $wgCirrusSearchClientSideSearchTimeout = [ 'default' => 10 ];
     # DISABLED: incompatible with MW 1.44 (uses removed rev_user column)
     # wfLoadExtension( 'ContributionScores' );
     # DISABLED: incompatible with MW 1.44 (uses removed getDBLoadBalancer())

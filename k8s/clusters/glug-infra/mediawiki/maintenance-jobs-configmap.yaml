@@ -1,0 +1,87 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mediawiki-maintenance-jobs
+  namespace: mediawiki
+data:
+  warm-cache.php: |
+    <?php
+    /**
+     * Cache warmer — fetches every wiki page via the MediaWiki API + local HTTP
+     * to populate the Redis parser cache and file cache.
+     *
+     * Designed to run as a Kubernetes CronJob. Uses multi-curl (8 parallel workers)
+     * for fast completion (~3 min for 1000 pages).
+     *
+     * Exit codes: 0 = all OK, 1 = >10% pages failed.
+     */
+    $svc = getenv('MW_SVC_URL') ?: 'http://mediawiki-svc.mediawiki.svc.cluster.local:80';
+    $parallel = (int)(getenv('MW_WARM_PARALLEL') ?: 8);
+    $timeout = (int)(getenv('MW_WARM_TIMEOUT') ?: 60);
+
+    echo "[cache-warm] START " . gmdate('Y-m-d\TH:i:s\Z') . "\n";
+    echo "[cache-warm] Service: $svc, parallel: $parallel, timeout: {$timeout}s\n";
+
+    // Step 1: Get all page titles via API
+    $titles = [];
+    $apcontinue = '';
+    do {
+        $url = "$svc/api.php?action=query&list=allpages&aplimit=500&format=json";
+        if ($apcontinue) $url .= "&apcontinue=" . urlencode($apcontinue);
+        $ctx = stream_context_create(['http' => ['timeout' => 30]]);
+        $raw = file_get_contents($url, false, $ctx);
+        $resp = json_decode($raw, true);
+        if (!$resp || !isset($resp['query']['allpages'])) {
+            echo "[cache-warm] ERROR: API failed\n";
+            exit(1);
+        }
+        foreach ($resp['query']['allpages'] as $p) {
+            $titles[] = $p['title'];
+        }
+        $apcontinue = $resp['continue']['apcontinue'] ?? '';
+    } while ($apcontinue);
+
+    $total = count($titles);
+    echo "[cache-warm] Found $total pages to warm\n";
+
+    // Step 2: Warm each page via multi-curl
+    $ok = 0; $fail = 0; $failures = [];
+    for ($i = 0; $i < $total; $i += $parallel) {
+        $mh = curl_multi_init();
+        $handles = [];
+        for ($j = $i; $j < min($i + $parallel, $total); $j++) {
+            $encoded = str_replace(' ', '_', $titles[$j]);
+            $ch = curl_init("$svc/" . rawurlencode($encoded));
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_TIMEOUT, $timeout);
+            curl_multi_add_handle($mh, $ch);
+            $handles[$j] = $ch;
+        }
+        do { $status = curl_multi_exec($mh, $active); } while ($status === CURLM_CALL_MULTI_PERFORM);
+        while ($active && $status === CURLM_OK) {
+            if (curl_multi_select($mh, 10) === -1) usleep(100000);
+            do { $status = curl_multi_exec($mh, $active); } while ($status === CURLM_CALL_MULTI_PERFORM);
+        }
+        foreach ($handles as $idx => $ch) {
+            $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            if ($code === 200) { $ok++; } else { $fail++; $failures[] = "$code {$titles[$idx]}"; }
+            curl_multi_remove_handle($mh, $ch);
+            curl_close($ch);
+        }
+        curl_multi_close($mh);
+        if (($ok + $fail) % 100 < $parallel) {
+            echo "[cache-warm] Progress: " . ($ok + $fail) . "/$total (ok=$ok, fail=$fail)\n";
+        }
+    }
+
+    echo "[cache-warm] COMPLETE: $ok ok, $fail failed out of $total pages\n";
+    if ($failures) {
+        echo "[cache-warm] Failures:\n";
+        foreach (array_slice($failures, 0, 20) as $f) echo "  $f\n";
+        if (count($failures) > 20) echo "  ... and " . (count($failures) - 20) . " more\n";
+    }
+    echo "[cache-warm] DONE " . gmdate('Y-m-d\TH:i:s\Z') . "\n";
+
+    // Fail the job if >10% of pages failed
+    exit($fail > $total * 0.1 ? 1 : 0);
