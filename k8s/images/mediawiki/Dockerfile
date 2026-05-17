@@ -5,20 +5,27 @@
 #
 # Extensions are grouped by category. All from REL1_45 branch unless noted.
 #
+# BUNDLED with base image (DO NOT clone — already present):
+#   AbuseFilter, AdvancedSearch, CategoryTree, CheckUser, Cite,
+#   CiteThisPage, CodeEditor, CodeMirror, ConfirmEdit, DiscussionTools,
+#   Echo, Gadgets, ImageMap, InputBox, Interwiki, Math, MultimediaViewer,
+#   Nuke, OATHAuth, PageImages, PdfHandler, Poem, Renameuser, ReplaceText,
+#   Scribunto, SecureLinkFixer, SpamBlacklist, SyntaxHighlight,
+#   TemplateData, TextExtracts, Thanks, TitleBlacklist, VisualEditor,
+#   WikiEditor
+#
 # Build:
 #   docker build -t ghcr.io/tellmey18/mediawiki:latest .
 
 FROM mediawiki:stable-fpm-alpine
 
 # Install dependencies + Caddy
-RUN apk add --no-cache git lua5.1 unzip curl caddy supervisor graphviz
+RUN apk add --no-cache git lua5.1 unzip curl caddy supervisor
 
 # ─── Extensions: Content & Navigation ────────────────────────────────────────
 RUN cd /var/www/html/extensions && \
-    # Cargo — structured data storage & querying (member directories, event databases)
-    git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/Cargo && \
-    # CategoryTree — interactive collapsible category browser
-    git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/CategoryTree && \
+    # Cargo — structured data storage & querying (master — no REL1_45 branch)
+    git clone --depth 1 https://gerrit.wikimedia.org/r/mediawiki/extensions/Cargo && \
     # Disambiguator — mark and track disambiguation pages
     git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/Disambiguator && \
     # DisplayTitle — custom display titles for pages
@@ -34,16 +41,10 @@ RUN cd /var/www/html/extensions && \
 
 # ─── Extensions: User Engagement & Social ────────────────────────────────────
 RUN cd /var/www/html/extensions && \
-    # Echo — in-wiki notifications (mentions, watchlist, replies)
-    git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/Echo && \
-    # Thanks — "thank" button for edits
-    git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/Thanks && \
     # AJAXPoll — inline polls on wiki pages
     git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/AJAXPoll && \
     # CommentStreams — threaded discussion comments on any page
     git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/CommentStreams && \
-    # DiscussionTools — modern discussion/reply tools (used on Wikipedia)
-    git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/DiscussionTools && \
     # Comments — simple page comments
     git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/Comments && \
     # VoteNY — vote/rate pages
@@ -59,10 +60,6 @@ RUN cd /var/www/html/extensions && \
 
 # ─── Extensions: Content Quality & Moderation ────────────────────────────────
 RUN cd /var/www/html/extensions && \
-    # AbuseFilter — programmable anti-abuse rules (auto-block spam, vandalism)
-    git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/AbuseFilter && \
-    # CheckUser — check IP addresses behind accounts (anti-sockpuppet)
-    git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/CheckUser && \
     # SmiteSpam — spam fighting tools
     git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/SmiteSpam && \
     # UserMerge — merge duplicate user accounts
@@ -70,10 +67,6 @@ RUN cd /var/www/html/extensions && \
 
 # ─── Extensions: Visual & UX ─────────────────────────────────────────────────
 RUN cd /var/www/html/extensions && \
-    # CodeMirror — syntax-highlighted source editor
-    git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/CodeMirror && \
-    # AdvancedSearch — enhanced search UI with filters
-    git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/AdvancedSearch && \
     # DarkMode — dark theme toggle
     git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/DarkMode && \
     # Popups — page previews on hover
@@ -89,11 +82,6 @@ RUN cd /var/www/html/extensions && \
     git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/RSS && \
     # HitCounters — page view counts
     git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/HitCounters
-
-# ─── Extensions: Diagrams ────────────────────────────────────────────────────
-RUN cd /var/www/html/extensions && \
-    # Diagrams — render Mermaid/PlantUML/Graphviz inline
-    git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/Diagrams
 
 # ─── Extensions: Analytics ───────────────────────────────────────────────────
 RUN cd /var/www/html/extensions && \
