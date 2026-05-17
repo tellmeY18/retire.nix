@@ -17,3 +17,4 @@ resources:
   - localsettings-configmap.yaml
   - tailscale-service.yaml
   - ingress-traefik.yaml
+  - opensearch.yaml

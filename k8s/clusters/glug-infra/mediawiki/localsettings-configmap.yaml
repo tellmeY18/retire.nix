@@ -138,6 +138,18 @@ data:
     wfLoadExtension( 'CommentStreams' );
     wfLoadExtension( 'EmbedVideo' );
     wfLoadExtension( 'PageViewInfo' );
+
+    ## Extensions — Search (CirrusSearch + OpenSearch)
+    wfLoadExtension( 'Elastica' );
+    wfLoadExtension( 'CirrusSearch' );
+    $wgSearchType = 'CirrusSearch';
+    $wgCirrusSearchClusters = [
+        'default' => [ 'opensearch.mediawiki.svc' ],
+    ];
+    # Use completion suggester for autocomplete
+    $wgCirrusSearchUseCompletionSuggester = true;
+    # Enable phrase suggestions ("Did you mean...")
+    $wgCirrusSearchEnablePhraseSuggest = true;
     # DISABLED: incompatible with MW 1.44 (uses removed rev_user column)
     # wfLoadExtension( 'ContributionScores' );
     # DISABLED: incompatible with MW 1.44 (uses removed getDBLoadBalancer())

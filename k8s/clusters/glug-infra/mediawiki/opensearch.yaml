@@ -1,0 +1,102 @@
+---
+# OpenSearch — search backend for CirrusSearch.
+# Single-node, discovery.type=single-node, no security plugin (internal only).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: opensearch
+  namespace: mediawiki
+  labels:
+    app.kubernetes.io/name: opensearch
+    app.kubernetes.io/component: search-backend
+    app.kubernetes.io/part-of: mediawiki
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: opensearch
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: opensearch
+    spec:
+      containers:
+        - name: opensearch
+          image: opensearchproject/opensearch:1.3.19
+          env:
+            - name: discovery.type
+              value: single-node
+            - name: DISABLE_SECURITY_PLUGIN
+              value: "true"
+            - name: OPENSEARCH_JAVA_OPTS
+              value: "-Xms512m -Xmx512m"
+            - name: cluster.name
+              value: mediawiki-search
+          ports:
+            - name: http
+              containerPort: 9200
+            - name: transport
+              containerPort: 9300
+          volumeMounts:
+            - name: data
+              mountPath: /usr/share/opensearch/data
+          resources:
+            requests:
+              cpu: 200m
+              memory: 768Mi
+            limits:
+              cpu: "2"
+              memory: 1536Mi
+          readinessProbe:
+            httpGet:
+              path: /_cluster/health?local=true
+              port: 9200
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /_cluster/health?local=true
+              port: 9200
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 5
+          startupProbe:
+            httpGet:
+              path: /_cluster/health?local=true
+              port: 9200
+            initialDelaySeconds: 15
+            periodSeconds: 5
+            failureThreshold: 30
+      volumes:
+        - name: data
+          emptyDir:
+            sizeLimit: 2Gi
+      # Prefer compute node (kenobi) but allow chopper as fallback
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              preference:
+                matchExpressions:
+                  - key: node-role.glug.infra/compute
+                    operator: In
+                    values: ["true"]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: opensearch
+  namespace: mediawiki
+spec:
+  selector:
+    app.kubernetes.io/name: opensearch
+  ports:
+    - name: http
+      port: 9200
+      targetPort: 9200
+    - name: transport
+      port: 9300
+      targetPort: 9300
