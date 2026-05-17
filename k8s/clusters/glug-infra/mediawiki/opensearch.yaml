@@ -78,16 +78,13 @@ spec:
         - name: data
           emptyDir:
             sizeLimit: 2Gi
-      # Prefer compute node (kenobi) but allow chopper as fallback
-      affinity:
-        nodeAffinity:
-          preferredDuringSchedulingIgnoredDuringExecution:
-            - weight: 100
-              preference:
-                matchExpressions:
-                  - key: node-role.glug.infra/compute
-                    operator: In
-                    values: ["true"]
+      # Run on compute node (kenobi) — has the RAM for JVM.
+      # Index data is ephemeral (emptyDir) — if pod restarts, re-index
+      # with `just k8s::reindex-search`. This is fast (~3 min) and only
+      # needed on pod restart, NOT on every wiki edit (CirrusSearch
+      # indexes edits in real-time via hooks).
+      nodeSelector:
+        node-role.glug.infra/compute: "true"
 ---
 apiVersion: v1
 kind: Service

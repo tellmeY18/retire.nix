@@ -163,6 +163,34 @@ upgrade:
     fi
     echo "✓ All releases deployed successfully"
 
+# Rebuild the CirrusSearch index (parallel across all mediawiki pods).
+# Only needed after OpenSearch pod restart — NOT after wiki edits.
+# Takes ~3 min for ~1000 pages.
+[doc('Rebuild MediaWiki search index (after OpenSearch restart)')]
+reindex-search:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    PODS=$(kubectl get pods -n mediawiki -l app.kubernetes.io/name=mediawiki -o jsonpath='{.items[*].metadata.name}')
+    POD_ARR=($PODS)
+    TOTAL=1144
+    N=${#POD_ARR[@]}
+    CHUNK=$((TOTAL / N + 1))
+    echo "Rebuilding search index across $N pods (~$CHUNK pages each)..."
+    # Step 1: recreate index config
+    kubectl exec -n mediawiki ${POD_ARR[0]} -c mediawiki -- \
+      php /var/www/html/extensions/CirrusSearch/maintenance/UpdateSearchIndexConfig.php 2>&1 | grep -v "^Deprecated"
+    # Step 2: parallel index
+    for i in $(seq 0 $((N-1))); do
+      FROM=$((i * CHUNK + 1))
+      TO=$(( (i+1) * CHUNK ))
+      [ $TO -gt $TOTAL ] && TO=$TOTAL
+      echo "  ${POD_ARR[$i]}: pages $FROM-$TO"
+      kubectl exec -n mediawiki ${POD_ARR[$i]} -c mediawiki -- \
+        sh -c "nohup php /var/www/html/extensions/CirrusSearch/maintenance/ForceSearchIndex.php --skipLinks --indexOnSkip --fromId $FROM --toId $TO > /tmp/index.log 2>&1 &"
+    done
+    echo "✓ Indexing running in background on $N pods."
+    echo "  Check progress: kubectl exec -n mediawiki <pod> -c mediawiki -- tail -3 /tmp/index.log"
+
 # Render the fully-merged helm output (values.yaml + decrypted secrets.yaml)
 # without touching the cluster. Useful to confirm sensitive overrides are
 # coming through before the first apply.
