@@ -5,7 +5,7 @@ metadata:
   name: mediawiki-tailscale
   namespace: mediawiki
   annotations:
-    tailscale.com/funnel: "true"
+    tailscale.com/funnel: "false"
 spec:
   ingressClassName: tailscale
   defaultBackend:

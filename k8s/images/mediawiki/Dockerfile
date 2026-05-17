@@ -129,7 +129,7 @@ RUN echo '[www]' > /usr/local/etc/php-fpm.d/zz-tuning.conf && \
     echo 'pm.start_servers = 5' >> /usr/local/etc/php-fpm.d/zz-tuning.conf && \
     echo 'pm.min_spare_servers = 3' >> /usr/local/etc/php-fpm.d/zz-tuning.conf && \
     echo 'pm.max_spare_servers = 10' >> /usr/local/etc/php-fpm.d/zz-tuning.conf && \
-    echo 'request_terminate_timeout = 30' >> /usr/local/etc/php-fpm.d/zz-tuning.conf
+    echo 'request_terminate_timeout = 300' >> /usr/local/etc/php-fpm.d/zz-tuning.conf
 
 # FOSSCELL NITC favicon/logo
 COPY favicon.svg /var/www/html/favicon.svg
