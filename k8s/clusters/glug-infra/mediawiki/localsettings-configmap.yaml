@@ -41,6 +41,7 @@ data:
         'class' => 'RedisBagOStuff',
         'servers' => [ 'redis.mediawiki.svc:6379' ],
         'persistent' => true,
+        'connectTimeout' => 1,
     ];
 
     # Use Redis for the main object cache too (parsed pages, user objects)
