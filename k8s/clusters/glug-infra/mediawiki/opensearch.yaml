@@ -30,10 +30,14 @@ spec:
               value: single-node
             - name: DISABLE_SECURITY_PLUGIN
               value: "true"
+            - name: DISABLE_INSTALL_DEMO_CONFIG
+              value: "true"
             - name: OPENSEARCH_JAVA_OPTS
-              value: "-Xms512m -Xmx512m"
+              value: "-Xms512m -Xmx512m -Djava.net.preferIPv4Stack=true"
             - name: cluster.name
               value: mediawiki-search
+            - name: network.host
+              value: "0.0.0.0"
           ports:
             - name: http
               containerPort: 9200

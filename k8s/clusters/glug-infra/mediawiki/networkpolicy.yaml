@@ -25,6 +25,29 @@ spec:
         - port: 80
           protocol: TCP
 ---
+# Allow ingress to OpenSearch from mediawiki pods (CirrusSearch).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-opensearch-ingress
+  namespace: mediawiki
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: opensearch
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: mediawiki
+      ports:
+        - port: 9200
+          protocol: TCP
+        - port: 9300
+          protocol: TCP
+---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -37,20 +60,29 @@ spec:
   policyTypes:
     - Egress
   egress:
+    # DNS
     - ports:
         - port: 53
           protocol: UDP
         - port: 53
           protocol: TCP
+    # MySQL (PXC HAProxy)
     - ports:
         - port: 3306
           protocol: TCP
+    # RustFS S3
     - ports:
         - port: 9000
           protocol: TCP
+    # HTTPS (external)
     - ports:
         - port: 443
           protocol: TCP
+    # HTTP (external)
     - ports:
         - port: 80
+          protocol: TCP
+    # OpenSearch (CirrusSearch)
+    - ports:
+        - port: 9200
           protocol: TCP

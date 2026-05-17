@@ -111,6 +111,8 @@ data:
     wfLoadExtension( 'Echo' );
     wfLoadExtension( 'Thanks' );
     wfLoadExtension( 'CheckUser' );
+    wfLoadExtension( 'VisualEditor' );
+    wfLoadExtension( 'Linter' );
     wfLoadExtension( 'DiscussionTools' );
 
     ## Extensions — Custom (cloned in Dockerfile)
@@ -135,7 +137,8 @@ data:
     wfLoadExtension( 'BreadCrumbs2' );
     wfLoadExtension( 'CollapsibleSections' );
     wfLoadExtension( 'AJAXPoll' );
-    wfLoadExtension( 'CommentStreams' );
+    # DISABLED: CommentStreams incompatible with MW 1.45 (mwsInitComponents removed)
+    # wfLoadExtension( 'CommentStreams' );
     wfLoadExtension( 'EmbedVideo' );
     wfLoadExtension( 'PageViewInfo' );
 
