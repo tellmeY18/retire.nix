@@ -47,6 +47,8 @@ spec:
               value: "wiki.fosscell.org"
             - name: DIFFICULTY
               value: "4"
+            - name: SERVE_ROBOTS_TXT
+              value: "true"
           ports:
             - name: http
               containerPort: 8080
