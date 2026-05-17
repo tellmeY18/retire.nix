@@ -12,7 +12,7 @@ $errors = [];
 
 // --- MySQL check (mysqli, SELECT 1) ---
 try {
-  $host = getenv("MW_DB_HOST") ?: "mysql-pxc-db-haproxy.pxc-clusters.svc";
+  $host = getenv("MW_DB_HOST") ?: "mysql-proxy.mediawiki.svc.cluster.local";
   $user = getenv("MW_DB_USER") ?: "mediawiki";
   $pass = getenv("MW_DB_PASSWORD") ?: "";
   $db = getenv("MW_DB_NAME") ?: "mediawiki";
@@ -32,7 +32,11 @@ try {
 // --- Redis check (PING) ---
 try {
   $redis = new Redis();
-  $redis->connect(getenv("MW_REDIS_HOST") ?: "redis.mediawiki.svc", 6379, 2);
+  $redis->connect(
+    getenv("MW_REDIS_HOST") ?: "redis.mediawiki.svc.cluster.local",
+    6379,
+    2,
+  );
   if ($redis->ping()) {
     $checks["redis"] = true;
   } else {

@@ -171,8 +171,8 @@ pxc:
 # tailscale-mysql-service.yaml) targets the HAProxy pods.
 haproxy:
   enabled: true
-  # Single HAProxy instance for Phase 1 (single k3s node).
-  # Bump to 2 when a second schedulable node joins.
+  # Single Percona HAProxy on chopper (amd64 only image).
+  # A separate multi-arch TCP proxy runs on kenobi for MediaWiki.
   size: 1
 
   # The upstream chart expects haproxy.image as a plain string (unlike
