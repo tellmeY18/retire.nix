@@ -16,6 +16,12 @@ spec:
       services:
         - name: answer-svc
           port: 80
+          sticky:
+            cookie:
+              name: answer_affinity
+              httpOnly: true
+              secure: true
+              sameSite: lax
   tls:
     certResolver: letsencrypt
 ---
