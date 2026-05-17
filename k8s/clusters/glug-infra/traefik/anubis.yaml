@@ -92,6 +92,6 @@ metadata:
   namespace: traefik-system
 spec:
   forwardAuth:
-    address: http://anubis.traefik-system.svc:8080/.within.website/x/cmd/anubis/api/check
+    address: http://10.43.97.18:8080/.within.website/x/cmd/anubis/api/check
     authResponseHeaders:
       - X-Anubis-Status
