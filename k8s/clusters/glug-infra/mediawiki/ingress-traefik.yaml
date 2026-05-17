@@ -1,6 +1,6 @@
 ---
 # Traefik IngressRoute for MediaWiki.
-# Public URL: https://wiki.kenobi.win
+# Public URL: https://wiki.fosscell.org
 # TLS: Let's Encrypt via Traefik ACME.
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
@@ -13,6 +13,13 @@ spec:
   routes:
     - match: Host(`wiki.fosscell.org`)
       kind: Rule
+      middlewares:
+        - name: anubis-check
+          namespace: traefik-system
+        - name: wiki-rate-limit
+          namespace: mediawiki
+        - name: wiki-bot-headers
+          namespace: mediawiki
       services:
         - name: mediawiki-svc
           port: 80
@@ -37,3 +44,32 @@ spec:
       services:
         - name: mediawiki-svc
           port: 80
+---
+# Rate limit — throttle aggressive crawlers.
+# Real users: 50 req/s average, burst up to 100.
+# Bots hitting /index.php?action=... at 10 req/s get queued/dropped.
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: wiki-rate-limit
+  namespace: mediawiki
+spec:
+  rateLimit:
+    average: 30
+    burst: 60
+    period: 1s
+    sourceCriterion:
+      ipStrategy:
+        depth: 1
+---
+# Add headers to signal bot handling.
+# X-Robots-Tag tells well-behaved bots to slow down.
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: wiki-bot-headers
+  namespace: mediawiki
+spec:
+  headers:
+    customResponseHeaders:
+      X-Robots-Tag: "noai, noimageai"
