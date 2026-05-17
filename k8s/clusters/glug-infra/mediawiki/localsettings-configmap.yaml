@@ -128,13 +128,13 @@ data:
     wfLoadExtension( 'PageImages' );
     wfLoadExtension( 'TextExtracts' );
     wfLoadExtension( 'Nuke' );
-    wfLoadExtension( 'CategoryTree' );
-    wfLoadExtension( 'Echo' );
-    wfLoadExtension( 'Thanks' );
-    wfLoadExtension( 'CheckUser' );
-    wfLoadExtension( 'VisualEditor' );
-    wfLoadExtension( 'Linter' );
-    wfLoadExtension( 'DiscussionTools' );
+    # wfLoadExtension( 'CategoryTree' );
+    # wfLoadExtension( 'Echo' );
+    # wfLoadExtension( 'Thanks' );
+    # wfLoadExtension( 'CheckUser' );
+    # wfLoadExtension( 'VisualEditor' );
+    # wfLoadExtension( 'Linter' );
+    # wfLoadExtension( 'DiscussionTools' );
 
     ## Extensions — Custom (cloned in Dockerfile)
     wfLoadExtension( 'DarkMode' );
@@ -151,31 +151,23 @@ data:
     wfLoadExtension( 'BlogPage' );
     require_once "$IP/extensions/SocialProfile/SocialProfile.php";
 
-    ## Extensions — NEW
-    wfLoadExtension( 'Cargo' );
-    wfLoadExtension( 'Disambiguator' );
-    wfLoadExtension( 'DisplayTitle' );
-    wfLoadExtension( 'BreadCrumbs2' );
-    wfLoadExtension( 'CollapsibleSections' );
-    wfLoadExtension( 'AJAXPoll' );
-    # DISABLED: CommentStreams incompatible with MW 1.45 (mwsInitComponents removed)
-    # wfLoadExtension( 'CommentStreams' );
-    # DISABLED: EmbedVideo causes 500 errors (premature service access + Content-Length mismatch)
-    # wfLoadExtension( 'EmbedVideo' );
-    # $wgEmbedVideoEnableVideoHandler = false;
-    wfLoadExtension( 'PageViewInfo' );
+    ## Extensions — NEW (require maintenance/update.php to create DB tables)
+    # TEMPORARILY DISABLED — need to run update.php first
+    # wfLoadExtension( 'Cargo' );
+    # wfLoadExtension( 'Disambiguator' );
+    # wfLoadExtension( 'DisplayTitle' );
+    # wfLoadExtension( 'BreadCrumbs2' );
+    # wfLoadExtension( 'CollapsibleSections' );
+    # wfLoadExtension( 'AJAXPoll' );
+    # wfLoadExtension( 'PageViewInfo' );
 
     ## Extensions — Search (CirrusSearch + OpenSearch)
-    wfLoadExtension( 'Elastica' );
-    wfLoadExtension( 'CirrusSearch' );
-    $wgSearchType = 'CirrusSearch';
-    $wgCirrusSearchClusters = [
-        'default' => [ 'opensearch.mediawiki.svc' ],
-    ];
-    # Use completion suggester for autocomplete
-    $wgCirrusSearchUseCompletionSuggester = true;
-    # Enable phrase suggestions ("Did you mean...")
-    $wgCirrusSearchEnablePhraseSuggest = true;
+    # TEMPORARILY DISABLED — CirrusSearch blocks all PHP workers when
+    # OpenSearch connection stalls, causing site-wide 500s.
+    # Re-enable once connection timeout is verified working.
+    # wfLoadExtension( 'Elastica' );
+    # wfLoadExtension( 'CirrusSearch' );
+    # $wgSearchType = 'CirrusSearch';
     # DISABLED: incompatible with MW 1.44 (uses removed rev_user column)
     # wfLoadExtension( 'ContributionScores' );
     # DISABLED: incompatible with MW 1.44 (uses removed getDBLoadBalancer())
@@ -217,6 +209,6 @@ data:
     $wgCachePages = false;
     $wgEnableMetaDescriptionFunctions = true;
     $wgShowExceptionDetails = false;
-    $wgDeprecationReleaseLimit = '1.44'; # suppress deprecation notices for functions deprecated before 1.44
+    $wgDeprecationReleaseLimit = '1.44';
     error_reporting( E_ALL & ~E_DEPRECATED & ~E_STRICT );
     ini_set('display_errors', '0');

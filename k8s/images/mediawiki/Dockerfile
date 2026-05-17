@@ -120,15 +120,16 @@ RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local
 # Lua for Scribunto
 RUN ln -sf /usr/bin/lua5.1 /usr/bin/lua || true
 
-# Create file cache directory (used by $wgUseFileCache for anonymous users)
-RUN mkdir -p /tmp/mediawiki-cache && chmod 777 /tmp/mediawiki-cache
+# Create a static health check file (served by Caddy, no PHP needed)
+RUN echo 'OK' > /var/www/html/health.txt
 
 # Tune PHP-FPM for higher concurrency (default max_children=5 is too low)
 RUN echo '[www]' > /usr/local/etc/php-fpm.d/zz-tuning.conf && \
     echo 'pm.max_children = 20' >> /usr/local/etc/php-fpm.d/zz-tuning.conf && \
     echo 'pm.start_servers = 5' >> /usr/local/etc/php-fpm.d/zz-tuning.conf && \
     echo 'pm.min_spare_servers = 3' >> /usr/local/etc/php-fpm.d/zz-tuning.conf && \
-    echo 'pm.max_spare_servers = 10' >> /usr/local/etc/php-fpm.d/zz-tuning.conf
+    echo 'pm.max_spare_servers = 10' >> /usr/local/etc/php-fpm.d/zz-tuning.conf && \
+    echo 'request_terminate_timeout = 30' >> /usr/local/etc/php-fpm.d/zz-tuning.conf
 
 # FOSSCELL NITC favicon/logo
 COPY favicon.svg /var/www/html/favicon.svg
