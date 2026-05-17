@@ -9,15 +9,6 @@ data:
     <?php
     if ( !defined( 'MEDIAWIKI' ) ) { exit; }
 
-    # Workaround: Caddy reverse_proxy + transport fastcgi does not always
-    # set REMOTE_ADDR when using path_regexp matchers in a route block.
-    # Without this, rest.php throws "Unable to determine IP".
-    if ( empty( $_SERVER['REMOTE_ADDR'] ) ) {
-        $_SERVER['REMOTE_ADDR'] = $_SERVER['HTTP_X_REAL_IP']
-            ?? $_SERVER['HTTP_X_FORWARDED_FOR']
-            ?? '127.0.0.1';
-    }
-
     ## Core settings
     $wgSitename = "WIKI FOSSCELL NITC";
     $wgMetaNamespace = "WIKI_FOSSCELL_NITC";

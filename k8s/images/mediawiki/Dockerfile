@@ -120,6 +120,22 @@ RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local
 # Lua for Scribunto
 RUN ln -sf /usr/bin/lua5.1 /usr/bin/lua || true
 
+# Fix PHP 8.3 compatibility: MediaWiki Rest\StringStream must match PSR-7
+# StreamInterface return types (PHP 8.3 enforces these strictly).
+# See: https://phabricator.wikimedia.org/T359753
+RUN cd /var/www/html/includes/Rest && \
+    sed -i 's/public function close() {/public function close(): void {/' StringStream.php && \
+    sed -i 's/public function getSize() {/public function getSize(): ?int {/' StringStream.php && \
+    sed -i 's/public function tell() {/public function tell(): int {/' StringStream.php && \
+    sed -i 's/public function eof() {/public function eof(): bool {/' StringStream.php && \
+    sed -i 's/public function isSeekable() {/public function isSeekable(): bool {/' StringStream.php && \
+    sed -i 's/public function rewind() {/public function rewind(): void {/' StringStream.php && \
+    sed -i 's/public function isWritable() {/public function isWritable(): bool {/' StringStream.php && \
+    sed -i 's/public function isReadable() {/public function isReadable(): bool {/' StringStream.php && \
+    sed -i 's/public function getContents() {/public function getContents(): string {/' StringStream.php && \
+    sed -i 's/public function __toString() {/public function __toString(): string {/' StringStream.php && \
+    sed -i 's/public function detach() {/public function detach(): mixed {/' StringStream.php
+
 # Create a static health check file (served by Caddy, no PHP needed)
 RUN echo 'OK' > /var/www/html/health.txt
 
