@@ -102,6 +102,11 @@ data:
     $wgEnableUploads = true;
     $wgGenerateThumbnailOnParse = true;
 
+    ## Wikimedia Commons — foreign file repository.
+    ## Files referenced via [[File:...]] that don’t exist locally are
+    ## fetched from Commons on the fly (thumbnails cached per apiThumbCacheExpiry).
+    $wgUseInstantCommons = true;
+
     ## AWS S3 storage backend
     wfLoadExtension( 'AWS' );
     $wgAWSCredentials = [
