@@ -74,15 +74,21 @@ spec:
             initialDelaySeconds: 15
             periodSeconds: 5
             failureThreshold: 30
+      initContainers:
+        - name: fix-permissions
+          image: busybox
+          command: ["sh", "-c", "chown -R 1000:1000 /usr/share/opensearch/data"]
+          volumeMounts:
+            - name: data
+              mountPath: /usr/share/opensearch/data
       volumes:
         - name: data
-          emptyDir:
-            sizeLimit: 2Gi
+          hostPath:
+            path: /var/lib/opensearch
+            type: DirectoryOrCreate
       # Run on compute node (kenobi) — has the RAM for JVM.
-      # Index data is ephemeral (emptyDir) — if pod restarts, re-index
-      # with `just k8s::reindex-search`. This is fast (~3 min) and only
-      # needed on pod restart, NOT on every wiki edit (CirrusSearch
-      # indexes edits in real-time via hooks).
+      # Index data persists via hostPath — survives pod restarts.
+      # Only lost if kenobi itself is rebuilt (then: just k8s::reindex-search).
       nodeSelector:
         node-role.glug.infra/compute: "true"
 ---
