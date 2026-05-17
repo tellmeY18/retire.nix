@@ -27,7 +27,7 @@ spec:
     spec:
       containers:
         - name: mediawiki
-          image: ghcr.io/tellmey18/mediawiki:build-20
+          image: ghcr.io/tellmey18/mediawiki:build-21
           ports:
             - name: http
               containerPort: 80
@@ -48,27 +48,27 @@ spec:
               memory: 1Gi
           livenessProbe:
             httpGet:
-              path: /
+              path: /health.txt
               port: 80
             initialDelaySeconds: 60
             periodSeconds: 30
-            timeoutSeconds: 10
+            timeoutSeconds: 5
             failureThreshold: 5
           readinessProbe:
             httpGet:
-              path: /
+              path: /health.txt
               port: 80
-            initialDelaySeconds: 20
+            initialDelaySeconds: 10
             periodSeconds: 10
-            timeoutSeconds: 10
+            timeoutSeconds: 5
             failureThreshold: 3
           startupProbe:
             httpGet:
-              path: /
+              path: /health.txt
               port: 80
-            initialDelaySeconds: 10
-            periodSeconds: 5
-            timeoutSeconds: 10
+            initialDelaySeconds: 5
+            periodSeconds: 3
+            timeoutSeconds: 5
             failureThreshold: 30
 
       volumes:

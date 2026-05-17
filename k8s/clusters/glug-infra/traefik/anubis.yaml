@@ -49,6 +49,9 @@ spec:
               value: "4"
             - name: SERVE_ROBOTS_TXT
               value: "true"
+            # Use X-Real-Ip from Traefik to identify clients
+            - name: USE_REMOTE_ADDRESS
+              value: "false"
           ports:
             - name: http
               containerPort: 8080
