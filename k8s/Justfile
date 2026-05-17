@@ -21,6 +21,31 @@ set working-directory := '.'
 default:
     @just --list
 
+# Quick cluster health check.
+[doc('Show cluster health: nodes, releases, pods, services')]
+status:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo "=== Nodes ==="
+    kubectl get nodes -o wide
+    echo ""
+    echo "=== Helm Releases ==="
+    helm list -A
+    echo ""
+    echo "=== Unhealthy Pods ==="
+    BAD=$(kubectl get pods -A --no-headers | grep -v 'Running\|Completed')
+    if [ -n "$BAD" ]; then
+      echo "$BAD"
+    else
+      echo "All pods healthy ✓"
+    fi
+    echo ""
+    echo "=== Public Services ==="
+    for url in https://tellmey.fyi https://wiki.fosscell.org https://ask.kenobi.win; do
+      STATUS=$(curl -so /dev/null -w "%{http_code}" --connect-timeout 5 "$url" 2>/dev/null || echo "TIMEOUT")
+      printf "  %-30s %s\n" "$url" "$STATUS"
+    done
+
 # ---------------------------------------------------------------------------
 # Kubeconfig (remote fetch from chopper over Tailscale)
 # ---------------------------------------------------------------------------
@@ -103,6 +128,40 @@ diff:
     kubectl diff -k clusters/glug-infra/changala || true
     kubectl diff -k clusters/glug-infra/monitoring || true
     helmfile diff
+
+# Upgrade all Helm releases gracefully. Handles stuck pending releases
+# by rolling back before retrying. Use this instead of `apply` when
+# bumping chart versions.
+[doc('Upgrade all Helm releases (handles stuck releases)')]
+upgrade:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo "=== Checking for stuck releases ==="
+    STUCK=$(helm list -A --all --output json | jq -r '.[] | select(.status == "pending-install" or .status == "pending-upgrade") | "\(.name) \(.namespace)"')
+    if [ -n "$STUCK" ]; then
+      echo "Found stuck releases, fixing..."
+      while IFS=' ' read -r name ns; do
+        echo "  Fixing $name in $ns..."
+        if [ "$(helm history "$name" -n "$ns" --output json | jq '.[0].revision')" = "1" ]; then
+          helm uninstall "$name" -n "$ns" 2>/dev/null || true
+        else
+          helm rollback "$name" 0 -n "$ns" 2>/dev/null || true
+        fi
+      done <<< "$STUCK"
+      sleep 3
+    fi
+    echo "=== Syncing all releases ==="
+    helmfile sync
+    echo "=== Verifying ==="
+    helm list -A
+    echo ""
+    FAILED=$(helm list -A --all --output json | jq -r '.[] | select(.status != "deployed") | "\(.name) (\(.status))"')
+    if [ -n "$FAILED" ]; then
+      echo "⚠️  Some releases are not deployed:"
+      echo "$FAILED"
+      exit 1
+    fi
+    echo "✓ All releases deployed successfully"
 
 # Render the fully-merged helm output (values.yaml + decrypted secrets.yaml)
 # without touching the cluster. Useful to confirm sensitive overrides are
