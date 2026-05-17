@@ -4,5 +4,6 @@ kind: Namespace
 metadata:
   name: mediawiki
   labels:
-    pod-security.kubernetes.io/enforce: baseline
+    # Privileged PSA required: Redis + OpenSearch use hostPath persistence.
+    pod-security.kubernetes.io/enforce: privileged
     pod-security.kubernetes.io/enforce-version: latest

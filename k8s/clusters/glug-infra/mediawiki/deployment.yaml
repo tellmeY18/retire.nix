@@ -1,6 +1,8 @@
 ---
-# MediaWiki — stateless deployment (Apache variant, single container).
-# Images stored in RustFS S3, database in PXC MySQL.
+# MediaWiki — stateless deployment (Caddy + PHP-FPM, single container).
+# Images stored in RustFS S3, database in PXC MySQL (on chopper via tailnet).
+# Redis + file cache absorb >95% of reads; only cache misses hit the DB.
+# Pinned to kenobi (compute node) — chopper is unreliable for sustained load.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -25,9 +27,11 @@ spec:
         app.kubernetes.io/name: mediawiki
         app.kubernetes.io/part-of: mediawiki
     spec:
+      nodeSelector:
+        node-role.glug.infra/compute: "true"
       containers:
         - name: mediawiki
-          image: ghcr.io/tellmey18/mediawiki:build-23
+          image: ghcr.io/tellmey18/mediawiki:build-24
           ports:
             - name: http
               containerPort: 80
@@ -39,6 +43,9 @@ spec:
             - name: localsettings
               mountPath: /var/www/html/LocalSettings.php
               subPath: LocalSettings.php
+            - name: healthcheck
+              mountPath: /var/www/html/healthcheck.php
+              subPath: healthcheck.php
           resources:
             requests:
               cpu: 100m
@@ -48,15 +55,15 @@ spec:
               memory: 1Gi
           livenessProbe:
             httpGet:
-              path: /health.txt
+              path: /healthcheck.php
               port: 80
-            initialDelaySeconds: 60
+            initialDelaySeconds: 30
             periodSeconds: 30
             timeoutSeconds: 5
-            failureThreshold: 5
+            failureThreshold: 3
           readinessProbe:
             httpGet:
-              path: /health.txt
+              path: /healthcheck.php
               port: 80
             initialDelaySeconds: 10
             periodSeconds: 10
@@ -75,6 +82,9 @@ spec:
         - name: localsettings
           configMap:
             name: mediawiki-localsettings
+        - name: healthcheck
+          configMap:
+            name: mediawiki-healthcheck
 ---
 apiVersion: v1
 kind: Service

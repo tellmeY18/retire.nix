@@ -30,28 +30,45 @@ data:
     $wgDBprefix = "";
     $wgDBTableOptions = "ENGINE=InnoDB, DEFAULT CHARSET=binary";
 
+    # Tolerate cross-tailnet latency on cache misses — don't let a slow
+    # DB connect kill the entire request. 10s connect + 30s query is
+    # enough for the worst case while still failing fast if MySQL is down.
+    $wgDBservers = [
+        [
+            'host' => 'mysql-pxc-db-haproxy.pxc-clusters.svc',
+            'dbname' => 'mediawiki',
+            'user' => 'mediawiki',
+            'password' => getenv('MW_DB_PASSWORD'),
+            'type' => 'mysql',
+            'flags' => DBO_DEFAULT,
+            'connTimeout' => 10,
+            'queryTimeout' => 30,
+        ],
+    ];
+
     ## Shared memory / caching
-    $wgMainCacheType = CACHE_ACCEL;  # APCu for local PHP process cache
+    # Redis — primary cache backend for all MW caches.
+    # Colocated on the same node as MediaWiki pods (kenobi).
+    $wgObjectCaches['redis'] = [
+        'class' => 'RedisBagOStuff',
+        'servers' => [ 'redis.mediawiki.svc:6379' ],
+        'persistent' => true,
+        'connectTimeout' => 1,
+    ];
+    $wgMainCacheType = 'redis';
+    $wgParserCacheType = 'redis';
+    $wgSessionCacheType = 'redis';
+    $wgMessageCacheType = 'redis';
 
-    # Redis cache — enable after build-21 (has php-redis + /tmp/mediawiki-cache)
-    # $wgObjectCaches['redis'] = [
-    #     'class' => 'RedisBagOStuff',
-    #     'servers' => [ 'redis.mediawiki.svc:6379' ],
-    #     'persistent' => true,
-    #     'connectTimeout' => 1,
-    # ];
-    # $wgMainCacheType = 'redis';
-    # $wgParserCacheType = 'redis';
-    # $wgSessionCacheType = 'redis';
-    # $wgMessageCacheType = 'redis';
-
-    # Parser cache expiry — 7 days
+    # Parser cache expiry — 7 days (covers most anon traffic without DB hit)
     $wgParserCacheExpireTime = 604800;
 
-    # File cache for anonymous users (enable with build-21)
-    # $wgUseFileCache = true;
-    # $wgFileCacheDirectory = '/tmp/mediawiki-cache';
-    # $wgShowIPinHeader = false;
+    # File cache for anonymous users — serves pre-rendered HTML without
+    # touching PHP at all on subsequent requests. Eliminates DB latency
+    # for the vast majority of traffic.
+    $wgUseFileCache = true;
+    $wgFileCacheDirectory = '/tmp/mediawiki-cache';
+    $wgShowIPinHeader = false;
 
     $wgMemCachedServers = [];
 
@@ -162,12 +179,14 @@ data:
     # wfLoadExtension( 'PageViewInfo' );
 
     ## Extensions — Search (CirrusSearch + OpenSearch)
-    # TEMPORARILY DISABLED — CirrusSearch blocks all PHP workers when
-    # OpenSearch connection stalls, causing site-wide 500s.
-    # Re-enable once connection timeout is verified working.
-    # wfLoadExtension( 'Elastica' );
-    # wfLoadExtension( 'CirrusSearch' );
-    # $wgSearchType = 'CirrusSearch';
+    wfLoadExtension( 'Elastica' );
+    wfLoadExtension( 'CirrusSearch' );
+    $wgSearchType = 'CirrusSearch';
+    $wgCirrusSearchServers = [ 'opensearch.mediawiki.svc:9200' ];
+    # Connection timeouts — prevent CirrusSearch from blocking PHP workers
+    # if OpenSearch is slow/down. Search degrades gracefully to DB fallback.
+    $wgCirrusSearchClientSideConnectTimeout = 3;
+    $wgCirrusSearchClientSideSearchTimeout = 10;
     # DISABLED: incompatible with MW 1.44 (uses removed rev_user column)
     # wfLoadExtension( 'ContributionScores' );
     # DISABLED: incompatible with MW 1.44 (uses removed getDBLoadBalancer())
@@ -206,9 +225,9 @@ data:
     };
 
     ## Misc
-    $wgCachePages = false;
+    $wgCachePages = true;
     $wgEnableMetaDescriptionFunctions = true;
-    $wgShowExceptionDetails = false;
+    $wgShowExceptionDetails = true;
     $wgDeprecationReleaseLimit = '1.44';
     error_reporting( E_ALL & ~E_DEPRECATED & ~E_STRICT );
     ini_set('display_errors', '0');

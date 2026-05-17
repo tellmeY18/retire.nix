@@ -123,6 +123,9 @@ RUN ln -sf /usr/bin/lua5.1 /usr/bin/lua || true
 # Create a static health check file (served by Caddy, no PHP needed)
 RUN echo 'OK' > /var/www/html/health.txt
 
+# Kubernetes healthcheck — verifies PHP + MySQL + Redis in <100ms
+COPY healthcheck.php /var/www/html/healthcheck.php
+
 # Tune PHP-FPM for higher concurrency (default max_children=5 is too low)
 RUN echo '[www]' > /usr/local/etc/php-fpm.d/zz-tuning.conf && \
     echo 'pm.max_children = 20' >> /usr/local/etc/php-fpm.d/zz-tuning.conf && \
