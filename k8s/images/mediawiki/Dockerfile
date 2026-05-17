@@ -1,7 +1,9 @@
-# MediaWiki with Caddy + PHP-FPM in a single container.
+# MediaWiki with Caddy + PHP-FPM + extensions in a single container.
 #
 # Caddy serves static files and proxies PHP to FPM (localhost:9000).
 # No Apache, no nginx sidecar, no shared volumes.
+#
+# Extensions are grouped by category. All from REL1_45 branch unless noted.
 #
 # Build:
 #   docker build -t ghcr.io/tellmey18/mediawiki:latest .
@@ -9,31 +11,104 @@
 FROM mediawiki:stable-fpm-alpine
 
 # Install dependencies + Caddy
-RUN apk add --no-cache git lua5.1 unzip curl caddy supervisor
+RUN apk add --no-cache git lua5.1 unzip curl caddy supervisor graphviz
 
-# Install only extensions NOT bundled in the base image.
-# Branch MUST match the base image MW version (stable = 1.45.x → REL1_45).
+# ─── Extensions: Content & Navigation ────────────────────────────────────────
 RUN cd /var/www/html/extensions && \
-    git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/DarkMode && \
-    git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/RSS && \
-    git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/ContributionScores && \
-    git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/Comments && \
-    git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/VoteNY && \
-    git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/BlogPage && \
-    git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/HitCounters && \
-    git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/Popups && \
-    git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/MobileFrontend && \
+    # Cargo — structured data storage & querying (member directories, event databases)
+    git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/Cargo && \
+    # CategoryTree — interactive collapsible category browser
+    git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/CategoryTree && \
+    # Disambiguator — mark and track disambiguation pages
+    git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/Disambiguator && \
+    # DisplayTitle — custom display titles for pages
+    git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/DisplayTitle && \
+    # BreadCrumbs2 — breadcrumb navigation from category hierarchy
+    git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/BreadCrumbs2 && \
+    # Description2 — meta descriptions for pages
     git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/Description2 && \
+    # RelatedArticles — show related pages at the bottom
     git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/RelatedArticles && \
-    git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/UserMerge && \
+    # CollapsibleSections — make page sections collapsible
+    git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/CollapsibleSections
+
+# ─── Extensions: User Engagement & Social ────────────────────────────────────
+RUN cd /var/www/html/extensions && \
+    # Echo — in-wiki notifications (mentions, watchlist, replies)
+    git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/Echo && \
+    # Thanks — "thank" button for edits
+    git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/Thanks && \
+    # AJAXPoll — inline polls on wiki pages
+    git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/AJAXPoll && \
+    # CommentStreams — threaded discussion comments on any page
+    git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/CommentStreams && \
+    # DiscussionTools — modern discussion/reply tools (used on Wikipedia)
+    git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/DiscussionTools && \
+    # Comments — simple page comments
+    git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/Comments && \
+    # VoteNY — vote/rate pages
+    git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/VoteNY && \
+    # SocialProfile — user profile pages
     git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/SocialProfile && \
+    # ContributionScores — leaderboard of top contributors
+    git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/ContributionScores && \
+    # BlogPage — blog-style pages
+    git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/BlogPage && \
+    # WhosOnline — show who's currently online
+    git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/WhosOnline
+
+# ─── Extensions: Content Quality & Moderation ────────────────────────────────
+RUN cd /var/www/html/extensions && \
+    # AbuseFilter — programmable anti-abuse rules (auto-block spam, vandalism)
+    git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/AbuseFilter && \
+    # CheckUser — check IP addresses behind accounts (anti-sockpuppet)
+    git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/CheckUser && \
+    # SmiteSpam — spam fighting tools
     git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/SmiteSpam && \
-    git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/WhosOnline && \
+    # UserMerge — merge duplicate user accounts
+    git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/UserMerge
+
+# ─── Extensions: Visual & UX ─────────────────────────────────────────────────
+RUN cd /var/www/html/extensions && \
+    # CodeMirror — syntax-highlighted source editor
+    git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/CodeMirror && \
+    # AdvancedSearch — enhanced search UI with filters
+    git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/AdvancedSearch && \
+    # DarkMode — dark theme toggle
+    git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/DarkMode && \
+    # Popups — page previews on hover
+    git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/Popups && \
+    # MobileFrontend — mobile-optimized interface
+    git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/MobileFrontend
+
+# ─── Extensions: Media & Embeds ──────────────────────────────────────────────
+RUN cd /var/www/html/extensions && \
+    # EmbedVideo — embed YouTube, Vimeo, etc.
+    git clone --depth 1 https://gitlab.com/hydrawiki/extensions/EmbedVideo.git EmbedVideo && \
+    # RSS — embed RSS feeds
+    git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/RSS && \
+    # HitCounters — page view counts
+    git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/HitCounters
+
+# ─── Extensions: Diagrams ────────────────────────────────────────────────────
+RUN cd /var/www/html/extensions && \
+    # Diagrams — render Mermaid/PlantUML/Graphviz inline
+    git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/Diagrams
+
+# ─── Extensions: Analytics ───────────────────────────────────────────────────
+RUN cd /var/www/html/extensions && \
+    # PageViewInfo — show page view statistics
+    git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/PageViewInfo
+
+# ─── Extensions: S3 Storage ──────────────────────────────────────────────────
+RUN cd /var/www/html/extensions && \
+    # AWS — S3-compatible storage backend for file uploads
     git clone --depth 1 https://github.com/edwardspec/mediawiki-aws-s3.git AWS
 
-# Install Composer for AWS extension
+# Install Composer for extensions that need it (AWS, Cargo)
 RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer && \
-    cd /var/www/html/extensions/AWS && composer install --no-dev --no-interaction
+    cd /var/www/html/extensions/AWS && composer install --no-dev --no-interaction && \
+    cd /var/www/html/extensions/Cargo && composer install --no-dev --no-interaction
 
 # Lua for Scribunto
 RUN ln -sf /usr/bin/lua5.1 /usr/bin/lua || true
