@@ -38,14 +38,13 @@ spec:
           env:
             - name: BIND
               value: ":8080"
-            # TARGET=" " tells Anubis to operate in forwardAuth mode
-            # (redirect back to original URL after challenge passes)
+            # TARGET = the backend service Anubis proxies to after challenge passes
             - name: TARGET
-              value: " "
+              value: "http://mediawiki-svc.mediawiki.svc.cluster.local:80"
             - name: REDIRECT_DOMAINS
               value: "wiki.fosscell.org"
             - name: COOKIE_DOMAIN
-              value: "fosscell.org"
+              value: "wiki.fosscell.org"
             - name: DIFFICULTY
               value: "4"
           ports:

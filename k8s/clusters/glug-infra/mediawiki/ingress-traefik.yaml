@@ -14,15 +14,14 @@ spec:
     - match: Host(`wiki.fosscell.org`)
       kind: Rule
       middlewares:
-        - name: anubis-check
-          namespace: traefik-system
         - name: wiki-rate-limit
           namespace: mediawiki
         - name: wiki-bot-headers
           namespace: mediawiki
       services:
-        - name: mediawiki-svc
-          port: 80
+        - name: anubis
+          namespace: traefik-system
+          port: 8080
   tls:
     certResolver: letsencrypt
 ---
