@@ -6,13 +6,15 @@
 # Extensions are grouped by category. All from REL1_45 branch unless noted.
 #
 # BUNDLED with base image (DO NOT clone — already present):
-#   AbuseFilter, AdvancedSearch, CategoryTree, CheckUser, Cite,
-#   CiteThisPage, CodeEditor, CodeMirror, ConfirmEdit, DiscussionTools,
-#   Echo, Gadgets, ImageMap, InputBox, Interwiki, Math, MultimediaViewer,
-#   Nuke, OATHAuth, PageImages, PdfHandler, Poem, Renameuser, ReplaceText,
-#   Scribunto, SecureLinkFixer, SpamBlacklist, SyntaxHighlight,
-#   TemplateData, TextExtracts, Thanks, TitleBlacklist, VisualEditor,
-#   WikiEditor
+#   AbuseFilter, CategoryTree, CheckUser, Cite, CiteThisPage,
+#   CodeEditor, ConfirmEdit, DiscussionTools, Echo, Gadgets, ImageMap,
+#   InputBox, Interwiki, Linter, LoginNotify, Math, MultimediaViewer,
+#   Nuke, OATHAuth, PageImages, ParserFunctions, PdfHandler, Poem,
+#   Renameuser, ReplaceText, Scribunto, SecureLinkFixer, SpamBlacklist,
+#   SyntaxHighlight, TemplateData, TemplateStyles, TextExtracts, Thanks,
+#   TitleBlacklist, VisualEditor, WikiEditor
+#
+# NOT bundled (must clone): CodeMirror, AdvancedSearch, and all custom ones
 #
 # Build:
 #   docker build -t ghcr.io/tellmey18/mediawiki:latest .
@@ -65,8 +67,12 @@ RUN cd /var/www/html/extensions && \
     # UserMerge — merge duplicate user accounts
     git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/UserMerge
 
-# ─── Extensions: Visual & UX ─────────────────────────────────────────────────
+# ─── Extensions: Visual & UX ─────────────────────────────────────────────
 RUN cd /var/www/html/extensions && \
+    # CodeMirror — syntax-highlighted source editor (NOT bundled in base image)
+    git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/CodeMirror && \
+    # AdvancedSearch — enhanced search UI with filters (NOT bundled in base image)
+    git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/AdvancedSearch && \
     # DarkMode — dark theme toggle
     git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/DarkMode && \
     # Popups — page previews on hover

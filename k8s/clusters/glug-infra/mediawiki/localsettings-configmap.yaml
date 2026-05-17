@@ -111,9 +111,7 @@ data:
     wfLoadExtension( 'Echo' );
     wfLoadExtension( 'Thanks' );
     wfLoadExtension( 'CheckUser' );
-    wfLoadExtension( 'CodeMirror' );
     wfLoadExtension( 'DiscussionTools' );
-    wfLoadExtension( 'AdvancedSearch' );
 
     ## Extensions — Custom (cloned in Dockerfile)
     wfLoadExtension( 'DarkMode' );
