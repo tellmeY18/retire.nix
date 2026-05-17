@@ -129,12 +129,16 @@ RUN cd /var/www/html/includes/Rest && \
     sed -i 's/public function tell() {/public function tell(): int {/' StringStream.php && \
     sed -i 's/public function eof() {/public function eof(): bool {/' StringStream.php && \
     sed -i 's/public function isSeekable() {/public function isSeekable(): bool {/' StringStream.php && \
+    sed -i 's/public function seek( \$offset, \$whence = SEEK_SET ) {/public function seek( int \$offset, int \$whence = SEEK_SET ): void {/' StringStream.php && \
     sed -i 's/public function rewind() {/public function rewind(): void {/' StringStream.php && \
     sed -i 's/public function isWritable() {/public function isWritable(): bool {/' StringStream.php && \
+    sed -i 's/public function write( \$string ) {/public function write( string \$string ): int {/' StringStream.php && \
     sed -i 's/public function isReadable() {/public function isReadable(): bool {/' StringStream.php && \
+    sed -i 's/public function read( \$length ) {/public function read( int \$length ): string {/' StringStream.php && \
     sed -i 's/public function getContents() {/public function getContents(): string {/' StringStream.php && \
     sed -i 's/public function __toString() {/public function __toString(): string {/' StringStream.php && \
-    sed -i 's/public function detach() {/public function detach(): mixed {/' StringStream.php
+    sed -i 's/public function detach() {/public function detach(): mixed {/' StringStream.php && \
+    sed -i 's/public function getMetadata( \$key = null ) {/public function getMetadata( ?string \$key = null ): mixed {/' StringStream.php
 
 # Create a static health check file (served by Caddy, no PHP needed)
 RUN echo 'OK' > /var/www/html/health.txt
