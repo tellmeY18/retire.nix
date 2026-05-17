@@ -76,11 +76,10 @@ jobs:
             org.opencontainers.image.description=Apache Answer with plugins: ${{ steps.plugins.outputs.list }}
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
-          cache-from: type=gha,scope=answer-${{ matrix.platform }}
-          cache-to: type=gha,scope=answer-${{ matrix.platform }},mode=max
-          # mode=max caches ALL intermediate layers (deps stage, golang-builder
-          # stage before the final COPY). This means the expensive Go compile
-          # layer is reused when plugins.txt hasn't changed.
+          cache-from: |
+            type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:cache-${{ matrix.platform == 'linux/amd64' && 'amd64' || 'arm64' }}
+          cache-to: |
+            type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:cache-${{ matrix.platform == 'linux/amd64' && 'amd64' || 'arm64' }},mode=max
 
   manifest:
     needs: build
