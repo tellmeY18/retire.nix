@@ -30,32 +30,28 @@ data:
     $wgDBprefix = "";
     $wgDBTableOptions = "ENGINE=InnoDB, DEFAULT CHARSET=binary";
 
-    ## Shared memory / caching — Redis on kenobi (same node, zero latency)
+    ## Shared memory / caching
     $wgMainCacheType = CACHE_ACCEL;  # APCu for local PHP process cache
-    $wgParserCacheType = 'redis';    # Parser output → Redis (most impactful)
-    $wgSessionCacheType = 'redis';   # Sessions → Redis
-    $wgMessageCacheType = 'redis';   # i18n messages → Redis
-    $wgLanguageConverterCacheType = 'redis';
 
-    $wgObjectCaches['redis'] = [
-        'class' => 'RedisBagOStuff',
-        'servers' => [ 'redis.mediawiki.svc:6379' ],
-        'persistent' => true,
-        'connectTimeout' => 1,
-    ];
+    # Redis cache — enable after build-21 (has php-redis + /tmp/mediawiki-cache)
+    # $wgObjectCaches['redis'] = [
+    #     'class' => 'RedisBagOStuff',
+    #     'servers' => [ 'redis.mediawiki.svc:6379' ],
+    #     'persistent' => true,
+    #     'connectTimeout' => 1,
+    # ];
+    # $wgMainCacheType = 'redis';
+    # $wgParserCacheType = 'redis';
+    # $wgSessionCacheType = 'redis';
+    # $wgMessageCacheType = 'redis';
 
-    # Use Redis for the main object cache too (parsed pages, user objects)
-    $wgMainCacheType = 'redis';
-
-    # Parser cache expiry — 7 days (pages rarely change on a college wiki)
+    # Parser cache expiry — 7 days
     $wgParserCacheExpireTime = 604800;
 
-    # Enable file cache for anonymous users (ultimate speed — no PHP at all)
-    # Caddy serves static HTML directly from /tmp/mediawiki-cache.
-    # Pages are invalidated automatically on edit.
-    $wgUseFileCache = true;
-    $wgFileCacheDirectory = '/tmp/mediawiki-cache';
-    $wgShowIPinHeader = false; # Required for file cache to work
+    # File cache for anonymous users (enable with build-21)
+    # $wgUseFileCache = true;
+    # $wgFileCacheDirectory = '/tmp/mediawiki-cache';
+    # $wgShowIPinHeader = false;
 
     $wgMemCachedServers = [];
 
