@@ -131,3 +131,9 @@ spec:
       targetPort: 80
       protocol: TCP
       name: http
+  # Sticky sessions — Answer stores login sessions in per-pod file cache.
+  # Without affinity, requests bounce between pods and sessions break.
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 10800
