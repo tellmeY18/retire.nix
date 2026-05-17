@@ -1,0 +1,71 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: logs-grafana-dashboard
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+  annotations:
+    grafana_folder: "GLUG Infra"
+data:
+  logs.json: |
+    {
+      "uid": "logs-explorer",
+      "title": "GLUG Infra — Logs",
+      "tags": ["logs", "victorialogs"],
+      "timezone": "browser",
+      "refresh": "30s",
+      "time": {"from": "now-1h", "to": "now"},
+      "templating": {
+        "list": [
+          {
+            "name": "namespace",
+            "type": "custom",
+            "current": {"text": "All", "value": ""},
+            "options": [
+              {"text": "All", "value": ""},
+              {"text": "ghost", "value": "ghost"},
+              {"text": "mediawiki", "value": "mediawiki"},
+              {"text": "answer", "value": "answer"},
+              {"text": "monitoring", "value": "monitoring"},
+              {"text": "kube-system", "value": "kube-system"},
+              {"text": "cnpg-clusters", "value": "cnpg-clusters"},
+              {"text": "pxc-clusters", "value": "pxc-clusters"},
+              {"text": "tailscale", "value": "tailscale"},
+              {"text": "traefik-system", "value": "traefik-system"}
+            ]
+          },
+          {
+            "name": "search",
+            "type": "textbox",
+            "current": {"text": "", "value": ""},
+            "label": "Search"
+          }
+        ]
+      },
+      "panels": [
+        {
+          "type": "logs",
+          "title": "Cluster Logs",
+          "gridPos": {"h": 25, "w": 24, "x": 0, "y": 0},
+          "datasource": {"type": "victoriametrics-logs-datasource", "uid": "victorialogs"},
+          "targets": [
+            {
+              "expr": "{namespace=~\"${namespace:pipe}\", _msg=~\".*${search}.*\"} | fields namespace, pod, container, _msg",
+              "refId": "A"
+            }
+          ],
+          "options": {
+            "showTime": true,
+            "showLabels": true,
+            "showCommonLabels": false,
+            "wrapLogMessage": true,
+            "prettifyLogMessage": false,
+            "enableLogDetails": true,
+            "sortOrder": "Descending",
+            "dedupStrategy": "none"
+          }
+        }
+      ],
+      "schemaVersion": 39
+    }

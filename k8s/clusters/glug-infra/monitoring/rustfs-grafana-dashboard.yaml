@@ -36,7 +36,7 @@ metadata:
     app.kubernetes.io/part-of: victoria-metrics-k8s-stack
     app.kubernetes.io/managed-by: kustomize
   annotations:
-    grafana_folder: "Storage"
+    grafana_folder: "GLUG Infra"
 data:
   rustfs-dashboard.json: |
     {

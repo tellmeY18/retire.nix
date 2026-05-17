@@ -296,6 +296,10 @@ grafana:
   persistence:
     enabled: false
 
+  # VictoriaLogs Grafana plugin (required for the Logs datasource).
+  plugins:
+    - victoriametrics-logs-datasource
+
   # Admin credentials. Password comes from secrets.yaml (sops-encrypted).
   adminUser: admin
   # adminPassword: set in secrets.yaml

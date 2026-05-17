@@ -1,0 +1,1158 @@
+# glug-infra-grafana-dashboard.yaml — Comprehensive "single pane of glass"
+# Grafana dashboard covering every layer of the GLUG Infrastructure:
+# cluster health, node resources, pod resources, databases (CNPG + PXC),
+# storage (PVC + ZFS), ingress (Traefik), logs (VictoriaLogs), and alerts.
+#
+# Grafana's sidecar (configured in victoria-metrics-k8s-stack) watches for
+# ConfigMaps with the label `grafana_dashboard: "1"` and auto-imports them.
+# The `grafana-folder` annotation places it in the "GLUG Infra" folder.
+#
+# All queries are fully node-agnostic and auto-discover new nodes,
+# namespaces, PVCs, and database instances. Adding a k3s node or a new
+# workload requires zero changes to this dashboard.
+#
+# Template variables:
+#   $datasource — Prometheus-compatible datasource (VictoriaMetrics)
+#   $node       — filter by node name (multi-select, default All)
+#   $namespace  — filter by namespace (multi-select, default All)
+#
+# Metric sources:
+#   - kube-state-metrics:       kube_node_info, kube_pod_status_phase
+#   - node-exporter:            node_cpu_*, node_memory_*, node_network_*,
+#                               node_zfs_*
+#   - cAdvisor / kubelet:       container_cpu_*, container_memory_*,
+#                               kubelet_volume_stats_*
+#   - cnpg:                     cnpg_pg_replication_lag, cnpg_backends_total
+#   - percona/mysqld_exporter:  mysql_global_status_wsrep_*,
+#                               mysql_global_status_queries
+#   - traefik:                  traefik_service_requests_total,
+#                               traefik_service_request_duration_seconds_*
+#   - victorialogs:             log exploration via VictoriaLogs datasource
+#   - vector:                   vector_component_sent_events_total
+#   - prometheus:               ALERTS{alertstate="firing"}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: glug-infra-grafana-dashboard
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+  annotations:
+    grafana_folder: "GLUG Infra"
+data:
+  glug-infra.json: |
+    {
+      "annotations": { "list": [] },
+      "description": "Comprehensive GLUG Infrastructure dashboard covering cluster health, node and pod resources, databases, storage, ingress, logs, and alerts.",
+      "editable": true,
+      "fiscalYearStartMonth": 0,
+      "graphTooltip": 1,
+      "links": [],
+      "panels": [
+        {
+          "id": 1,
+          "title": "Cluster Overview",
+          "type": "row",
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+          "collapsed": false,
+          "panels": []
+        },
+        {
+          "id": 2,
+          "title": "Total Nodes",
+          "description": "Number of nodes registered in the cluster.",
+          "type": "stat",
+          "gridPos": { "h": 4, "w": 5, "x": 0, "y": 1 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "count(kube_node_info)",
+              "instant": true,
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "value": null, "color": "red" },
+                  { "value": 1, "color": "green" }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "graphMode": "none",
+            "colorMode": "background",
+            "textMode": "auto",
+            "justifyMode": "auto",
+            "orientation": "auto"
+          }
+        },
+        {
+          "id": 3,
+          "title": "Running Pods",
+          "description": "Total pods currently in Running phase across all namespaces.",
+          "type": "stat",
+          "gridPos": { "h": 4, "w": 5, "x": 5, "y": 1 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "sum(kube_pod_status_phase{phase=\"Running\"})",
+              "instant": true,
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "value": null, "color": "red" },
+                  { "value": 1, "color": "green" }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "graphMode": "none",
+            "colorMode": "value",
+            "textMode": "auto",
+            "justifyMode": "auto",
+            "orientation": "auto"
+          }
+        },
+        {
+          "id": 4,
+          "title": "Cluster CPU %",
+          "description": "Average CPU utilisation across all nodes (100% minus idle).",
+          "type": "stat",
+          "gridPos": { "h": 4, "w": 5, "x": 10, "y": 1 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "avg(1 - rate(node_cpu_seconds_total{mode=\"idle\"}[5m])) * 100",
+              "instant": true,
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "decimals": 1,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "value": null, "color": "green" },
+                  { "value": 70, "color": "orange" },
+                  { "value": 90, "color": "red" }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "graphMode": "area",
+            "colorMode": "background",
+            "textMode": "auto",
+            "justifyMode": "auto",
+            "orientation": "auto"
+          }
+        },
+        {
+          "id": 5,
+          "title": "Cluster Memory %",
+          "description": "Cluster-wide memory utilisation (1 - available/total).",
+          "type": "stat",
+          "gridPos": { "h": 4, "w": 5, "x": 15, "y": 1 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "(1 - sum(node_memory_MemAvailable_bytes) / sum(node_memory_MemTotal_bytes)) * 100",
+              "instant": true,
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "decimals": 1,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "value": null, "color": "green" },
+                  { "value": 75, "color": "orange" },
+                  { "value": 90, "color": "red" }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "graphMode": "area",
+            "colorMode": "background",
+            "textMode": "auto",
+            "justifyMode": "auto",
+            "orientation": "auto"
+          }
+        },
+        {
+          "id": 6,
+          "title": "Alerts Firing",
+          "description": "Total number of currently firing alerts. Zero is the ideal state.",
+          "type": "stat",
+          "gridPos": { "h": 4, "w": 4, "x": 20, "y": 1 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "count(ALERTS{alertstate=\"firing\"}) or vector(0)",
+              "instant": true,
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "value": null, "color": "green" },
+                  { "value": 1, "color": "orange" },
+                  { "value": 3, "color": "red" }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "graphMode": "none",
+            "colorMode": "background",
+            "textMode": "auto",
+            "justifyMode": "auto",
+            "orientation": "auto"
+          }
+        },
+        {
+          "id": 7,
+          "title": "Node Resources",
+          "type": "row",
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 },
+          "collapsed": false,
+          "panels": []
+        },
+        {
+          "id": 8,
+          "title": "CPU Usage by Node",
+          "description": "Per-node CPU usage percentage (100% minus idle). Auto-discovers all nodes.",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 8, "x": 0, "y": 6 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "100 - (avg by (instance) (rate(node_cpu_seconds_total{mode=\"idle\"}[5m])) * 100)",
+              "legendFormat": "{{ instance }}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "min": 0,
+              "max": 100,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "value": null, "color": "green" },
+                  { "value": 80, "color": "orange" },
+                  { "value": 95, "color": "red" }
+                ]
+              },
+              "custom": {
+                "fillOpacity": 10,
+                "lineWidth": 2,
+                "thresholdsStyle": { "mode": "line" }
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom", "calcs": [] },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          }
+        },
+        {
+          "id": 9,
+          "title": "Memory Usage by Node",
+          "description": "Per-node memory usage in bytes (total minus available).",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 8, "x": 8, "y": 6 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes",
+              "legendFormat": "{{ instance }}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "bytes",
+              "min": 0,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "value": null, "color": "green" }
+                ]
+              },
+              "custom": {
+                "fillOpacity": 10,
+                "lineWidth": 2
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom", "calcs": [] },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          }
+        },
+        {
+          "id": 10,
+          "title": "Network I/O by Node",
+          "description": "Per-node network receive and transmit rates (bytes/s). Receive is positive, transmit is shown as negative for visual clarity.",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 8, "x": 16, "y": 6 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "sum by (instance) (rate(node_network_receive_bytes_total{device!~\"lo|veth.*|cni.*|flannel.*\"}[5m]))",
+              "legendFormat": "{{ instance }} rx",
+              "refId": "A"
+            },
+            {
+              "expr": "-sum by (instance) (rate(node_network_transmit_bytes_total{device!~\"lo|veth.*|cni.*|flannel.*\"}[5m]))",
+              "legendFormat": "{{ instance }} tx",
+              "refId": "B"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "Bps",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "value": null, "color": "green" }
+                ]
+              },
+              "custom": {
+                "fillOpacity": 10,
+                "lineWidth": 2
+              }
+            },
+            "overrides": [
+              {
+                "matcher": { "id": "byFrameRefID", "options": "B" },
+                "properties": [
+                  { "id": "custom.transform", "value": "negative-Y" }
+                ]
+              }
+            ]
+          },
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom", "calcs": [] },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          }
+        },
+        {
+          "id": 11,
+          "title": "Pod Resources",
+          "type": "row",
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 14 },
+          "collapsed": false,
+          "panels": []
+        },
+        {
+          "id": 12,
+          "title": "Pod CPU Usage (Top 10)",
+          "description": "Top 10 pods by CPU usage across all namespaces.",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 15 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "topk(10, sum by (pod, namespace) (rate(container_cpu_usage_seconds_total{container!=\"\"}[5m])))",
+              "legendFormat": "{{ namespace }}/{{ pod }}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "value": null, "color": "green" }
+                ]
+              },
+              "custom": {
+                "fillOpacity": 10,
+                "lineWidth": 1,
+                "stacking": { "mode": "none" }
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": { "displayMode": "table", "placement": "right", "calcs": ["mean", "max"] },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          }
+        },
+        {
+          "id": 13,
+          "title": "Pod Memory Usage (Top 10)",
+          "description": "Top 10 pods by working set memory across all namespaces.",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 15 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "topk(10, sum by (pod, namespace) (container_memory_working_set_bytes{container!=\"\"}))",
+              "legendFormat": "{{ namespace }}/{{ pod }}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "bytes",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "value": null, "color": "green" }
+                ]
+              },
+              "custom": {
+                "fillOpacity": 10,
+                "lineWidth": 1,
+                "stacking": { "mode": "none" }
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": { "displayMode": "table", "placement": "right", "calcs": ["mean", "max"] },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          }
+        },
+        {
+          "id": 14,
+          "title": "Database Health",
+          "type": "row",
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 23 },
+          "collapsed": false,
+          "panels": []
+        },
+        {
+          "id": 15,
+          "title": "PG Replication Lag",
+          "description": "Maximum PostgreSQL replication lag across all CNPG replicas. Orange at 10s, red at 300s.",
+          "type": "stat",
+          "gridPos": { "h": 4, "w": 8, "x": 0, "y": 24 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "max(cnpg_pg_replication_lag) or vector(0)",
+              "instant": true,
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "s",
+              "decimals": 2,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "value": null, "color": "green" },
+                  { "value": 10, "color": "orange" },
+                  { "value": 300, "color": "red" }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "graphMode": "area",
+            "colorMode": "background",
+            "textMode": "auto",
+            "justifyMode": "auto",
+            "orientation": "auto"
+          }
+        },
+        {
+          "id": 16,
+          "title": "PXC Cluster Size",
+          "description": "Minimum reported Galera cluster size. Red if 0, orange if < 3, green at 3+.",
+          "type": "stat",
+          "gridPos": { "h": 4, "w": 8, "x": 8, "y": 24 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "min(mysql_global_status_wsrep_cluster_size) or vector(0)",
+              "instant": true,
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "value": null, "color": "red" },
+                  { "value": 1, "color": "orange" },
+                  { "value": 3, "color": "green" }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "graphMode": "none",
+            "colorMode": "background",
+            "textMode": "auto",
+            "justifyMode": "auto",
+            "orientation": "auto"
+          }
+        },
+        {
+          "id": 17,
+          "title": "PXC Wsrep Ready",
+          "description": "Galera cluster readiness. Uses min() so if ANY node is not ready, this turns red.",
+          "type": "stat",
+          "gridPos": { "h": 4, "w": 8, "x": 16, "y": 24 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "min(mysql_global_status_wsrep_ready) or vector(0)",
+              "instant": true,
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "mappings": [
+                {
+                  "type": "value",
+                  "options": {
+                    "1": { "text": "Ready \u2713", "color": "green" },
+                    "0": { "text": "NOT READY \u26a0", "color": "red" }
+                  }
+                }
+              ],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "value": null, "color": "red" },
+                  { "value": 1, "color": "green" }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "graphMode": "none",
+            "colorMode": "background",
+            "textMode": "auto",
+            "justifyMode": "auto",
+            "orientation": "auto"
+          }
+        },
+        {
+          "id": 18,
+          "title": "PostgreSQL Connections",
+          "description": "Active backend connections per CNPG instance over time.",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 28 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "cnpg_backends_total",
+              "legendFormat": "{{ pod }}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "value": null, "color": "green" },
+                  { "value": 150, "color": "orange" },
+                  { "value": 190, "color": "red" }
+                ]
+              },
+              "custom": {
+                "fillOpacity": 10,
+                "lineWidth": 2,
+                "thresholdsStyle": { "mode": "line" }
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom", "calcs": [] },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          }
+        },
+        {
+          "id": 19,
+          "title": "MySQL Queries/s",
+          "description": "Per-second query rate across all PXC nodes.",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 28 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "sum by (instance) (rate(mysql_global_status_queries[5m]))",
+              "legendFormat": "{{ instance }}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "ops",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "value": null, "color": "green" }
+                ]
+              },
+              "custom": {
+                "fillOpacity": 10,
+                "lineWidth": 2
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom", "calcs": [] },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          }
+        },
+        {
+          "id": 20,
+          "title": "Storage",
+          "type": "row",
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 36 },
+          "collapsed": false,
+          "panels": []
+        },
+        {
+          "id": 21,
+          "title": "PVC Usage %",
+          "description": "Usage percentage of every PVC in the cluster. Auto-discovers all namespaces. Green < 80%, orange 80-90%, red > 90%.",
+          "type": "gauge",
+          "gridPos": { "h": 8, "w": 8, "x": 0, "y": 37 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "(kubelet_volume_stats_used_bytes / kubelet_volume_stats_capacity_bytes) * 100",
+              "legendFormat": "{{ namespace }}/{{ persistentvolumeclaim }}",
+              "instant": true,
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "min": 0,
+              "max": 100,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "value": null, "color": "green" },
+                  { "value": 80, "color": "orange" },
+                  { "value": 90, "color": "red" }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": true },
+            "showThresholdLabels": false,
+            "showThresholdMarkers": true,
+            "orientation": "auto"
+          }
+        },
+        {
+          "id": 22,
+          "title": "ZFS Pool Health",
+          "description": "ZFS pool online state across all nodes. Uses min() so if ANY pool is not online, this turns red.",
+          "type": "stat",
+          "gridPos": { "h": 8, "w": 8, "x": 8, "y": 37 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "min(node_zfs_zpool_state{state=\"online\"})",
+              "legendFormat": "ZFS",
+              "instant": true,
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "mappings": [
+                {
+                  "type": "value",
+                  "options": {
+                    "1": { "text": "All Pools Online \u2713", "color": "green" },
+                    "0": { "text": "POOL DEGRADED \u26a0", "color": "red" }
+                  }
+                }
+              ],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "value": null, "color": "red" },
+                  { "value": 1, "color": "green" }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "graphMode": "none",
+            "colorMode": "background",
+            "textMode": "auto",
+            "justifyMode": "center",
+            "orientation": "auto"
+          }
+        },
+        {
+          "id": 23,
+          "title": "ZFS ARC Hit Ratio",
+          "description": "ZFS Adaptive Replacement Cache hit ratio per node. Higher is better. Green > 80%, orange 50-80%, red < 50%.",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 8, "x": 16, "y": 37 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "rate(node_zfs_arc_hits[5m]) / (rate(node_zfs_arc_hits[5m]) + rate(node_zfs_arc_misses[5m])) * 100",
+              "legendFormat": "{{ instance }}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "min": 0,
+              "max": 100,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "value": null, "color": "red" },
+                  { "value": 50, "color": "orange" },
+                  { "value": 80, "color": "green" }
+                ]
+              },
+              "custom": {
+                "fillOpacity": 10,
+                "lineWidth": 2,
+                "thresholdsStyle": { "mode": "line" }
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom", "calcs": [] },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          }
+        },
+        {
+          "id": 24,
+          "title": "Ingress (Traefik)",
+          "type": "row",
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 45 },
+          "collapsed": false,
+          "panels": []
+        },
+        {
+          "id": 25,
+          "title": "Requests/s by Service",
+          "description": "Per-service HTTP request rate through Traefik.",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 8, "x": 0, "y": 46 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "sum by (service) (rate(traefik_service_requests_total[5m]))",
+              "legendFormat": "{{ service }}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "reqps",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "value": null, "color": "green" }
+                ]
+              },
+              "custom": {
+                "fillOpacity": 10,
+                "lineWidth": 2,
+                "stacking": { "mode": "none" }
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": { "displayMode": "table", "placement": "right", "calcs": ["mean"] },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          }
+        },
+        {
+          "id": 26,
+          "title": "Response Time P95",
+          "description": "95th percentile response time per Traefik service.",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 8, "x": 8, "y": 46 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "histogram_quantile(0.95, sum by (le, service) (rate(traefik_service_request_duration_seconds_bucket[5m])))",
+              "legendFormat": "{{ service }}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "s",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "value": null, "color": "green" },
+                  { "value": 1, "color": "orange" },
+                  { "value": 5, "color": "red" }
+                ]
+              },
+              "custom": {
+                "fillOpacity": 10,
+                "lineWidth": 2,
+                "thresholdsStyle": { "mode": "line" }
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": { "displayMode": "table", "placement": "right", "calcs": ["mean"] },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          }
+        },
+        {
+          "id": 27,
+          "title": "HTTP Status Codes",
+          "description": "Aggregate request rate by HTTP status code across all Traefik services.",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 8, "x": 16, "y": 46 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "sum by (code) (rate(traefik_service_requests_total[5m]))",
+              "legendFormat": "{{ code }}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "reqps",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "value": null, "color": "green" }
+                ]
+              },
+              "custom": {
+                "fillOpacity": 20,
+                "lineWidth": 2,
+                "stacking": { "mode": "normal" }
+              }
+            },
+            "overrides": [
+              {
+                "matcher": { "id": "byRegexp", "options": "^2.." },
+                "properties": [
+                  { "id": "color", "value": { "mode": "fixed", "fixedColor": "green" } }
+                ]
+              },
+              {
+                "matcher": { "id": "byRegexp", "options": "^3.." },
+                "properties": [
+                  { "id": "color", "value": { "mode": "fixed", "fixedColor": "blue" } }
+                ]
+              },
+              {
+                "matcher": { "id": "byRegexp", "options": "^4.." },
+                "properties": [
+                  { "id": "color", "value": { "mode": "fixed", "fixedColor": "orange" } }
+                ]
+              },
+              {
+                "matcher": { "id": "byRegexp", "options": "^5.." },
+                "properties": [
+                  { "id": "color", "value": { "mode": "fixed", "fixedColor": "red" } }
+                ]
+              }
+            ]
+          },
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom", "calcs": [] },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          }
+        },
+        {
+          "id": 28,
+          "title": "Logs (VictoriaLogs)",
+          "type": "row",
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 54 },
+          "collapsed": false,
+          "panels": []
+        },
+        {
+          "id": 29,
+          "title": "Recent Cluster Logs",
+          "description": "Live log stream from VictoriaLogs. Shows the most recent log entries across all namespaces.",
+          "type": "logs",
+          "gridPos": { "h": 8, "w": 16, "x": 0, "y": 55 },
+          "datasource": { "type": "victoriametrics-logs-datasource", "uid": "victorialogs" },
+          "targets": [
+            {
+              "expr": "{namespace=~\"$namespace\"} | fields namespace, pod, container, _msg",
+              "refId": "A"
+            }
+          ],
+          "options": {
+            "showTime": true,
+            "showLabels": true,
+            "showCommonLabels": false,
+            "wrapLogMessage": true,
+            "prettifyLogMessage": false,
+            "enableLogDetails": true,
+            "sortOrder": "Descending",
+            "dedupStrategy": "none"
+          }
+        },
+        {
+          "id": 30,
+          "title": "Log Ingestion Rate",
+          "description": "Events per second being shipped by Vector log collectors into VictoriaLogs.",
+          "type": "stat",
+          "gridPos": { "h": 4, "w": 8, "x": 16, "y": 55 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "sum(rate(vector_component_sent_events_total{component_type=\"http\"}[5m])) or vector(0)",
+              "instant": true,
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "eps",
+              "decimals": 0,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "value": null, "color": "blue" }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "graphMode": "area",
+            "colorMode": "value",
+            "textMode": "auto",
+            "justifyMode": "auto",
+            "orientation": "auto"
+          }
+        },
+        {
+          "id": 31,
+          "title": "Logs by Namespace",
+          "description": "Log volume per namespace over time, derived from Vector component metrics.",
+          "type": "timeseries",
+          "gridPos": { "h": 4, "w": 8, "x": 16, "y": 59 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "sum by (pod_namespace) (rate(vector_component_sent_events_total{component_type=\"http\"}[5m]))",
+              "legendFormat": "{{ pod_namespace }}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "eps",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "value": null, "color": "green" }
+                ]
+              },
+              "custom": {
+                "fillOpacity": 20,
+                "lineWidth": 1,
+                "stacking": { "mode": "normal" }
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom", "calcs": [] },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          }
+        },
+        {
+          "id": 32,
+          "title": "Alerts",
+          "type": "row",
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 63 },
+          "collapsed": false,
+          "panels": []
+        },
+        {
+          "id": 33,
+          "title": "Active Firing Alerts",
+          "description": "All currently firing alerts across the cluster. An empty table is the ideal state. Severity column is color-coded: red for critical, orange for warning.",
+          "type": "table",
+          "gridPos": { "h": 8, "w": 24, "x": 0, "y": 64 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "ALERTS{alertstate=\"firing\"}",
+              "instant": true,
+              "format": "table",
+              "refId": "A"
+            }
+          ],
+          "transformations": [
+            {
+              "id": "organize",
+              "options": {
+                "excludeByName": {
+                  "Time": true,
+                  "__name__": true,
+                  "alertstate": true,
+                  "Value": true
+                },
+                "indexByName": {
+                  "alertname": 0,
+                  "severity": 1,
+                  "instance": 2,
+                  "namespace": 3,
+                  "pod": 4,
+                  "description": 5
+                },
+                "renameByName": {}
+              }
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "align": "auto",
+                "cellOptions": { "type": "auto" },
+                "inspect": false
+              }
+            },
+            "overrides": [
+              {
+                "matcher": { "id": "byName", "options": "severity" },
+                "properties": [
+                  {
+                    "id": "custom.cellOptions",
+                    "value": { "type": "color-background" }
+                  },
+                  {
+                    "id": "mappings",
+                    "value": [
+                      {
+                        "type": "value",
+                        "options": {
+                          "critical": { "text": "critical", "color": "red" },
+                          "warning": { "text": "warning", "color": "orange" }
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          "options": {
+            "showHeader": true,
+            "sortBy": [{ "displayName": "severity", "desc": true }],
+            "footer": { "show": false }
+          }
+        }
+      ],
+      "refresh": "30s",
+      "schemaVersion": 39,
+      "tags": ["glug", "infrastructure", "overview"],
+      "templating": {
+        "list": [
+          {
+            "name": "datasource",
+            "label": "Data Source",
+            "type": "datasource",
+            "query": "prometheus",
+            "current": { "selected": true, "text": "Prometheus", "value": "prometheus" },
+            "hide": 0
+          },
+          {
+            "name": "node",
+            "label": "Node",
+            "type": "query",
+            "datasource": { "type": "prometheus", "uid": "${datasource}" },
+            "query": "label_values(node_uname_info, nodename)",
+            "refresh": 2,
+            "includeAll": true,
+            "multi": true,
+            "current": { "selected": true, "text": "All", "value": "$__all" },
+            "hide": 0
+          },
+          {
+            "name": "namespace",
+            "label": "Namespace",
+            "type": "query",
+            "datasource": { "type": "prometheus", "uid": "${datasource}" },
+            "query": "label_values(kube_pod_info, namespace)",
+            "refresh": 2,
+            "includeAll": true,
+            "multi": true,
+            "current": { "selected": true, "text": "All", "value": "$__all" },
+            "hide": 0
+          }
+        ]
+      },
+      "time": { "from": "now-6h", "to": "now" },
+      "timezone": "browser",
+      "title": "GLUG Infra \u2014 Overview",
+      "uid": "glug-infra-overview",
+      "version": 1
+    }

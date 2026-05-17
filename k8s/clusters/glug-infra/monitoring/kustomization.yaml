@@ -77,8 +77,6 @@ resources:
   # Laptop battery monitoring.
   - laptop-battery-vmrules.yaml
   - laptop-battery-grafana-dashboard.yaml
-  # Cluster Overview dashboard — single pane of glass.
-  - cluster-overview-grafana-dashboard.yaml
   # Cloudprober — active synthetic endpoint monitoring.
   - cloudprober.yaml
   - cloudprober-vmservicescrape.yaml
@@ -86,5 +84,16 @@ resources:
   - endpoint-vmrules.yaml
   # Endpoint uptime Grafana dashboard.
   - endpoint-grafana-dashboard.yaml
+  # cAdvisor container metrics (scraped from kubelet's built-in cAdvisor).
+  - cadvisor-vmnodescrape.yaml
+  # VictoriaLogs — log storage + query engine.
+  - victorialogs-deployment.yaml
+  - victorialogs-grafana-datasource.yaml
+  # Vector — log collector (DaemonSet shipping to VictoriaLogs).
+  - vector-log-collector.yaml
+  # Logs exploration Grafana dashboard.
+  - logs-grafana-dashboard.yaml
+  # GLUG Infra overview Grafana dashboard.
+  - glug-infra-grafana-dashboard.yaml
   # jiralert — Jira incident lifecycle management (create/escalate/resolve).
   - jiralert.yaml

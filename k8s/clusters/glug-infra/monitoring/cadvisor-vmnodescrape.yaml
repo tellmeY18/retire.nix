@@ -1,0 +1,33 @@
+---
+# cadvisor-vmnodescrape.yaml — Scrape container metrics from kubelet's cAdvisor.
+#
+# k3s embeds cAdvisor in the kubelet — no separate DaemonSet needed.
+# Metrics endpoint: https://<node>:10250/metrics/cadvisor
+#
+# This gives per-container CPU, memory, network, disk I/O metrics.
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMNodeScrape
+metadata:
+  name: cadvisor
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: cadvisor
+    app.kubernetes.io/component: metrics
+spec:
+  scheme: https
+  tlsConfig:
+    insecureSkipVerify: true
+    caFile: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+  bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+  path: /metrics/cadvisor
+  scrapeInterval: 30s
+  honorLabels: true
+  metricRelabelConfigs:
+    # Drop high-cardinality metrics that bloat storage
+    - action: drop
+      sourceLabels: [__name__]
+      regex: "container_tasks_state|container_memory_failures_total"
+    # Drop metrics for pause containers
+    - action: drop
+      sourceLabels: [container]
+      regex: ""
