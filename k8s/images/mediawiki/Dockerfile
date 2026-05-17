@@ -94,15 +94,24 @@ RUN cd /var/www/html/extensions && \
     # PageViewInfo — show page view statistics
     git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/PageViewInfo
 
-# ─── Extensions: S3 Storage ──────────────────────────────────────────────────
+# ─── Extensions: S3 Storage ──────────────────────────────────────────────
 RUN cd /var/www/html/extensions && \
     # AWS — S3-compatible storage backend for file uploads
     git clone --depth 1 https://github.com/edwardspec/mediawiki-aws-s3.git AWS
 
-# Install Composer for extensions that need it (AWS, Cargo)
+# ─── Extensions: Search (CirrusSearch + Elastica) ───────────────────────
+RUN cd /var/www/html/extensions && \
+    # Elastica — PHP client for Elasticsearch/OpenSearch (required by CirrusSearch)
+    git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/Elastica && \
+    # CirrusSearch — full-text search powered by OpenSearch
+    git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/CirrusSearch
+
+# Install Composer for extensions that need it
 RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer && \
     cd /var/www/html/extensions/AWS && composer install --no-dev --no-interaction && \
-    cd /var/www/html/extensions/Cargo && composer install --no-dev --no-interaction
+    cd /var/www/html/extensions/Cargo && composer install --no-dev --no-interaction && \
+    cd /var/www/html/extensions/Elastica && composer install --no-dev --no-interaction && \
+    cd /var/www/html/extensions/CirrusSearch && composer install --no-dev --no-interaction
 
 # Lua for Scribunto
 RUN ln -sf /usr/bin/lua5.1 /usr/bin/lua || true
