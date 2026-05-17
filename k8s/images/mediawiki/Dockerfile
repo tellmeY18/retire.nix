@@ -140,6 +140,13 @@ RUN cd /var/www/html/includes/Rest && \
     sed -i 's/public function detach() {/public function detach(): mixed {/' StringStream.php && \
     sed -i 's/public function getMetadata( \$key = null ) {/public function getMetadata( ?string \$key = null ): mixed {/' StringStream.php
 
+# Fix PHP 8.3 compatibility: MWCallbackStream::write() must match PSR-7
+# StreamInterface::write(string $string): int enforced by the Guzzle
+# StreamDecoratorTrait. Without this, any outgoing HTTP request (e.g.
+# InstantCommons fetches) triggers a fatal error.
+RUN sed -i 's/public function write( \$string ) {/public function write( string \$string ): int {/' \
+    /var/www/html/includes/http/MWCallbackStream.php
+
 # Create a static health check file (served by Caddy, no PHP needed)
 RUN echo 'OK' > /var/www/html/health.txt
 

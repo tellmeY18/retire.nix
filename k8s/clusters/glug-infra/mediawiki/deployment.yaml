@@ -31,7 +31,7 @@ spec:
         node-role.glug.infra/compute: "true"
       containers:
         - name: mediawiki
-          image: ghcr.io/tellmey18/mediawiki:build-29
+          image: ghcr.io/tellmey18/mediawiki:build-30
           ports:
             - name: http
               containerPort: 80
