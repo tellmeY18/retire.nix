@@ -49,7 +49,7 @@ metadata:
     app.kubernetes.io/part-of: victoria-metrics-k8s-stack
     app.kubernetes.io/managed-by: kustomize
   annotations:
-    grafana_folder: "Infrastructure"
+    grafana_folder: "GLUG Infra"
 data:
   laptop-battery-dashboard.json: |
     {

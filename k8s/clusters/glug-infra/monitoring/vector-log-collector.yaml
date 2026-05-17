@@ -1,0 +1,135 @@
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: vector-log-collector
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: vector
+    app.kubernetes.io/component: log-collector
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: vector
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: vector
+    spec:
+      serviceAccountName: vector-log-collector
+      tolerations:
+        - operator: Exists
+      containers:
+        - name: vector
+          image: timberio/vector:0.45.0-alpine
+          env:
+            - name: VECTOR_SELF_NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: VECTOR_LOG
+              value: "warn"
+          volumeMounts:
+            - name: config
+              mountPath: /etc/vector
+            - name: var-log
+              mountPath: /var/log
+              readOnly: true
+            - name: var-lib-rancher
+              mountPath: /var/lib/rancher/k3s/agent/containerd
+              readOnly: true
+            - name: data
+              mountPath: /var/lib/vector
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+      volumes:
+        - name: config
+          configMap:
+            name: vector-config
+        - name: var-log
+          hostPath:
+            path: /var/log
+        - name: var-lib-rancher
+          hostPath:
+            path: /var/lib/rancher/k3s/agent/containerd
+        - name: data
+          hostPath:
+            path: /var/lib/vector
+            type: DirectoryOrCreate
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: vector-log-collector
+  namespace: monitoring
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: vector-log-collector
+rules:
+  - apiGroups: [""]
+    resources: ["namespaces", "pods", "nodes"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: vector-log-collector
+subjects:
+  - kind: ServiceAccount
+    name: vector-log-collector
+    namespace: monitoring
+roleRef:
+  kind: ClusterRole
+  name: vector-log-collector
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vector-config
+  namespace: monitoring
+data:
+  vector.yaml: |
+    sources:
+      kubernetes_logs:
+        type: kubernetes_logs
+        self_node_name: "${VECTOR_SELF_NODE_NAME}"
+        extra_namespace_label_selector: ""
+        extra_label_selector: ""
+
+    transforms:
+      parse_logs:
+        type: remap
+        inputs: ["kubernetes_logs"]
+        source: |
+          # Extract standard fields for VictoriaLogs
+          .namespace = .kubernetes.pod_namespace
+          .pod = .kubernetes.pod_name
+          .container = .kubernetes.container_name
+          .node = .kubernetes.pod_node_name
+          .stream = .stream
+          .app = .kubernetes.pod_labels."app.kubernetes.io/name" ?? .kubernetes.pod_labels.app ?? "unknown"
+          # Keep the log message as _msg for VictoriaLogs
+          ._msg = .message
+          # Timestamp
+          ._time = .timestamp
+
+    sinks:
+      victorialogs:
+        type: http
+        inputs: ["parse_logs"]
+        uri: "http://victorialogs.monitoring.svc:9428/insert/jsonline?_stream_fields=namespace,pod,container,node,app&_msg_field=_msg&_time_field=_time"
+        encoding:
+          codec: json
+        batch:
+          max_bytes: 1048576
+          timeout_secs: 5
+        request:
+          concurrency: 2

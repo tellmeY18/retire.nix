@@ -1,0 +1,22 @@
+---
+# VictoriaLogs datasource for Grafana.
+# Auto-discovered by the Grafana sidecar via the grafana_datasource label.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: victorialogs-grafana-datasource
+  namespace: monitoring
+  labels:
+    grafana_datasource: "1"
+data:
+  victorialogs.yaml: |
+    apiVersion: 1
+    datasources:
+      - name: VictoriaLogs
+        type: victoriametrics-logs-datasource
+        uid: victorialogs
+        access: proxy
+        url: http://victorialogs.monitoring.svc:9428
+        isDefault: false
+        jsonData:
+          maxLines: 1000
