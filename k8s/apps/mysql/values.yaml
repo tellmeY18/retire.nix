@@ -68,6 +68,11 @@ pxc:
   # -------------------------------------------------------------------------
   configuration: |
     [mysqld]
+    # === PXC strict mode ===
+    # PERMISSIVE: allow GET_LOCK() which MediaWiki uses for PageEditStash.
+    # Safe on single-node. Review when adding Galera replicas.
+    pxc_strict_mode=PERMISSIVE
+
     # === InnoDB + ZFS optimisations ===
     # ZFS is copy-on-write: doublewrite is redundant and wastes IOPS.
     innodb_doublewrite=0

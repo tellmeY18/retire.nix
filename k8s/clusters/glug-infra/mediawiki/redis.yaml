@@ -1,6 +1,6 @@
 ---
 # Redis — in-memory cache for MediaWiki object/parser/session caching.
-# Deployed on kenobi (same node as MediaWiki pods = zero network latency).
+# Deployed on kenobi with hostPath persistence so cache survives pod restarts.
 # 256MB is enough to cache the entire wiki (30MB DB, ~1000 pages).
 apiVersion: apps/v1
 kind: Deployment
@@ -32,13 +32,19 @@ spec:
             - 256mb
             - --maxmemory-policy
             - allkeys-lru
-            - --save
-            - ""
+            # Enable AOF persistence so cache survives pod restarts
             - --appendonly
-            - "no"
+            - "yes"
+            - --appendfsync
+            - everysec
+            - --dir
+            - /data
           ports:
             - name: redis
               containerPort: 6379
+          volumeMounts:
+            - name: data
+              mountPath: /data
           resources:
             requests:
               cpu: 50m
@@ -56,6 +62,18 @@ spec:
               command: ["redis-cli", "ping"]
             initialDelaySeconds: 5
             periodSeconds: 30
+      initContainers:
+        - name: fix-permissions
+          image: busybox
+          command: ["sh", "-c", "chown -R 999:999 /data"]
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      volumes:
+        - name: data
+          hostPath:
+            path: /var/lib/redis-mediawiki
+            type: DirectoryOrCreate
       nodeSelector:
         node-role.glug.infra/compute: "true"
 ---
