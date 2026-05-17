@@ -20,7 +20,7 @@ spec:
     caFile: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
   bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
   path: /metrics/cadvisor
-  scrapeInterval: 30s
+  interval: 30s
   honorLabels: true
   metricRelabelConfigs:
     # Drop high-cardinality metrics that bloat storage
