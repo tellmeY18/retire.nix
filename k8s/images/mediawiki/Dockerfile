@@ -23,7 +23,10 @@ FROM mediawiki:stable-fpm-alpine
 
 # Install dependencies + Caddy + PHP Redis extension
 RUN apk add --no-cache git lua5.1 unzip curl caddy supervisor \
-    php-pecl-redis
+    autoconf gcc g++ make php83-dev \
+    && pecl install redis \
+    && docker-php-ext-enable redis \
+    && apk del autoconf gcc g++ make php83-dev
 
 # ─── Extensions: Content & Navigation ────────────────────────────────────────
 RUN cd /var/www/html/extensions && \
