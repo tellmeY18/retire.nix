@@ -21,8 +21,8 @@
 
 FROM mediawiki:stable-fpm-alpine
 
-# Install dependencies + Caddy + PHP Redis extension
-RUN apk add --no-cache git lua5.1 unzip curl caddy supervisor \
+# Install dependencies + nginx + PHP Redis extension
+RUN apk add --no-cache git lua5.1 unzip curl nginx supervisor \
     autoconf gcc g++ make php83-dev \
     && pecl install redis \
     && docker-php-ext-enable redis \
@@ -137,40 +137,10 @@ RUN echo '[www]' > /usr/local/etc/php-fpm.d/zz-tuning.conf && \
 # FOSSCELL NITC favicon/logo
 COPY favicon.svg /var/www/html/favicon.svg
 
-# Caddyfile — serves MediaWiki with php_fastcgi
-RUN cat > /etc/caddy/Caddyfile <<'EOF'
-:80 {
-    root * /var/www/html
+# nginx.conf — serves MediaWiki with php_fastcgi, proper PATH_INFO support
+COPY nginx.conf /etc/nginx/nginx.conf
 
-    # Block access to sensitive paths
-    @blocked path /images/deleted/* /cache/* /includes/* /maintenance/*
-    respond @blocked 403
-
-    route {
-        # Short URLs — rewrite non-file, non-PHP paths to index.php with PATH_INFO
-        @notFileNotPhp {
-            not path_regexp \.php
-            not file {path}
-        }
-        rewrite @notFileNotPhp /index.php{uri}
-
-        # All PHP requests (direct .php, rest.php/v1/..., and rewritten short URLs)
-        @php path_regexp php ^(.+?\.php)(.*)$
-        reverse_proxy @php 127.0.0.1:9000 {
-            transport fastcgi {
-                root /var/www/html
-                split .php
-            }
-        }
-
-        file_server
-    }
-
-    header /images/* X-Content-Type-Options nosniff
-}
-EOF
-
-# Supervisord config — runs both Caddy and PHP-FPM
+# Supervisord config — runs both nginx and PHP-FPM
 RUN cat > /etc/supervisord.conf <<'EOF'
 [supervisord]
 nodaemon=true
@@ -186,8 +156,8 @@ stdout_logfile_maxbytes=0
 stderr_logfile=/dev/stderr
 stderr_logfile_maxbytes=0
 
-[program:caddy]
-command=caddy run --config /etc/caddy/Caddyfile --adapter caddyfile
+[program:nginx]
+command=nginx -g "daemon off;"
 autostart=true
 autorestart=true
 stdout_logfile=/dev/stdout

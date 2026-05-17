@@ -31,7 +31,7 @@ spec:
         node-role.glug.infra/compute: "true"
       containers:
         - name: mediawiki
-          image: ghcr.io/tellmey18/mediawiki:build-24
+          image: ghcr.io/tellmey18/mediawiki:build-26
           ports:
             - name: http
               containerPort: 80
@@ -43,12 +43,6 @@ spec:
             - name: localsettings
               mountPath: /var/www/html/LocalSettings.php
               subPath: LocalSettings.php
-            - name: healthcheck
-              mountPath: /var/www/html/healthcheck.php
-              subPath: healthcheck.php
-            - name: caddyfile
-              mountPath: /etc/caddy/Caddyfile
-              subPath: Caddyfile
           resources:
             requests:
               cpu: 100m
@@ -85,12 +79,6 @@ spec:
         - name: localsettings
           configMap:
             name: mediawiki-localsettings
-        - name: healthcheck
-          configMap:
-            name: mediawiki-healthcheck
-        - name: caddyfile
-          configMap:
-            name: mediawiki-caddyfile
 ---
 apiVersion: v1
 kind: Service

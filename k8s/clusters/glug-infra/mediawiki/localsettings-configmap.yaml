@@ -9,6 +9,15 @@ data:
     <?php
     if ( !defined( 'MEDIAWIKI' ) ) { exit; }
 
+    # Workaround: Caddy reverse_proxy + transport fastcgi does not always
+    # set REMOTE_ADDR when using path_regexp matchers in a route block.
+    # Without this, rest.php throws "Unable to determine IP".
+    if ( empty( $_SERVER['REMOTE_ADDR'] ) ) {
+        $_SERVER['REMOTE_ADDR'] = $_SERVER['HTTP_X_REAL_IP']
+            ?? $_SERVER['HTTP_X_FORWARDED_FOR']
+            ?? '127.0.0.1';
+    }
+
     ## Core settings
     $wgSitename = "WIKI FOSSCELL NITC";
     $wgMetaNamespace = "WIKI_FOSSCELL_NITC";
@@ -23,7 +32,7 @@ data:
 
     ## Database
     $wgDBtype = "mysql";
-    $wgDBserver = "mysql-pxc-db-haproxy.pxc-clusters.svc";
+    $wgDBserver = "mysql-pxc-db-haproxy.pxc-clusters.svc.cluster.local";
     $wgDBname = "mediawiki";
     $wgDBuser = "mediawiki";
     $wgDBpassword = getenv('MW_DB_PASSWORD');
@@ -35,7 +44,7 @@ data:
     # enough for the worst case while still failing fast if MySQL is down.
     $wgDBservers = [
         [
-            'host' => 'mysql-pxc-db-haproxy.pxc-clusters.svc',
+            'host' => 'mysql-pxc-db-haproxy.pxc-clusters.svc.cluster.local',
             'dbname' => 'mediawiki',
             'user' => 'mediawiki',
             'password' => getenv('MW_DB_PASSWORD'),
@@ -51,7 +60,7 @@ data:
     # Colocated on the same node as MediaWiki pods (kenobi).
     $wgObjectCaches['redis'] = [
         'class' => 'RedisBagOStuff',
-        'servers' => [ 'redis.mediawiki.svc:6379' ],
+        'servers' => [ 'redis.mediawiki.svc.cluster.local:6379' ],
         'persistent' => true,
         'connectTimeout' => 1,
     ];
@@ -59,6 +68,13 @@ data:
     $wgParserCacheType = 'redis';
     $wgSessionCacheType = 'redis';
     $wgMessageCacheType = 'redis';
+
+    # Localization cache — store in Redis instead of DB to avoid
+    # cross-tailnet DB queries for every REST API request.
+    $wgLocalisationCacheConf = [
+        'class' => 'LocalisationCache',
+        'store' => 'array',  # Fastest: keeps l10n in PHP memory (APCu backed)
+    ];
 
     # Parser cache expiry — 7 days (covers most anon traffic without DB hit)
     $wgParserCacheExpireTime = 604800;
