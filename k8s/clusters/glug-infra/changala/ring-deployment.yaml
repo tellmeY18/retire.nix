@@ -50,7 +50,7 @@ spec:
 
       containers:
         - name: changala-ring
-          image: ghcr.io/changala-social/changala.app:v0.4.2
+          image: ghcr.io/changala-social/changala.app:v0.4.3
           command: ["changala-ring"]
 
           ports:

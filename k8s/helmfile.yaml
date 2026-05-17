@@ -70,7 +70,7 @@ releases:
     namespace: monitoring
     createNamespace: false
     chart: vm/victoria-metrics-k8s-stack
-    version: "0.77.0"
+    version: "0.78.0"
     values:
       - apps/victoria-metrics-k8s-stack/values.yaml
     secrets:
@@ -85,7 +85,7 @@ releases:
     namespace: cnpg-system
     createNamespace: true
     chart: cnpg/cloudnative-pg
-    version: "0.28.0"
+    version: "0.28.2"
     # VM Operator CRDs must exist before the operator chart tries to create
     # any monitoring resources (though we've disabled PodMonitor creation).
     needs:
@@ -104,7 +104,7 @@ releases:
     namespace: cnpg-clusters
     createNamespace: false # namespace is created by kustomize (PSA labels)
     chart: cnpg/cluster
-    version: "0.6.0"
+    version: "0.6.1"
     # Apply only after the operator + CRDs are in place.
     needs:
       - cnpg-system/cloudnative-pg

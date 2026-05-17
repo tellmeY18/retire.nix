@@ -29,7 +29,7 @@ spec:
           restartPolicy: OnFailure
           containers:
             - name: kubectl
-              image: bitnami/kubectl:1.35
+              image: bitnami/kubectl:1.36
               command:
                 - /bin/sh
                 - -c
