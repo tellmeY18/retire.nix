@@ -50,9 +50,11 @@ data:
     $wgParserCacheExpireTime = 604800;
 
     # Enable file cache for anonymous users (ultimate speed — no PHP at all)
-    # Disabled for now since Caddy handles static files; enable if needed:
-    # $wgUseFileCache = true;
-    # $wgFileCacheDirectory = '/tmp/mediawiki-cache';
+    # Caddy serves static HTML directly from /tmp/mediawiki-cache.
+    # Pages are invalidated automatically on edit.
+    $wgUseFileCache = true;
+    $wgFileCacheDirectory = '/tmp/mediawiki-cache';
+    $wgShowIPinHeader = false; # Required for file cache to work
 
     $wgMemCachedServers = [];
 

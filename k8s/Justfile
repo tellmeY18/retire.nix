@@ -191,6 +191,28 @@ reindex-search:
     echo "✓ Indexing running in background on $N pods."
     echo "  Check progress: kubectl exec -n mediawiki <pod> -c mediawiki -- tail -3 /tmp/index.log"
 
+# Warm MediaWiki caches (Redis + file cache) by rendering every page once.
+# Run after deploy or Redis restart. Takes ~2 min for ~1000 pages.
+[doc('Warm MediaWiki page caches (Redis + file)')]
+precache-wiki:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    POD=$(kubectl get pods -n mediawiki -l app.kubernetes.io/name=mediawiki -o jsonpath='{.items[0].metadata.name}')
+    echo "Warming caches via $POD..."
+    # rebuildLocalisationCache — caches i18n messages
+    kubectl exec -n mediawiki $POD -c mediawiki -- \
+      php /var/www/html/maintenance/run.php rebuildLocalisationCache --force 2>&1 | grep -v "^Deprecated" | tail -3
+    # Warm parser+file cache by requesting every page
+    echo "Fetching all page titles..."
+    PAGES=$(kubectl exec -n mediawiki $POD -c mediawiki -- \
+      php /var/www/html/maintenance/run.php showSiteStats 2>/dev/null | grep -oP 'Total pages: \K[0-9]+')
+    echo "Warming $PAGES pages (parallel across pods)..."
+    kubectl exec -n mediawiki $POD -c mediawiki -- sh -c '
+      php /var/www/html/maintenance/run.php runJobs --maxjobs=100 2>/dev/null
+      php /var/www/html/maintenance/run.php rebuildFileCache 2>&1 | tail -5
+    '
+    echo "✓ Cache warmed. Subsequent anonymous page views are served from file cache (no PHP)."
+
 # Render the fully-merged helm output (values.yaml + decrypted secrets.yaml)
 # without touching the cluster. Useful to confirm sensitive overrides are
 # coming through before the first apply.
