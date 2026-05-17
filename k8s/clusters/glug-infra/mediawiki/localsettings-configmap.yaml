@@ -137,19 +137,19 @@ data:
     # wfLoadExtension( 'DiscussionTools' );
 
     ## Extensions — Custom (cloned in Dockerfile)
-    wfLoadExtension( 'DarkMode' );
-    wfLoadExtension( 'RSS' );
-    wfLoadExtension( 'Comments' );
-    wfLoadExtension( 'VoteNY' );
-    wfLoadExtension( 'HitCounters' );
-    wfLoadExtension( 'Popups' );
-    wfLoadExtension( 'MobileFrontend' );
-    wfLoadExtension( 'Description2' );
-    wfLoadExtension( 'RelatedArticles' );
-    wfLoadExtension( 'SmiteSpam' );
-    wfLoadExtension( 'UserMerge' );
-    wfLoadExtension( 'BlogPage' );
-    require_once "$IP/extensions/SocialProfile/SocialProfile.php";
+    # wfLoadExtension( 'DarkMode' );
+    # wfLoadExtension( 'RSS' );
+    # wfLoadExtension( 'Comments' );
+    # wfLoadExtension( 'VoteNY' );
+    # wfLoadExtension( 'HitCounters' );
+    # wfLoadExtension( 'Popups' );
+    # wfLoadExtension( 'MobileFrontend' );
+    # wfLoadExtension( 'Description2' );
+    # wfLoadExtension( 'RelatedArticles' );
+    # wfLoadExtension( 'SmiteSpam' );
+    # wfLoadExtension( 'UserMerge' );
+    # wfLoadExtension( 'BlogPage' );
+    # require_once "$IP/extensions/SocialProfile/SocialProfile.php";
 
     ## Extensions — NEW (require maintenance/update.php to create DB tables)
     # TEMPORARILY DISABLED — need to run update.php first
