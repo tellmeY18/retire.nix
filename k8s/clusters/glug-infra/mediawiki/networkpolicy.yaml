@@ -86,3 +86,28 @@ spec:
     - ports:
         - port: 9200
           protocol: TCP
+    # Redis (object/parser/session cache)
+    - ports:
+        - port: 6379
+          protocol: TCP
+---
+# Allow ingress to Redis from mediawiki pods.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-redis-ingress
+  namespace: mediawiki
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: redis
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: mediawiki
+      ports:
+        - port: 6379
+          protocol: TCP

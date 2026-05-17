@@ -21,8 +21,9 @@
 
 FROM mediawiki:stable-fpm-alpine
 
-# Install dependencies + Caddy
-RUN apk add --no-cache git lua5.1 unzip curl caddy supervisor
+# Install dependencies + Caddy + PHP Redis extension
+RUN apk add --no-cache git lua5.1 unzip curl caddy supervisor \
+    php-pecl-redis
 
 # ─── Extensions: Content & Navigation ────────────────────────────────────────
 RUN cd /var/www/html/extensions && \
