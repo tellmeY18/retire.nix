@@ -1,0 +1,136 @@
+---
+# Weekly cache warmer — renders every page to populate Redis parser cache.
+# Runs Sunday 03:00 UTC (off-peak). Uses multi-curl with 8 parallel workers.
+# Safe to run anytime — idempotent, just refreshes cached content.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: cache-warmer
+  namespace: mediawiki
+  labels:
+    app.kubernetes.io/name: cache-warmer
+    app.kubernetes.io/component: maintenance
+    app.kubernetes.io/part-of: mediawiki
+spec:
+  schedule: "0 3 * * 0"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 1800
+      backoffLimit: 2
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: cache-warmer
+            app.kubernetes.io/component: maintenance
+            app.kubernetes.io/part-of: mediawiki
+        spec:
+          restartPolicy: OnFailure
+          nodeSelector:
+            node-role.glug.infra/compute: "true"
+          containers:
+            - name: warmer
+              image: ghcr.io/tellmey18/mediawiki:build-24
+              command:
+                - php
+                - /var/www/html/maintenance-jobs/warm-cache.php
+              envFrom:
+                - secretRef:
+                    name: mediawiki-credentials
+              volumeMounts:
+                - name: localsettings
+                  mountPath: /var/www/html/LocalSettings.php
+                  subPath: LocalSettings.php
+                - name: jobs
+                  mountPath: /var/www/html/maintenance-jobs
+              resources:
+                requests:
+                  cpu: 200m
+                  memory: 256Mi
+                limits:
+                  cpu: "1"
+                  memory: 512Mi
+          volumes:
+            - name: localsettings
+              configMap:
+                name: mediawiki-localsettings
+            - name: jobs
+              configMap:
+                name: mediawiki-maintenance-jobs
+---
+# Weekly search index rebuild — re-indexes all pages into OpenSearch.
+# Runs Sunday 03:30 UTC (after cache warmer). Split into 2 parallel pods
+# for faster completion (~3 min for 1000 pages).
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: search-reindex
+  namespace: mediawiki
+  labels:
+    app.kubernetes.io/name: search-reindex
+    app.kubernetes.io/component: maintenance
+    app.kubernetes.io/part-of: mediawiki
+spec:
+  schedule: "30 3 * * 0"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 1800
+      backoffLimit: 2
+      parallelism: 2
+      completions: 2
+      completionMode: Indexed
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: search-reindex
+            app.kubernetes.io/component: maintenance
+            app.kubernetes.io/part-of: mediawiki
+        spec:
+          restartPolicy: OnFailure
+          nodeSelector:
+            node-role.glug.infra/compute: "true"
+          containers:
+            - name: indexer
+              image: ghcr.io/tellmey18/mediawiki:build-24
+              command:
+                - sh
+                - -c
+                - |
+                  # Split work by JOB_COMPLETION_INDEX (0 or 1)
+                  TOTAL=1200
+                  HALF=$((TOTAL / 2))
+                  if [ "$JOB_COMPLETION_INDEX" = "0" ]; then
+                    FROM=1; TO=$HALF
+                  else
+                    FROM=$((HALF + 1)); TO=$TOTAL
+                  fi
+                  echo "[indexer-$JOB_COMPLETION_INDEX] Indexing pages $FROM-$TO"
+                  # Ensure index config is up to date (idempotent, fast)
+                  php /var/www/html/extensions/CirrusSearch/maintenance/UpdateSearchIndexConfig.php 2>&1 | tail -5
+                  # Index the page range
+                  php /var/www/html/extensions/CirrusSearch/maintenance/ForceSearchIndex.php \
+                    --skipLinks --indexOnSkip --fromId "$FROM" --toId "$TO"
+                  echo "[indexer-$JOB_COMPLETION_INDEX] DONE"
+              envFrom:
+                - secretRef:
+                    name: mediawiki-credentials
+              volumeMounts:
+                - name: localsettings
+                  mountPath: /var/www/html/LocalSettings.php
+                  subPath: LocalSettings.php
+              resources:
+                requests:
+                  cpu: 200m
+                  memory: 256Mi
+                limits:
+                  cpu: "1"
+                  memory: 512Mi
+          volumes:
+            - name: localsettings
+              configMap:
+                name: mediawiki-localsettings

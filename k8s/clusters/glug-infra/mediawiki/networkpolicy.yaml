@@ -25,7 +25,7 @@ spec:
         - port: 80
           protocol: TCP
 ---
-# Allow ingress to OpenSearch from mediawiki pods (CirrusSearch).
+# Allow ingress to OpenSearch from any mediawiki-part-of pod (includes CronJobs).
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -41,13 +41,14 @@ spec:
     - from:
         - podSelector:
             matchLabels:
-              app.kubernetes.io/name: mediawiki
+              app.kubernetes.io/part-of: mediawiki
       ports:
         - port: 9200
           protocol: TCP
         - port: 9300
           protocol: TCP
 ---
+# Egress for all mediawiki-part-of pods (deployment + jobs).
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -56,7 +57,7 @@ metadata:
 spec:
   podSelector:
     matchLabels:
-      app.kubernetes.io/name: mediawiki
+      app.kubernetes.io/part-of: mediawiki
   policyTypes:
     - Egress
   egress:
@@ -78,7 +79,7 @@ spec:
     - ports:
         - port: 443
           protocol: TCP
-    # HTTP (external)
+    # HTTP (internal — mediawiki-svc for cache warming)
     - ports:
         - port: 80
           protocol: TCP
@@ -91,7 +92,7 @@ spec:
         - port: 6379
           protocol: TCP
 ---
-# Allow ingress to Redis from mediawiki pods.
+# Allow ingress to Redis from any mediawiki-part-of pod (includes CronJobs).
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -107,7 +108,7 @@ spec:
     - from:
         - podSelector:
             matchLabels:
-              app.kubernetes.io/name: mediawiki
+              app.kubernetes.io/part-of: mediawiki
       ports:
         - port: 6379
           protocol: TCP

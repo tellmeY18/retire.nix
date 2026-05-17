@@ -146,15 +146,25 @@ RUN cat > /etc/caddy/Caddyfile <<'EOF'
     @blocked path /images/deleted/* /cache/* /includes/* /maintenance/*
     respond @blocked 403
 
-    # PHP handler for MediaWiki entry points
-    @phpFiles path *.php
-    php_fastcgi @phpFiles 127.0.0.1:9000
+    route {
+        # Short URLs — rewrite non-file, non-PHP paths to index.php with PATH_INFO
+        @notFileNotPhp {
+            not path_regexp \.php
+            not file {path}
+        }
+        rewrite @notFileNotPhp /index.php{uri}
 
-    # Short URLs + fallback to index.php
-    try_files {path} {path}/ /index.php?{query}
-    php_fastcgi 127.0.0.1:9000
+        # All PHP requests (direct .php, rest.php/v1/..., and rewritten short URLs)
+        @php path_regexp php ^(.+?\.php)(.*)$
+        reverse_proxy @php 127.0.0.1:9000 {
+            transport fastcgi {
+                root /var/www/html
+                split .php
+            }
+        }
 
-    file_server
+        file_server
+    }
 
     header /images/* X-Content-Type-Options nosniff
 }

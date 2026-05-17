@@ -46,6 +46,9 @@ spec:
             - name: healthcheck
               mountPath: /var/www/html/healthcheck.php
               subPath: healthcheck.php
+            - name: caddyfile
+              mountPath: /etc/caddy/Caddyfile
+              subPath: Caddyfile
           resources:
             requests:
               cpu: 100m
@@ -85,6 +88,9 @@ spec:
         - name: healthcheck
           configMap:
             name: mediawiki-healthcheck
+        - name: caddyfile
+          configMap:
+            name: mediawiki-caddyfile
 ---
 apiVersion: v1
 kind: Service
