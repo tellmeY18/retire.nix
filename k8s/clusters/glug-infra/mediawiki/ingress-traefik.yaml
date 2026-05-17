@@ -11,7 +11,7 @@ spec:
   entryPoints:
     - websecure
   routes:
-    - match: Host(`wiki.kenobi.win`)
+    - match: Host(`wiki.fosscell.org`)
       kind: Rule
       services:
         - name: mediawiki-svc
@@ -29,7 +29,7 @@ spec:
   entryPoints:
     - web
   routes:
-    - match: Host(`wiki.kenobi.win`)
+    - match: Host(`wiki.fosscell.org`)
       kind: Rule
       middlewares:
         - name: redirect-to-https

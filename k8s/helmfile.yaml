@@ -38,6 +38,8 @@ repositories:
     url: https://cloudnative-pg.github.io/charts
   - name: percona
     url: https://percona.github.io/percona-helm-charts
+  - name: traefik
+    url: https://traefik.github.io/charts
   # NOTE: The rustfs-operator chart is not published to a Helm registry.
   # It lives in the source repo at deploy/rustfs-operator/. We reference it
   # via the helm-git plugin (included in the Nix dev shell via wrapHelm).
@@ -166,3 +168,17 @@ releases:
     # If secrets are added later, create a sops-encrypted secrets.yaml and
     # uncomment: secrets:
     #              - apps/rustfs-operator/secrets.yaml
+
+  # ---------------------------------------------------------------------------
+  # 7. Traefik ingress controller.
+  # ---------------------------------------------------------------------------
+  # Public-facing reverse proxy running on compute nodes (hostNetwork).
+  # Handles TLS termination via Let’s Encrypt ACME HTTP-01 challenge.
+  # Routes: tellmey.fyi (Ghost), wiki.fosscell.org (MediaWiki), ask.kenobi.win (Answer)
+  - name: traefik
+    namespace: traefik-system
+    createNamespace: false # namespace created by kustomize (PSA labels)
+    chart: traefik/traefik
+    version: "40.2.0"
+    values:
+      - apps/traefik/values.yaml
