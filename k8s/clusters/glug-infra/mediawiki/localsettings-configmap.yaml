@@ -85,41 +85,65 @@ data:
     $wgGroupPermissions['bureaucrat']['smitespam'] = true;
     $wgGroupPermissions['bureaucrat']['usermerge'] = true;
     $wgGroupPermissions['sysop']['usermerge'] = true;
+    $wgGroupPermissions['sysop']['checkuser'] = true;
+    $wgGroupPermissions['sysop']['checkuser-log'] = true;
+    $wgGroupPermissions['sysop']['abusefilter-modify'] = true;
+    $wgGroupPermissions['sysop']['abusefilter-log-detail'] = true;
 
     ## Skins
     wfLoadSkin( 'Vector' );
     wfLoadSkin( 'MinervaNeue' );
     $wgDefaultSkin = "vector-2022";
 
-    ## Extensions
+    ## Extensions — Bundled (already in base image)
     wfLoadExtension( 'AbuseFilter' );
     wfLoadExtensions([ 'ConfirmEdit', 'ConfirmEdit/QuestyCaptcha' ]);
     wfLoadExtension( 'SpamBlacklist' );
-    wfLoadExtension( 'DarkMode' );
-    wfLoadExtension( 'RSS' );
-    # DISABLED: incompatible with MW 1.44 (uses removed rev_user column + ActorMigration)
-    # wfLoadExtension( 'ContributionScores' );
-    wfLoadExtension( 'Comments' );
-    wfLoadExtension( 'VoteNY' );
-    wfLoadExtension( 'HitCounters' );
-    wfLoadExtension( 'Popups' );
-    wfLoadExtension( 'TextExtracts' );
-    wfLoadExtension( 'MobileFrontend' );
     wfLoadExtension( 'Cite' );
     wfLoadExtension( 'CiteThisPage' );
     wfLoadExtension( 'Scribunto' );
     wfLoadExtension( 'TemplateStyles' );
     wfLoadExtension( 'ParserFunctions' );
-    wfLoadExtension( 'Description2' );
     wfLoadExtension( 'PageImages' );
-    wfLoadExtension( 'RelatedArticles' );
+    wfLoadExtension( 'TextExtracts' );
     wfLoadExtension( 'Nuke' );
+    wfLoadExtension( 'CategoryTree' );
+    wfLoadExtension( 'Echo' );
+    wfLoadExtension( 'Thanks' );
+    wfLoadExtension( 'CheckUser' );
+    wfLoadExtension( 'CodeMirror' );
+    wfLoadExtension( 'DiscussionTools' );
+    wfLoadExtension( 'AdvancedSearch' );
+
+    ## Extensions — Custom (cloned in Dockerfile)
+    wfLoadExtension( 'DarkMode' );
+    wfLoadExtension( 'RSS' );
+    wfLoadExtension( 'Comments' );
+    wfLoadExtension( 'VoteNY' );
+    wfLoadExtension( 'HitCounters' );
+    wfLoadExtension( 'Popups' );
+    wfLoadExtension( 'MobileFrontend' );
+    wfLoadExtension( 'Description2' );
+    wfLoadExtension( 'RelatedArticles' );
     wfLoadExtension( 'SmiteSpam' );
     wfLoadExtension( 'UserMerge' );
+    wfLoadExtension( 'BlogPage' );
+    require_once "$IP/extensions/SocialProfile/SocialProfile.php";
+
+    ## Extensions — NEW
+    wfLoadExtension( 'Cargo' );
+    wfLoadExtension( 'Disambiguator' );
+    wfLoadExtension( 'DisplayTitle' );
+    wfLoadExtension( 'BreadCrumbs2' );
+    wfLoadExtension( 'CollapsibleSections' );
+    wfLoadExtension( 'AJAXPoll' );
+    wfLoadExtension( 'CommentStreams' );
+    wfLoadExtension( 'EmbedVideo' );
+    wfLoadExtension( 'PageViewInfo' );
+    # DISABLED: incompatible with MW 1.44 (uses removed rev_user column)
+    # wfLoadExtension( 'ContributionScores' );
     # DISABLED: incompatible with MW 1.44 (uses removed getDBLoadBalancer())
     # wfLoadExtension( 'WhosOnline' );
-    require_once "$IP/extensions/SocialProfile/SocialProfile.php";
-    wfLoadExtension( 'BlogPage' );
 
     ## Extension config
     $wgScribuntoDefaultEngine = 'luastandalone';

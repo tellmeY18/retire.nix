@@ -27,7 +27,7 @@ spec:
     spec:
       containers:
         - name: mediawiki
-          image: ghcr.io/tellmey18/mediawiki:build-13
+          image: ghcr.io/tellmey18/mediawiki:build-15
           ports:
             - name: http
               containerPort: 80
