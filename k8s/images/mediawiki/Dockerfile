@@ -116,6 +116,13 @@ RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local
 # Lua for Scribunto
 RUN ln -sf /usr/bin/lua5.1 /usr/bin/lua || true
 
+# Tune PHP-FPM for higher concurrency (default max_children=5 is too low)
+RUN echo '[www]' > /usr/local/etc/php-fpm.d/zz-tuning.conf && \
+    echo 'pm.max_children = 20' >> /usr/local/etc/php-fpm.d/zz-tuning.conf && \
+    echo 'pm.start_servers = 5' >> /usr/local/etc/php-fpm.d/zz-tuning.conf && \
+    echo 'pm.min_spare_servers = 3' >> /usr/local/etc/php-fpm.d/zz-tuning.conf && \
+    echo 'pm.max_spare_servers = 10' >> /usr/local/etc/php-fpm.d/zz-tuning.conf
+
 # FOSSCELL NITC favicon/logo
 COPY favicon.svg /var/www/html/favicon.svg
 

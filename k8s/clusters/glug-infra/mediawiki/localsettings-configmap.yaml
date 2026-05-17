@@ -139,7 +139,9 @@ data:
     wfLoadExtension( 'AJAXPoll' );
     # DISABLED: CommentStreams incompatible with MW 1.45 (mwsInitComponents removed)
     # wfLoadExtension( 'CommentStreams' );
-    wfLoadExtension( 'EmbedVideo' );
+    # DISABLED: EmbedVideo causes 500 errors (premature service access + Content-Length mismatch)
+    # wfLoadExtension( 'EmbedVideo' );
+    # $wgEmbedVideoEnableVideoHandler = false;
     wfLoadExtension( 'PageViewInfo' );
 
     ## Extensions — Search (CirrusSearch + OpenSearch)
@@ -196,3 +198,4 @@ data:
     $wgShowExceptionDetails = false;
     $wgDeprecationReleaseLimit = '1.44'; # suppress deprecation notices for functions deprecated before 1.44
     error_reporting( E_ALL & ~E_DEPRECATED & ~E_STRICT );
+    ini_set('display_errors', '0');
