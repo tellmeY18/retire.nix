@@ -16,4 +16,4 @@ resources:
   - deployment.yaml
   - localsettings-configmap.yaml
   - tailscale-service.yaml
-  # - ingress-traefik.yaml  # TODO: enable after Traefik is deployed on kenobi
+  - ingress-traefik.yaml

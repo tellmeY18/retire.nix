@@ -1,8 +1,5 @@
 ---
-# values.yaml — Traefik Helm chart values for glug-infra.
-#
-# Chart: traefik/traefik
-# Docs: https://doc.traefik.io/traefik/
+# values.yaml — Traefik Helm chart values for glug-infra (chart v40.x).
 #
 # Traefik runs on compute nodes with hostNetwork to bind directly
 # to the node's public IP (68.233.115.209) on ports 80 and 443.
@@ -13,57 +10,64 @@ nodeSelector:
   node-role.glug.infra/compute: "true"
 
 # Bind directly to the node's network stack (no kube-proxy hop).
-# Required because we don't have a cloud LoadBalancer or MetalLB.
 hostNetwork: true
 
-# Don't use hostPort (hostNetwork already exposes everything).
 ports:
+  traefik:
+    port: 8080
+    hostPort: null
   web:
-    port: 8000
-    hostPort: 80
+    port: 80
+    hostPort: null
     exposedPort: 80
     protocol: TCP
   websecure:
-    port: 8443
-    hostPort: 443
+    port: 443
+    hostPort: null
     exposedPort: 443
     protocol: TCP
-    tls:
-      enabled: true
+  metrics:
+    port: 9180
+    hostPort: null
 
-# Single replica — one compute node. Scale when more nodes join.
+# Single replica — one compute node.
 deployment:
   replicas: 1
+  # hostPath volume for ACME cert persistence (compute nodes have no PVC StorageClass).
+  additionalVolumes:
+    - name: acme-storage
+      hostPath:
+        path: /var/lib/traefik
+        type: DirectoryOrCreate
 
 # ACME (Let's Encrypt) TLS certificate resolver.
-# Certificates stored in a PVC so they survive pod restarts.
 additionalArguments:
   - "--certificatesresolvers.letsencrypt.acme.email=vysakhpr218@gmail.com"
-  - "--certificatesresolvers.letsencrypt.acme.storage=/data/acme.json"
+  - "--certificatesresolvers.letsencrypt.acme.storage=/acme/acme.json"
   - "--certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web"
-  # Use staging for testing, then remove this line for production:
-  # - "--certificatesresolvers.letsencrypt.acme.caserver=https://acme-staging-v02.api.letsencrypt.org/directory"
 
-# Persist ACME certificates across pod restarts.
+# Mount the hostPath volume for ACME state.
+additionalVolumeMounts:
+  - name: acme-storage
+    mountPath: /acme
+
+# No PVC persistence — using hostPath above instead.
 persistence:
-  enabled: true
-  size: 128Mi
-  storageClass: ""  # Use default StorageClass (or emptyDir if no PVC available on compute)
-  accessMode: ReadWriteOnce
+  enabled: false
 
-# Redirect HTTP → HTTPS globally.
+# Dashboard — not exposed publicly.
 ingressRoute:
   dashboard:
-    enabled: false  # Dashboard not exposed publicly
+    enabled: false
 
-# Log level
+# Logs
 logs:
   general:
     level: INFO
   access:
     enabled: true
 
-# Resource limits
+# Resources
 resources:
   requests:
     cpu: 100m
@@ -72,12 +76,28 @@ resources:
     cpu: "1"
     memory: 256Mi
 
-# Providers — watch Kubernetes Ingress and IngressRoute CRDs.
+# Run as root — required for binding to ports 80/443 and writing hostPath.
+securityContext:
+  runAsUser: 0
+  runAsGroup: 0
+  runAsNonRoot: false
+  capabilities:
+    add:
+      - NET_BIND_SERVICE
+    drop:
+      - ALL
+
+podSecurityContext:
+  runAsUser: 0
+  runAsGroup: 0
+  fsGroup: 0
+
+# Providers — watch Kubernetes IngressRoute CRDs.
 providers:
   kubernetesIngress:
     enabled: true
     publishedService:
-      enabled: false  # hostNetwork mode — no Service IP to publish
+      enabled: false
   kubernetesCRD:
     enabled: true
     allowCrossNamespace: true

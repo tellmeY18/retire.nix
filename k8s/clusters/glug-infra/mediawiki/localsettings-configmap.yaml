@@ -13,7 +13,7 @@ data:
     $wgSitename = "WIKI FOSSCELL NITC";
     $wgMetaNamespace = "WIKI_FOSSCELL_NITC";
     $wgScriptPath = "";
-    $wgServer = "https://wiki.tail477f2f.ts.net";
+    $wgServer = "https://wiki.fosscell.org";
     $wgResourceBasePath = $wgScriptPath;
     $wgFavicon = "$wgResourceBasePath/favicon.svg";
     $wgLogos = [
