@@ -1,0 +1,21 @@
+---
+# limitrange.yaml — Override the operator's 50M init container default.
+#
+# The PXC operator hardcodes init container resources to 50M/50m which
+# OOMs on arm64 (larger binary footprint). This LimitRange sets a higher
+# default that applies to all containers in the namespace that don't
+# specify their own limits (i.e., the operator-created init container).
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: pxc-ram-defaults
+  namespace: pxc-ram
+spec:
+  limits:
+    - type: Container
+      default:
+        memory: "512Mi"
+        cpu: "500m"
+      defaultRequest:
+        memory: "256Mi"
+        cpu: "100m"

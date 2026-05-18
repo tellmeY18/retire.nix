@@ -31,7 +31,7 @@ spec:
         node-role.glug.infra/compute: "true"
       containers:
         - name: mediawiki
-          image: ghcr.io/tellmey18/mediawiki:build-30
+          image: ghcr.io/tellmey18/mediawiki:build-31
           ports:
             - name: http
               containerPort: 80
@@ -74,6 +74,35 @@ spec:
             periodSeconds: 3
             timeoutSeconds: 5
             failureThreshold: 30
+
+        # Dedicated job runner — continuously drains the MW job queue.
+        # Handles HTMLCacheUpdate (template purges), CirrusSearch indexing,
+        # and all other async jobs. Replaces $wgJobRunRate on web requests.
+        - name: jobrunner
+          image: ghcr.io/tellmey18/mediawiki:build-31
+          command:
+            - sh
+            - -c
+            - |
+              while true; do
+                php /var/www/html/maintenance/run.php runJobs --maxjobs=50 --maxtime=30 2>&1
+                # Sleep 2s between batches to avoid starving the DB
+                sleep 2
+              done
+          envFrom:
+            - secretRef:
+                name: mediawiki-credentials
+          volumeMounts:
+            - name: localsettings
+              mountPath: /var/www/html/LocalSettings.php
+              subPath: LocalSettings.php
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
 
       volumes:
         - name: localsettings

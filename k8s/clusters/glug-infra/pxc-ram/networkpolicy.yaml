@@ -1,0 +1,53 @@
+---
+# networkpolicy.yaml — NetworkPolicies for the pxc-ram namespace.
+#
+# The RAM replica needs:
+#   - Outbound to pxc-clusters namespace (pull binlogs from primary)
+#   - Inbound from proxysql namespace (read queries)
+#   - Inbound from pxc-system (operator management)
+#   - Inbound from monitoring (metrics scraping)
+
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: pxc-ram
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+---
+# Allow ingress to PXC RAM pods from ProxySQL, operator, and monitoring.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-pxc-ram-ingress
+  namespace: pxc-ram
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: pxc
+      app.kubernetes.io/instance: mysql-ram
+  policyTypes:
+    - Ingress
+  ingress:
+    # ProxySQL sends read queries to this node.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: proxysql
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: pxc-system
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+        # Intra-namespace (operator sidecars, health checks)
+        - podSelector: {}
+      ports:
+        - protocol: TCP
+          port: 3306
+        - protocol: TCP
+          port: 33062
+        - protocol: TCP
+          port: 9104

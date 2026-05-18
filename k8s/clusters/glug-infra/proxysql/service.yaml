@@ -1,0 +1,22 @@
+---
+# service.yaml — ClusterIP Service for ProxySQL (internal access).
+apiVersion: v1
+kind: Service
+metadata:
+  name: proxysql
+  namespace: proxysql
+  labels:
+    app: proxysql
+spec:
+  type: ClusterIP
+  selector:
+    app: proxysql
+  ports:
+    - name: mysql
+      protocol: TCP
+      port: 6033
+      targetPort: 6033
+    - name: admin
+      protocol: TCP
+      port: 6032
+      targetPort: 6032

@@ -98,7 +98,7 @@ spec:
   policyTypes:
     - Ingress
   ingress:
-    # Rule 1: MySQL traffic from HAProxy + operator + intra-cluster replication.
+    # Rule 1: MySQL traffic from HAProxy + operator + backup + intra-cluster.
     - from:
         - podSelector:
             matchLabels:
@@ -114,6 +114,11 @@ spec:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: monitoring
+        # XtraBackup pods (scheduled backups + on-demand)
+        - podSelector:
+            matchLabels:
+              percona.com/backup-type: xtrabackup
+              app.kubernetes.io/instance: mysql-pxc-db
       ports:
         - protocol: TCP
           port: 3306
@@ -131,3 +136,37 @@ spec:
         # mysqld_exporter metrics
         - protocol: TCP
           port: 9104
+---
+# Allow ingress to XtraBackup pods from PXC (SST streaming).
+# garbd joins the Galera cluster via port 4567 on the PXC pod, then PXC
+# streams the backup data BACK to the xtrabackup pod. Without this rule,
+# the default-deny policy blocks the SST stream and garbd returns code 102.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-backup-ingress
+  namespace: pxc-clusters
+  labels:
+    app.kubernetes.io/part-of: percona-xtradb-cluster
+    app.kubernetes.io/managed-by: kustomize
+spec:
+  podSelector:
+    matchLabels:
+      percona.com/backup-type: xtrabackup
+      app.kubernetes.io/instance: mysql-pxc-db
+  policyTypes:
+    - Ingress
+  ingress:
+    # PXC pods stream SST data back to the backup pod.
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: pxc
+              app.kubernetes.io/instance: mysql-pxc-db
+      ports:
+        - protocol: TCP
+          port: 4444
+        - protocol: TCP
+          port: 4567
+        - protocol: TCP
+          port: 4568

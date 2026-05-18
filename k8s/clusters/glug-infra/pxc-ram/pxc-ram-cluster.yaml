@@ -1,0 +1,135 @@
+---
+# pxc-ram-cluster.yaml — RAM-backed PXC single-node replica on kenobi.
+#
+# This PerconaXtraDBCluster runs entirely in RAM (emptyDir medium: Memory).
+# It receives async replication from the primary cluster on chopper and
+# serves as a low-latency read node for ProxySQL.
+#
+# Key properties:
+#   - All I/O goes to tmpfs (RAM) — sub-millisecond writes
+#   - Data survives pod restart ONLY if the node doesn't reboot
+#   - On node reboot: data is lost, rebuilt via SST from primary (~minutes)
+#   - No backups configured (ephemeral by design)
+#   - HAProxy disabled (ProxySQL handles routing externally)
+apiVersion: pxc.percona.com/v1
+kind: PerconaXtraDBCluster
+metadata:
+  name: mysql-ram
+  namespace: pxc-ram
+  labels:
+    app.kubernetes.io/part-of: percona-xtradb-cluster-ram
+    app.kubernetes.io/managed-by: kustomize
+spec:
+  crVersion: "1.19.0"
+
+  # Allow single-node without operator complaints.
+  unsafeFlags:
+    pxcSize: true
+    proxySize: true
+
+  secretsName: mysql-ram-secrets
+
+  pxc:
+    size: 1
+
+    # Multi-arch image — works on kenobi's aarch64.
+    image: percona/percona-xtradb-cluster:8.0.45-36.1
+    imagePullPolicy: IfNotPresent
+
+    autoRecovery: true
+
+    # --- Schedule ONLY on kenobi (aarch64 agent node) ---
+    nodeSelector:
+      kubernetes.io/hostname: kenobi
+
+    # Pod security context — ensures tmpfs files are group-owned by mysql (1001)
+    # so the main container can clean up files created by the root init container.
+    podSecurityContext:
+      fsGroup: 1001
+      supplementalGroups:
+        - 1001
+
+    # Run as mysql (1001) but with DAC_OVERRIDE capability to delete
+    # root-owned files placed by the init container on tmpfs.
+    containerSecurityContext:
+      runAsUser: 1001
+      runAsGroup: 1001
+      capabilities:
+        add:
+          - DAC_OVERRIDE
+
+    tolerations:
+      - key: "node.kubernetes.io/unreachable"
+        operator: "Exists"
+        effect: "NoExecute"
+        tolerationSeconds: 30
+
+    # --- RAM-backed storage (NO ZFS, NO DISK) ---
+    # Dataset is ~1.1GB currently. sizeLimit gives headroom for growth +
+    # InnoDB redo logs + tmp tables. tmpfs counts against pod memory.
+    volumeSpec:
+      emptyDir:
+        medium: Memory
+        sizeLimit: "4Gi"
+
+    # --- InnoDB tuned for RAM ---
+    configuration: |
+      [mysqld]
+      pxc_strict_mode=PERMISSIVE
+
+      # RAM-optimised: no doublewrite needed
+      innodb_doublewrite=0
+      innodb_flush_method=O_DIRECT
+      innodb_flush_neighbors=0
+
+      # Buffer pool > dataset size → 100% cache hit rate
+      innodb_buffer_pool_size=2G
+      innodb_log_file_size=256M
+
+      # Generous connections for ProxySQL pool
+      max_connections=500
+      character-set-server=utf8mb4
+      collation-server=utf8mb4_unicode_ci
+
+      # Read-only by default — ProxySQL only sends reads here.
+      # Flipped to read-write during failover via ProxySQL admin.
+      read_only=ON
+      super_read_only=ON
+
+      # Slow query logging
+      slow_query_log=ON
+      long_query_time=1
+
+    # Total pod memory ≈ buffer_pool (2G) + tmpfs data (~1.5G) + overhead.
+    # Requests are the guaranteed reservation on kenobi's 18GB node.
+    # This leaves ~11GB for OS, k3s agent, ProxySQL, and other pods.
+    resources:
+      requests:
+        memory: "4Gi"
+        cpu: "200m"
+      limits:
+        memory: "6Gi"
+        cpu: "2000m"
+
+    # --- Async replication FROM the primary cluster on chopper ---
+    replicationChannels:
+      - name: from_primary
+        isSource: false
+        sourcesList:
+          - host: mysql-pxc-db-pxc.pxc-clusters.svc.cluster.local
+            port: 3306
+            weight: 100
+        configuration:
+          sourceRetryCount: 3
+          sourceConnectRetry: 60
+          ssl: false
+
+  # HAProxy disabled — ProxySQL handles routing externally.
+  haproxy:
+    enabled: false
+
+  # ProxySQL disabled — standalone ProxySQL deployment handles this.
+  proxysql:
+    enabled: false
+
+  # No backups — ephemeral RAM storage, primary has backups.

@@ -1,0 +1,13 @@
+---
+# namespace.yaml — Namespace for the PXC RAM replica on kenobi.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: pxc-ram
+  labels:
+    kubernetes.io/metadata.name: pxc-ram
+    app.kubernetes.io/part-of: percona-xtradb-cluster
+    app.kubernetes.io/managed-by: kustomize
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/audit: baseline
+    pod-security.kubernetes.io/warn: baseline

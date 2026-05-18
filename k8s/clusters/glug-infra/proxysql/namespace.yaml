@@ -1,0 +1,13 @@
+---
+# namespace.yaml — Namespace for the standalone ProxySQL router.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: proxysql
+  labels:
+    kubernetes.io/metadata.name: proxysql
+    app.kubernetes.io/part-of: proxysql
+    app.kubernetes.io/managed-by: kustomize
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted

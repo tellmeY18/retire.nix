@@ -1,0 +1,37 @@
+---
+# tailscale-service.yaml — Expose ProxySQL on the tailnet as mysql-rw.
+#
+# This replaces the existing mysql-rw-tailscale Service in the pxc-clusters
+# namespace once the migration is complete. During migration, both can
+# coexist with different hostnames for testing.
+#
+# Traffic path:
+#   webservice
+#     → mysql-proxy.<tailnet>.ts.net:3306    (Tailscale MagicDNS)
+#     → ts-proxy pod                         (Tailscale operator)
+#     → ProxySQL (port 6033)
+#     → RAM replica (reads) / Primary PXC (writes)
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql-proxy-tailscale
+  namespace: proxysql
+  labels:
+    app: proxysql
+  annotations:
+    tailscale.com/hostname: "mysql-proxy"
+    tailscale.com/tags: "tag:k8s"
+spec:
+  type: LoadBalancer
+  loadBalancerClass: tailscale
+  selector:
+    app: proxysql
+  ports:
+    - name: mysql
+      protocol: TCP
+      port: 3306
+      targetPort: 6033
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 10800

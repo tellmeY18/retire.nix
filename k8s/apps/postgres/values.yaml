@@ -240,8 +240,7 @@ poolers:
 # this file, so any field below can be overridden there.
 # ---------------------------------------------------------------------------
 backups:
-  # TEMPORARY: backups disabled — re-enable by setting this back to `true`.
-  enabled: false
+  enabled: true
 
   # ---- Destination ---------------------------------------------------------
   provider: s3
