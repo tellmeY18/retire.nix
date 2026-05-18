@@ -157,38 +157,45 @@ data:
     wfLoadExtension( 'PageImages' );
     wfLoadExtension( 'TextExtracts' );
     wfLoadExtension( 'Nuke' );
-    # wfLoadExtension( 'CategoryTree' );
-    # wfLoadExtension( 'Echo' );
-    # wfLoadExtension( 'Thanks' );
-    # wfLoadExtension( 'CheckUser' );
-    # wfLoadExtension( 'VisualEditor' );
-    # wfLoadExtension( 'Linter' );
-    # wfLoadExtension( 'DiscussionTools' );
+    wfLoadExtension( 'CategoryTree' );
+    wfLoadExtension( 'Echo' );
+    wfLoadExtension( 'Thanks' );
+    wfLoadExtension( 'CheckUser' );
+    wfLoadExtension( 'VisualEditor' );
+    wfLoadExtension( 'Linter' );
+    wfLoadExtension( 'DiscussionTools' );
+    wfLoadExtension( 'Popups' );
+    wfLoadExtension( 'MobileFrontend' );
 
     ## Extensions — Custom (cloned in Dockerfile)
-    # wfLoadExtension( 'DarkMode' );
-    # wfLoadExtension( 'RSS' );
-    # wfLoadExtension( 'Comments' );
-    # wfLoadExtension( 'VoteNY' );
-    # wfLoadExtension( 'HitCounters' );
-    # wfLoadExtension( 'Popups' );
-    # wfLoadExtension( 'MobileFrontend' );
-    # wfLoadExtension( 'Description2' );
-    # wfLoadExtension( 'RelatedArticles' );
-    # wfLoadExtension( 'SmiteSpam' );
-    # wfLoadExtension( 'UserMerge' );
-    # wfLoadExtension( 'BlogPage' );
-    # require_once "$IP/extensions/SocialProfile/SocialProfile.php";
+    wfLoadExtension( 'DarkMode' );
+    wfLoadExtension( 'Comments' );
+    wfLoadExtension( 'VoteNY' );
+    wfLoadExtension( 'HitCounters' );
+    wfLoadExtension( 'ContributionScores' );
+    wfLoadExtension( 'Description2' );
+    wfLoadExtension( 'RelatedArticles' );
+    wfLoadExtension( 'SmiteSpam' );
+    wfLoadExtension( 'UserMerge' );
+    wfLoadExtension( 'CodeMirror' );
+    wfLoadExtension( 'AdvancedSearch' );
+    wfLoadExtension( 'CommentStreams' );
+    wfLoadExtension( 'RSS' );
+    require_once "$IP/extensions/SocialProfile/SocialProfile.php";
+    wfLoadExtension( 'BlogPage' );
+    # EmbedVideo v2.8 — try loading (old version, may work on 1.45)
+    wfLoadExtension( 'EmbedVideo' );
+    # WhosOnline — REL1_45 branch, should be fixed
+    wfLoadExtension( 'WhosOnline' );
 
-    ## Extensions — NEW (require maintenance/update.php to create DB tables)
-    # TEMPORARILY DISABLED — need to run update.php first
-    # wfLoadExtension( 'Cargo' );
-    # wfLoadExtension( 'Disambiguator' );
-    # wfLoadExtension( 'DisplayTitle' );
-    # wfLoadExtension( 'BreadCrumbs2' );
-    # wfLoadExtension( 'CollapsibleSections' );
-    # wfLoadExtension( 'AJAXPoll' );
-    # wfLoadExtension( 'PageViewInfo' );
+    ## Extensions — Require DB schema (run maintenance/update.php after enabling)
+    wfLoadExtension( 'Cargo' );
+    wfLoadExtension( 'Disambiguator' );
+    wfLoadExtension( 'DisplayTitle' );
+    wfLoadExtension( 'BreadCrumbs2' );
+    wfLoadExtension( 'CollapsibleSections' );
+    wfLoadExtension( 'AJAXPoll' );
+    wfLoadExtension( 'PageViewInfo' );
 
     ## Extensions — Search (CirrusSearch + OpenSearch)
     wfLoadExtension( 'Elastica' );
@@ -199,10 +206,6 @@ data:
     # if OpenSearch is slow/down. Search degrades gracefully to DB fallback.
     $wgCirrusSearchClientSideConnectTimeout = [ 'default' => 3 ];
     $wgCirrusSearchClientSideSearchTimeout = [ 'default' => 10 ];
-    # DISABLED: incompatible with MW 1.44 (uses removed rev_user column)
-    # wfLoadExtension( 'ContributionScores' );
-    # DISABLED: incompatible with MW 1.44 (uses removed getDBLoadBalancer())
-    # wfLoadExtension( 'WhosOnline' );
 
     ## Extension config
     $wgScribuntoDefaultEngine = 'luastandalone';
@@ -211,6 +214,20 @@ data:
     $wgPopupsReferencePreviewsBetaFeature = false;
     $wgHitcounterUpdateFreq = 1;
     $wgCommentsDefaultAvatar = 'https://s3-1.tail477f2f.ts.net/mediawiki/avatars/default.png';
+
+    ## VisualEditor / Parsoid
+    # Force the main stash (used by Parsoid HTML stash, edit tokens, etc.)
+    # to use Redis directly. Without this, WANObjectCache does DB check-key
+    # writes that fail when ProxySQL routes to the read-only replica.
+    $wgMainStash = 'redis';
+    # Parsoid runs in-process (bundled since MW 1.41) — no external service needed.
+    $wgVisualEditorEnableWikitext = true;
+    $wgVisualEditorAvailableNamespaces = [
+        NS_MAIN => true,
+        NS_USER => true,
+        NS_PROJECT => true,
+        NS_HELP => true,
+    ];
 
     ## CAPTCHA
     $wgCaptchaClass = 'QuestyCaptcha';
@@ -260,6 +277,11 @@ data:
     # Also index them in CirrusSearch
     for ($y = 1961; $y <= $endYear; $y++) {
         $wgCirrusSearchNamespaceWeights[3000 + ($y - 1961) * 2] = 1.0;
+    }
+
+    # Enable VisualEditor for all year-based namespaces
+    for ($y = 1961; $y <= $endYear; $y++) {
+        $wgVisualEditorAvailableNamespaces[3000 + ($y - 1961) * 2] = true;
     }
 
     ## Job queue
