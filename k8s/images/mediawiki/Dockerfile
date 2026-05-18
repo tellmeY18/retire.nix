@@ -86,8 +86,9 @@ RUN cd /var/www/html/extensions && \
 
 # ─── Extensions: Media & Embeds ──────────────────────────────────────────────
 RUN cd /var/www/html/extensions && \
-    # EmbedVideo — embed YouTube, Vimeo, etc.
-    git clone --depth 1 https://gitlab.com/hydrawiki/extensions/EmbedVideo.git EmbedVideo && \
+    # EmbedVideo v3.x — embed YouTube, Vimeo, Twitch, etc.
+    # Modern fork with MW 1.39+ support (replaces old hydrawiki v2.8)
+    git clone --depth 1 https://github.com/StarCitizenTools/mediawiki-extensions-EmbedVideo.git EmbedVideo && \
     # RSS — embed RSS feeds
     git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/RSS && \
     # HitCounters — page view counts
