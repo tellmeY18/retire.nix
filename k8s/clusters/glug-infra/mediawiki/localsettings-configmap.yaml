@@ -236,6 +236,36 @@ data:
         }
     };
 
+    ## Year-based event namespaces (Wikimania-style)
+    # Every year from 1961 (NITC founding) to 2026 gets a content + talk pair.
+    # IDs 3000–3131. Add two more lines each calendar year.
+    # Once assigned, NEVER change an ID↔name mapping.
+    $currentYear = (int)date('Y');
+    $endYear = $currentYear + 2; // academic planning needs 2 years ahead
+    for ($y = 1961; $y <= $endYear; $y++) {
+        $nsContent = 3000 + ($y - 1961) * 2;
+        $nsTalk    = $nsContent + 1;
+        $wgExtraNamespaces[$nsContent] = (string)$y;
+        $wgExtraNamespaces[$nsTalk]    = "{$y}_talk";
+        $wgNamespacesWithSubpages[$nsContent] = true;
+        $wgNamespacesWithSubpages[$nsTalk]    = true;
+    }
+
+    # Include year namespaces in default search so [[Special:Search]]
+    # finds event pages without users having to tick boxes.
+    for ($y = 1961; $y <= $endYear; $y++) {
+        $wgNamespacesToBeSearchedDefault[3000 + ($y - 1961) * 2] = true;
+    }
+
+    # Also index them in CirrusSearch
+    for ($y = 1961; $y <= $endYear; $y++) {
+        $wgCirrusSearchNamespaceWeights[3000 + ($y - 1961) * 2] = 1.0;
+    }
+
+    ## Job queue
+    # Don't run jobs on web requests — the sidecar handles them.
+    $wgJobRunRate = 0;
+
     ## Misc
     $wgCachePages = true;
     $wgEnableMetaDescriptionFunctions = true;

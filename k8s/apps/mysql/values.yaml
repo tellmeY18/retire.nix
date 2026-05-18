@@ -164,6 +164,19 @@ pxc:
           cpu: "100m"
           memory: "128Mi"
 
+  # -------------------------------------------------------------------------
+  # Replication — enable this cluster as a binlog SOURCE for the RAM replica.
+  # The operator creates a replication user with REPLICATION SLAVE +
+  # REPLICATION CLIENT grants automatically. The RAM replica (on kenobi)
+  # connects to this cluster's PXC service to pull binlogs.
+  # -------------------------------------------------------------------------
+  replicationChannels:
+    - name: to_ram_replica
+      isSource: true
+      configuration:
+        sourceRetryCount: 3
+        sourceConnectRetry: 60
+
 # ---------------------------------------------------------------------------
 # HAProxy — connection router sitting in front of PXC writer node.
 # ---------------------------------------------------------------------------
@@ -179,7 +192,7 @@ haproxy:
   # pxc.image which accepts repository+tag). Using the structured form
   # produces `map[repository:... tag:...]` in the pod spec, causing
   # InvalidImageName errors.
-  image: "percona/haproxy:2.8.11"
+  image: "percona/haproxy:2.8.18-1"
 
   imagePullPolicy: IfNotPresent
 
@@ -234,12 +247,13 @@ backup:
       type: s3
       verifyTLS: true
       s3:
-        # bucket and credentials OVERRIDDEN by secrets.yaml.
+        # bucket, region, and endpointUrl are OVERRIDDEN by secrets.yaml.
         bucket: ""
-        region: ""
-        # endpointUrl OVERRIDDEN by secrets.yaml.
+        region: "auto"
         endpointUrl: ""
-        credentialsSecret: ""
+        # References the K8s Secret created by kustomize in pxc-clusters.
+        # The Secret contains AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY.
+        credentialsSecret: mysql-backup-s3
 
   # Schedule a full backup daily at 03:00 UTC.
   schedule:

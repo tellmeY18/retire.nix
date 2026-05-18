@@ -1,0 +1,44 @@
+---
+# networkpolicy.yaml — NetworkPolicies for the proxysql namespace.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: proxysql
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+---
+# Allow ingress to ProxySQL from Tailscale, workload namespaces, and monitoring.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-proxysql-ingress
+  namespace: proxysql
+spec:
+  podSelector:
+    matchLabels:
+      app: proxysql
+  policyTypes:
+    - Ingress
+  ingress:
+    # MySQL client traffic on port 6033 from Tailscale + workloads.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: tailscale
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ghost
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: mediawiki
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+      ports:
+        - protocol: TCP
+          port: 6033
+        - protocol: TCP
+          port: 6032

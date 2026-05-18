@@ -8,6 +8,7 @@
 #   - NetworkPolicies guarding the namespace.
 #   - The Tailscale LoadBalancer Service that exposes the HAProxy
 #     as `mysql-rw.<tailnet>.ts.net:3306`.
+#   - S3 backup credentials Secret (sops-encrypted).
 #
 # What does NOT live here (managed by helmfile instead):
 #   - The PXC operator chart (pxc-system namespace).
@@ -29,3 +30,5 @@ resources:
   - namespace.yaml
   - networkpolicy.yaml
   - tailscale-mysql-service.yaml
+  # backup-credentials-secret.enc.yaml is sops-encrypted; applied separately:
+  #   sops --decrypt backup-credentials-secret.enc.yaml | kubectl apply -f -
