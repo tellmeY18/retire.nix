@@ -1,189 +1,190 @@
-# =============================================================================
-# jiralert — Jira Incident Lifecycle Manager
-# =============================================================================
+## =============================================================================
+## jiralert — Jira Incident Lifecycle Manager
+## =============================================================================
+##
+## jiralert bridges VMAlertmanager → Jira Cloud:
+##   - Creates a Jira issue when an alert fires
+##   - Updates the issue (adds comments, changes priority) on state changes
+##   - Resolves/closes the issue when the alert resolves
+##   - Deduplicates: same alert fingerprint = same Jira ticket
+##
+## PREREQUISITES:
+##   1. The `jiralert-credentials` Secret must be created separately (sops-encrypted).
+##      It contains a single key:
+##        JIRA_API_TOKEN — Jira API token for the service account (ops@ohc.network)
+##
+##   2. Create the secret:
+##        just k8s::edit-secret clusters/glug-infra/monitoring/jiralert-credentials-secret.enc.yaml
+##
+##   3. The `api_url`, `user`, and `project` fields in the ConfigMap below
+##      MUST be customized for your Jira instance before deploying.
+##
+## Docs: https://github.com/prometheus-community/jiralert
+## =============================================================================
+#---
+#apiVersion: v1
+#kind: ConfigMap
+#metadata:
+#  name: jiralert-config
+#  namespace: monitoring
+#  labels:
+#    app.kubernetes.io/name: jiralert
+#    app.kubernetes.io/component: alertmanager-webhook
+#    app.kubernetes.io/part-of: victoria-metrics-k8s-stack
+#    app.kubernetes.io/managed-by: kustomize
+#data:
+#  config.yml: |
+#    # jiralert configuration
+#    # Customize: api_url, user, project before deploying.
+#    # Docs: https://github.com/prometheus-community/jiralert
 #
-# jiralert bridges VMAlertmanager → Jira Cloud:
-#   - Creates a Jira issue when an alert fires
-#   - Updates the issue (adds comments, changes priority) on state changes
-#   - Resolves/closes the issue when the alert resolves
-#   - Deduplicates: same alert fingerprint = same Jira ticket
+#    template: /etc/jiralert/templates/default.tmpl
 #
-# PREREQUISITES:
-#   1. The `jiralert-credentials` Secret must be created separately (sops-encrypted).
-#      It contains a single key:
-#        JIRA_API_TOKEN — Jira API token for the service account (ops@ohc.network)
+#    defaults:
+#      api_url: "https://ohc.atlassian.net"
+#      user: "ops@ohc.network"
+#      password_file: "/etc/jiralert/secrets/JIRA_API_TOKEN"
+#      project: "OPS"
+#      issue_type: "Incident"
+#      reopen_state: "To Do"
+#      reopen_duration: "0h"
+#      priority: '{{ .GroupLabels.ticket_priority }}'
+#      summary: '{{ .Status | toUpper }}: {{ .GroupLabels.alertname }} — {{ .GroupLabels.dst }}'
+#      description: |
+#        h2. {{ .GroupLabels.alertname }}
 #
-#   2. Create the secret:
-#        just k8s::edit-secret clusters/glug-infra/monitoring/jiralert-credentials-secret.enc.yaml
+#        || Field || Value ||
+#        | Endpoint | {{ .GroupLabels.dst }} |
+#        | Probe | {{ .GroupLabels.probe }} |
+#        | Severity | {{ .CommonLabels.severity }} |
+#        | Priority | {{ .GroupLabels.ticket_priority }} |
+#        | Status | {{ .Status }} |
+#        | Started | {{ (index .Alerts 0).StartsAt.Format "2006-01-02 15:04:05 UTC" }} |
 #
-#   3. The `api_url`, `user`, and `project` fields in the ConfigMap below
-#      MUST be customized for your Jira instance before deploying.
+#        h3. Alert Details
+#        {{ range .Alerts }}
+#        * {{ .Annotations.summary }}
+#        {{ .Annotations.description }}
+#        {{ end }}
+#      auto_resolve:
+#        state: "Done"
 #
-# Docs: https://github.com/prometheus-community/jiralert
-# =============================================================================
----
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: jiralert-config
-  namespace: monitoring
-  labels:
-    app.kubernetes.io/name: jiralert
-    app.kubernetes.io/component: alertmanager-webhook
-    app.kubernetes.io/part-of: victoria-metrics-k8s-stack
-    app.kubernetes.io/managed-by: kustomize
-data:
-  config.yml: |
-    # jiralert configuration
-    # Customize: api_url, user, project before deploying.
-    # Docs: https://github.com/prometheus-community/jiralert
-
-    template: /etc/jiralert/templates/default.tmpl
-
-    defaults:
-      api_url: "https://ohc.atlassian.net"
-      user: "ops@ohc.network"
-      password_file: "/etc/jiralert/secrets/JIRA_API_TOKEN"
-      project: "OPS"
-      issue_type: "Incident"
-      reopen_state: "To Do"
-      reopen_duration: "0h"
-      priority: '{{ .GroupLabels.ticket_priority }}'
-      summary: '{{ .Status | toUpper }}: {{ .GroupLabels.alertname }} — {{ .GroupLabels.dst }}'
-      description: |
-        h2. {{ .GroupLabels.alertname }}
-
-        || Field || Value ||
-        | Endpoint | {{ .GroupLabels.dst }} |
-        | Probe | {{ .GroupLabels.probe }} |
-        | Severity | {{ .CommonLabels.severity }} |
-        | Priority | {{ .GroupLabels.ticket_priority }} |
-        | Status | {{ .Status }} |
-        | Started | {{ (index .Alerts 0).StartsAt.Format "2006-01-02 15:04:05 UTC" }} |
-
-        h3. Alert Details
-        {{ range .Alerts }}
-        * {{ .Annotations.summary }}
-        {{ .Annotations.description }}
-        {{ end }}
-      auto_resolve:
-        state: "Done"
-
-    receivers:
-      - name: "jira-critical"
-        priority: "Highest"
-        issue_type: "Incident"
-      - name: "jira-warning"
-        priority: "Medium"
-        issue_type: "Task"
----
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: jiralert-templates
-  namespace: monitoring
-  labels:
-    app.kubernetes.io/name: jiralert
-    app.kubernetes.io/component: alertmanager-webhook
-    app.kubernetes.io/part-of: victoria-metrics-k8s-stack
-    app.kubernetes.io/managed-by: kustomize
-data:
-  default.tmpl: |
-    {{ define "default.tmpl" }}{{ end }}
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: jiralert
-  namespace: monitoring
-  labels:
-    app.kubernetes.io/name: jiralert
-    app.kubernetes.io/component: alertmanager-webhook
-    app.kubernetes.io/part-of: victoria-metrics-k8s-stack
-    app.kubernetes.io/managed-by: kustomize
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app.kubernetes.io/name: jiralert
-      app.kubernetes.io/component: alertmanager-webhook
-  template:
-    metadata:
-      labels:
-        app.kubernetes.io/name: jiralert
-        app.kubernetes.io/component: alertmanager-webhook
-        app.kubernetes.io/part-of: victoria-metrics-k8s-stack
-        app.kubernetes.io/managed-by: kustomize
-    spec:
-      containers:
-        - name: jiralert
-          image: quay.io/jiralert/jiralert-linux-amd64:v1.3.0
-          args:
-            - "--config=/etc/jiralert/config.yml"
-            - "--listen-address=:9097"
-            - "--log.level=info"
-          ports:
-            - name: http
-              containerPort: 9097
-              protocol: TCP
-          resources:
-            requests:
-              cpu: 10m
-              memory: 32Mi
-            limits:
-              cpu: 100m
-              memory: 64Mi
-          livenessProbe:
-            httpGet:
-              path: /healthz
-              port: http
-            initialDelaySeconds: 5
-            periodSeconds: 30
-          readinessProbe:
-            httpGet:
-              path: /healthz
-              port: http
-            initialDelaySeconds: 3
-            periodSeconds: 10
-          volumeMounts:
-            - name: config
-              mountPath: /etc/jiralert/config.yml
-              subPath: config.yml
-              readOnly: true
-            - name: templates
-              mountPath: /etc/jiralert/templates/
-              readOnly: true
-            - name: credentials
-              mountPath: /etc/jiralert/secrets/
-              readOnly: true
-      volumes:
-        - name: config
-          configMap:
-            name: jiralert-config
-        - name: templates
-          configMap:
-            name: jiralert-templates
-        - name: credentials
-          secret:
-            secretName: jiralert-credentials
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: jiralert
-  namespace: monitoring
-  labels:
-    app.kubernetes.io/name: jiralert
-    app.kubernetes.io/component: alertmanager-webhook
-    app.kubernetes.io/part-of: victoria-metrics-k8s-stack
-    app.kubernetes.io/managed-by: kustomize
-spec:
-  selector:
-    app.kubernetes.io/name: jiralert
-    app.kubernetes.io/component: alertmanager-webhook
-  ports:
-    - name: http
-      port: 9097
-      targetPort: http
-      protocol: TCP
-  type: ClusterIP
+#    receivers:
+#      - name: "jira-critical"
+#        priority: "Highest"
+#        issue_type: "Incident"
+#      - name: "jira-warning"
+#        priority: "Medium"
+#        issue_type: "Task"
+#---
+#apiVersion: v1
+#kind: ConfigMap
+#metadata:
+#  name: jiralert-templates
+#  namespace: monitoring
+#  labels:
+#    app.kubernetes.io/name: jiralert
+#    app.kubernetes.io/component: alertmanager-webhook
+#    app.kubernetes.io/part-of: victoria-metrics-k8s-stack
+#    app.kubernetes.io/managed-by: kustomize
+#data:
+#  default.tmpl: |
+#    {{ define "default.tmpl" }}{{ end }}
+#---
+#apiVersion: apps/v1
+#kind: Deployment
+#metadata:
+#  name: jiralert
+#  namespace: monitoring
+#  labels:
+#    app.kubernetes.io/name: jiralert
+#    app.kubernetes.io/component: alertmanager-webhook
+#    app.kubernetes.io/part-of: victoria-metrics-k8s-stack
+#    app.kubernetes.io/managed-by: kustomize
+#spec:
+#  replicas: 1
+#  selector:
+#    matchLabels:
+#      app.kubernetes.io/name: jiralert
+#      app.kubernetes.io/component: alertmanager-webhook
+#  template:
+#    metadata:
+#      labels:
+#        app.kubernetes.io/name: jiralert
+#        app.kubernetes.io/component: alertmanager-webhook
+#        app.kubernetes.io/part-of: victoria-metrics-k8s-stack
+#        app.kubernetes.io/managed-by: kustomize
+#    spec:
+#      containers:
+#        - name: jiralert
+#          image: quay.io/jiralert/jiralert-linux-amd64:v1.3.0
+#          args:
+#            - "--config=/etc/jiralert/config.yml"
+#            - "--listen-address=:9097"
+#            - "--log.level=info"
+#          ports:
+#            - name: http
+#              containerPort: 9097
+#              protocol: TCP
+#          resources:
+#            requests:
+#              cpu: 10m
+#              memory: 32Mi
+#            limits:
+#              cpu: 100m
+#              memory: 64Mi
+#          livenessProbe:
+#            httpGet:
+#              path: /healthz
+#              port: http
+#            initialDelaySeconds: 5
+#            periodSeconds: 30
+#          readinessProbe:
+#            httpGet:
+#              path: /healthz
+#              port: http
+#            initialDelaySeconds: 3
+#            periodSeconds: 10
+#          volumeMounts:
+#            - name: config
+#              mountPath: /etc/jiralert/config.yml
+#              subPath: config.yml
+#              readOnly: true
+#            - name: templates
+#              mountPath: /etc/jiralert/templates/
+#              readOnly: true
+#            - name: credentials
+#              mountPath: /etc/jiralert/secrets/
+#              readOnly: true
+#      volumes:
+#        - name: config
+#          configMap:
+#            name: jiralert-config
+#        - name: templates
+#          configMap:
+#            name: jiralert-templates
+#        - name: credentials
+#          secret:
+#            secretName: jiralert-credentials
+#---
+#apiVersion: v1
+#kind: Service
+#metadata:
+#  name: jiralert
+#  namespace: monitoring
+#  labels:
+#    app.kubernetes.io/name: jiralert
+#    app.kubernetes.io/component: alertmanager-webhook
+#    app.kubernetes.io/part-of: victoria-metrics-k8s-stack
+#    app.kubernetes.io/managed-by: kustomize
+#spec:
+#  selector:
+#    app.kubernetes.io/name: jiralert
+#    app.kubernetes.io/component: alertmanager-webhook
+#  ports:
+#    - name: http
+#      port: 9097
+#      targetPort: http
+#      protocol: TCP
+#  type: ClusterIP
+#

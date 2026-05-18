@@ -115,7 +115,7 @@ data:
           .container = .kubernetes.container_name
           .node = .kubernetes.pod_node_name
           .stream = .stream
-          .app = .kubernetes.pod_labels."app.kubernetes.io/name" ?? .kubernetes.pod_labels.app ?? "unknown"
+          .app = if exists(.kubernetes.pod_labels."app.kubernetes.io/name") { to_string!(.kubernetes.pod_labels."app.kubernetes.io/name") } else if exists(.kubernetes.pod_labels.app) { to_string!(.kubernetes.pod_labels.app) } else { "unknown" }
           # Keep the log message as _msg for VictoriaLogs
           ._msg = .message
           # Timestamp
