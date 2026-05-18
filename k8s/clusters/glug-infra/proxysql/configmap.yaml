@@ -1,115 +1,24 @@
 ---
-# configmap.yaml — ProxySQL configuration for read/write split.
+# configmap.yaml — ProxySQL non-sensitive configuration reference.
+#
+# The ACTUAL ProxySQL config (containing passwords) lives in the
+# sops-encrypted Secret `proxysql-config-secret.enc.yaml`.
+# This file exists only as documentation of the config structure.
 #
 # Hostgroup 10 = WRITER (primary PXC on chopper, durable ZFS storage)
 # Hostgroup 20 = READER (RAM replica on kenobi, sub-ms latency)
 #
-# ProxySQL routes queries based on regex rules:
-#   - SELECT (outside transaction) → hostgroup 20 (RAM reader)
-#   - SELECT ... FOR UPDATE        → hostgroup 10 (writer)
-#   - All DML/DDL/BEGIN            → hostgroup 10 (writer)
-#
-# Failover: ProxySQL monitors both backends. If the writer hostgroup has
-# no healthy servers, reads continue on the RAM node. Manual promotion
-# (SET GLOBAL read_only=OFF on RAM node + ProxySQL hostgroup swap) is
-# needed for full failover.
+# To edit the live config:
+#   sops k8s/clusters/glug-infra/proxysql/proxysql-config-secret.enc.yaml
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: proxysql-config
+  name: proxysql-config-docs
   namespace: proxysql
   labels:
     app: proxysql
 data:
-  proxysql.cnf: |
-    datadir="/var/lib/proxysql"
-
-    admin_variables=
-    {
-      admin_credentials="admin:admin;cluster1:secret"
-      mysql_ifaces="0.0.0.0:6032"
-      restapi_enabled=true
-      restapi_port=6070
-    }
-
-    mysql_variables=
-    {
-      threads=4
-      max_connections=2048
-      default_query_delay=0
-      default_query_timeout=36000000
-      interfaces="0.0.0.0:6033"
-      monitor_username="monitor"
-      monitor_password="monitor"
-      monitor_ping_interval=3000
-      monitor_read_only_interval=1500
-      monitor_read_only_timeout=500
-      connect_timeout_server=3000
-      connect_timeout_server_max=10000
-    }
-
-    mysql_servers=
-    (
-      {
-        address="mysql-pxc-db-haproxy.pxc-clusters.svc.cluster.local"
-        port=3306
-        hostgroup=10
-        max_connections=200
-        weight=1000
-        comment="Primary PXC writer (chopper, ZFS)"
-      },
-      {
-        address="mysql-ram-pxc.pxc-ram.svc.cluster.local"
-        port=3306
-        hostgroup=20
-        max_connections=500
-        weight=1000
-        comment="RAM replica reader (kenobi, tmpfs)"
-      }
-    )
-
-    mysql_users=
-    (
-      {
-        username="root"
-        password="root"
-        default_hostgroup=10
-        max_connections=100
-        active=1
-      },
-      {
-        username="monitor"
-        password="monitor"
-        default_hostgroup=10
-        max_connections=10
-        active=1
-      }
-    )
-
-    mysql_query_rules=
-    (
-      {
-        rule_id=10
-        active=1
-        match_digest="^SELECT .* FOR UPDATE"
-        destination_hostgroup=10
-        apply=1
-        comment="SELECT FOR UPDATE → writer"
-      },
-      {
-        rule_id=20
-        active=1
-        match_digest="^SELECT "
-        destination_hostgroup=20
-        apply=1
-        comment="All other SELECTs → RAM reader"
-      },
-      {
-        rule_id=100
-        active=1
-        match_digest=".*"
-        destination_hostgroup=10
-        apply=1
-        comment="Everything else (DML/DDL) → writer"
-      }
-    )
+  README: |
+    The ProxySQL config is in Secret/proxysql-config (sops-encrypted).
+    Edit with: sops clusters/glug-infra/proxysql/proxysql-config-secret.enc.yaml
+    Apply with: sops --decrypt ... | kubectl apply -f -

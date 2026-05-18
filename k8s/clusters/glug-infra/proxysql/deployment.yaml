@@ -30,7 +30,7 @@ spec:
           imagePullPolicy: IfNotPresent
           ports:
             - name: mysql
-              containerPort: 6033
+              containerPort: 3306
               protocol: TCP
             - name: admin
               containerPort: 6032
@@ -48,16 +48,16 @@ spec:
               cpu: "1000m"
           livenessProbe:
             tcpSocket:
-              port: 6033
+              port: 3306
             initialDelaySeconds: 15
             periodSeconds: 10
           readinessProbe:
             tcpSocket:
-              port: 6033
+              port: 3306
             initialDelaySeconds: 5
             periodSeconds: 5
 
       volumes:
         - name: config
-          configMap:
-            name: proxysql-config
+          secret:
+            secretName: proxysql-config

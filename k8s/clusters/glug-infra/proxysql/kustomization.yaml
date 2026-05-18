@@ -25,3 +25,5 @@ resources:
   - deployment.yaml
   - service.yaml
   - tailscale-service.yaml
+  # proxysql-config-secret.enc.yaml is sops-encrypted; applied separately:
+  #   sops --decrypt proxysql-config-secret.enc.yaml | kubectl apply -f -
