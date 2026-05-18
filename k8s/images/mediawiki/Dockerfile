@@ -123,6 +123,10 @@ RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local
     cd /var/www/html/extensions/Elastica && composer install --no-dev --no-interaction && \
     cd /var/www/html/extensions/CirrusSearch && composer install --no-dev --no-interaction
 
+# ─── Semantic MediaWiki (7.0-dev, supports MW 1.45) ──────────────────
+RUN cd /var/www/html && \
+    composer require --no-interaction --no-dev mediawiki/semantic-media-wiki "~7.0"
+
 # Lua for Scribunto
 RUN ln -sf /usr/bin/lua5.1 /usr/bin/lua || true
 

@@ -167,6 +167,8 @@ data:
     wfLoadExtension( 'DiscussionTools' );
     wfLoadExtension( 'Popups' );
     wfLoadExtension( 'MobileFrontend' );
+    # Citizen handles mobile natively — use it as the mobile skin too.
+    $wgDefaultMobileSkin = 'citizen';
 
     ## Extensions — Custom (cloned in Dockerfile)
     wfLoadExtension( 'DarkMode' );
@@ -202,6 +204,10 @@ data:
     wfLoadExtension( 'CollapsibleSections' );
     wfLoadExtension( 'AJAXPoll' );
     wfLoadExtension( 'PageViewInfo' );
+
+    ## Semantic MediaWiki
+    wfLoadExtension( 'SemanticMediaWiki' );
+    enableSemantics( 'wiki.fosscell.org' );
 
     ## Extensions — Search (CirrusSearch + OpenSearch)
     wfLoadExtension( 'Elastica' );
