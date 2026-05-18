@@ -37,6 +37,8 @@ spec:
               echo "=== MediaWiki update.php (direct to primary DB) ==="
               echo "DB Host: $MW_DB_HOST"
               php /var/www/html/maintenance/run.php update --quick
+              echo "=== SMW setupStore ==="
+              php /var/www/html/extensions/SemanticMediaWiki/maintenance/setupStore.php
               echo "=== Done (exit: $?) ==="
           env:
             # Connect DIRECTLY to primary MySQL — bypass ProxySQL entirely.
