@@ -68,6 +68,9 @@ resources:
   - pxc-vmrules.yaml
   # PXC Grafana dashboard.
   - pxc-grafana-dashboard.yaml
+  # ProxySQL + MySQL RAM replica monitoring resources.
+  - proxysql-vmrules.yaml
+  - proxysql-vmservicescrape.yaml
   # RustFS (MinIO-compatible S3) monitoring resources.
   - rustfs-vmservicescrape.yaml
   - rustfs-vmrules.yaml
@@ -96,4 +99,4 @@ resources:
   # GLUG Infra overview Grafana dashboard.
   - glug-infra-grafana-dashboard.yaml
   # jiralert — Jira incident lifecycle management (create/escalate/resolve).
-  - jiralert.yaml
+  # - jiralert.yaml

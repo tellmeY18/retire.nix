@@ -1,3 +1,4 @@
+---
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -5,67 +6,465 @@ metadata:
   namespace: monitoring
   labels:
     grafana_dashboard: "1"
-  annotations:
-    grafana_folder: "GLUG Infra"
+    app.kubernetes.io/part-of: victoria-metrics-k8s-stack
 data:
   logs.json: |
     {
-      "uid": "logs-explorer",
-      "title": "GLUG Infra — Logs",
-      "tags": ["logs", "victorialogs"],
-      "timezone": "browser",
-      "refresh": "30s",
-      "time": {"from": "now-1h", "to": "now"},
-      "templating": {
-        "list": [
-          {
-            "name": "namespace",
-            "type": "custom",
-            "current": {"text": "All", "value": ""},
-            "options": [
-              {"text": "All", "value": ""},
-              {"text": "ghost", "value": "ghost"},
-              {"text": "mediawiki", "value": "mediawiki"},
-              {"text": "answer", "value": "answer"},
-              {"text": "monitoring", "value": "monitoring"},
-              {"text": "kube-system", "value": "kube-system"},
-              {"text": "cnpg-clusters", "value": "cnpg-clusters"},
-              {"text": "pxc-clusters", "value": "pxc-clusters"},
-              {"text": "tailscale", "value": "tailscale"},
-              {"text": "traefik-system", "value": "traefik-system"}
-            ]
-          },
-          {
-            "name": "search",
-            "type": "textbox",
-            "current": {"text": "", "value": ""},
-            "label": "Search"
-          }
-        ]
+      "annotations": {
+        "list": []
       },
+      "description": "Centralized log exploration for the GLUG Infra k3s cluster via VictoriaLogs",
+      "editable": true,
+      "fiscalYearStartMonth": 0,
+      "graphTooltip": 1,
+      "id": null,
+      "links": [],
       "panels": [
         {
-          "type": "logs",
-          "title": "Cluster Logs",
-          "gridPos": {"h": 25, "w": 24, "x": 0, "y": 0},
-          "datasource": {"type": "victoriametrics-logs-datasource", "uid": "victorialogs"},
+          "collapsed": false,
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+          "id": 1,
+          "title": "Overview",
+          "type": "row"
+        },
+        {
+          "datasource": { "type": "victoriametrics-logs-datasource", "uid": "victorialogs" },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "palette-classic" },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisLabel": "logs/sec",
+                "drawStyle": "bars",
+                "fillOpacity": 80,
+                "gradientMode": "none",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "showPoints": "never",
+                "stacking": { "group": "A", "mode": "normal" }
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 1 },
+          "id": 2,
+          "options": {
+            "legend": { "calcs": ["sum"], "displayMode": "table", "placement": "bottom" },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          },
           "targets": [
             {
-              "expr": "{namespace=~\"${namespace:pipe}\", _msg=~\".*${search}.*\"} | fields namespace, pod, container, _msg",
+              "datasource": { "type": "victoriametrics-logs-datasource", "uid": "victorialogs" },
+              "expr": "* | stats by (namespace) count() as logs",
               "refId": "A"
             }
           ],
+          "title": "Log Volume by Namespace",
+          "type": "timeseries"
+        },
+        {
+          "datasource": { "type": "victoriametrics-logs-datasource", "uid": "victorialogs" },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "fixedColor": "red", "mode": "fixed" },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisLabel": "errors/sec",
+                "drawStyle": "bars",
+                "fillOpacity": 60,
+                "gradientMode": "scheme",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "showPoints": "never",
+                "stacking": { "group": "A", "mode": "none" }
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 1 },
+          "id": 3,
           "options": {
-            "showTime": true,
-            "showLabels": true,
-            "showCommonLabels": false,
-            "wrapLogMessage": true,
-            "prettifyLogMessage": false,
-            "enableLogDetails": true,
-            "sortOrder": "Descending",
-            "dedupStrategy": "none"
-          }
+            "legend": { "calcs": ["sum", "max"], "displayMode": "table", "placement": "bottom" },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          },
+          "targets": [
+            {
+              "datasource": { "type": "victoriametrics-logs-datasource", "uid": "victorialogs" },
+              "expr": "error OR ERROR OR FATAL OR panic | stats count() as errors",
+              "refId": "A"
+            }
+          ],
+          "title": "Error Rate",
+          "type": "timeseries"
+        },
+        {
+          "datasource": { "type": "victoriametrics-logs-datasource", "uid": "victorialogs" },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "palette-classic" },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisLabel": "logs",
+                "drawStyle": "bars",
+                "fillOpacity": 70,
+                "gradientMode": "none",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "showPoints": "never",
+                "stacking": { "group": "A", "mode": "normal" }
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 8, "w": 24, "x": 0, "y": 9 },
+          "id": 4,
+          "options": {
+            "legend": { "calcs": ["sum"], "displayMode": "table", "placement": "right", "sortBy": "Total", "sortDesc": true },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          },
+          "targets": [
+            {
+              "datasource": { "type": "victoriametrics-logs-datasource", "uid": "victorialogs" },
+              "expr": "* | stats by (pod) count() as logs | sort by (logs) desc | limit 10",
+              "refId": "A"
+            }
+          ],
+          "title": "Top 10 Logging Pods",
+          "type": "timeseries"
+        },
+        {
+          "collapsed": true,
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 17 },
+          "id": 5,
+          "title": "Application Services",
+          "type": "row",
+          "panels": [
+            {
+              "datasource": { "type": "victoriametrics-logs-datasource", "uid": "victorialogs" },
+              "gridPos": { "h": 12, "w": 8, "x": 0, "y": 18 },
+              "id": 6,
+              "options": {
+                "dedupStrategy": "none",
+                "enableLogDetails": true,
+                "prettifyLogMessage": false,
+                "showCommonLabels": false,
+                "showLabels": true,
+                "showTime": true,
+                "sortOrder": "Descending",
+                "wrapLogMessage": true
+              },
+              "targets": [
+                {
+                  "datasource": { "type": "victoriametrics-logs-datasource", "uid": "victorialogs" },
+                  "expr": "app:mediawiki",
+                  "refId": "A",
+                  "maxLines": 100
+                }
+              ],
+              "title": "MediaWiki Logs",
+              "type": "logs"
+            },
+            {
+              "datasource": { "type": "victoriametrics-logs-datasource", "uid": "victorialogs" },
+              "gridPos": { "h": 12, "w": 8, "x": 8, "y": 18 },
+              "id": 7,
+              "options": {
+                "dedupStrategy": "none",
+                "enableLogDetails": true,
+                "prettifyLogMessage": false,
+                "showCommonLabels": false,
+                "showLabels": true,
+                "showTime": true,
+                "sortOrder": "Descending",
+                "wrapLogMessage": true
+              },
+              "targets": [
+                {
+                  "datasource": { "type": "victoriametrics-logs-datasource", "uid": "victorialogs" },
+                  "expr": "app:ghost",
+                  "refId": "A",
+                  "maxLines": 100
+                }
+              ],
+              "title": "Ghost Logs",
+              "type": "logs"
+            },
+            {
+              "datasource": { "type": "victoriametrics-logs-datasource", "uid": "victorialogs" },
+              "gridPos": { "h": 12, "w": 8, "x": 16, "y": 18 },
+              "id": 8,
+              "options": {
+                "dedupStrategy": "none",
+                "enableLogDetails": true,
+                "prettifyLogMessage": false,
+                "showCommonLabels": false,
+                "showLabels": true,
+                "showTime": true,
+                "sortOrder": "Descending",
+                "wrapLogMessage": true
+              },
+              "targets": [
+                {
+                  "datasource": { "type": "victoriametrics-logs-datasource", "uid": "victorialogs" },
+                  "expr": "app:traefik",
+                  "refId": "A",
+                  "maxLines": 100
+                }
+              ],
+              "title": "Traefik Access Logs",
+              "type": "logs"
+            }
+          ]
+        },
+        {
+          "collapsed": true,
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 18 },
+          "id": 9,
+          "title": "Database Layer",
+          "type": "row",
+          "panels": [
+            {
+              "datasource": { "type": "victoriametrics-logs-datasource", "uid": "victorialogs" },
+              "gridPos": { "h": 12, "w": 12, "x": 0, "y": 19 },
+              "id": 10,
+              "options": {
+                "dedupStrategy": "none",
+                "enableLogDetails": true,
+                "prettifyLogMessage": false,
+                "showCommonLabels": false,
+                "showLabels": true,
+                "showTime": true,
+                "sortOrder": "Descending",
+                "wrapLogMessage": true
+              },
+              "targets": [
+                {
+                  "datasource": { "type": "victoriametrics-logs-datasource", "uid": "victorialogs" },
+                  "expr": "namespace:pxc-clusters",
+                  "refId": "A",
+                  "maxLines": 100
+                }
+              ],
+              "title": "MySQL Primary (PXC)",
+              "type": "logs"
+            },
+            {
+              "datasource": { "type": "victoriametrics-logs-datasource", "uid": "victorialogs" },
+              "gridPos": { "h": 12, "w": 12, "x": 12, "y": 19 },
+              "id": 11,
+              "options": {
+                "dedupStrategy": "none",
+                "enableLogDetails": true,
+                "prettifyLogMessage": false,
+                "showCommonLabels": false,
+                "showLabels": true,
+                "showTime": true,
+                "sortOrder": "Descending",
+                "wrapLogMessage": true
+              },
+              "targets": [
+                {
+                  "datasource": { "type": "victoriametrics-logs-datasource", "uid": "victorialogs" },
+                  "expr": "namespace:pxc-ram",
+                  "refId": "A",
+                  "maxLines": 100
+                }
+              ],
+              "title": "MySQL RAM Replica",
+              "type": "logs"
+            },
+            {
+              "datasource": { "type": "victoriametrics-logs-datasource", "uid": "victorialogs" },
+              "gridPos": { "h": 12, "w": 12, "x": 0, "y": 31 },
+              "id": 12,
+              "options": {
+                "dedupStrategy": "none",
+                "enableLogDetails": true,
+                "prettifyLogMessage": false,
+                "showCommonLabels": false,
+                "showLabels": true,
+                "showTime": true,
+                "sortOrder": "Descending",
+                "wrapLogMessage": true
+              },
+              "targets": [
+                {
+                  "datasource": { "type": "victoriametrics-logs-datasource", "uid": "victorialogs" },
+                  "expr": "app:proxysql",
+                  "refId": "A",
+                  "maxLines": 100
+                }
+              ],
+              "title": "ProxySQL",
+              "type": "logs"
+            },
+            {
+              "datasource": { "type": "victoriametrics-logs-datasource", "uid": "victorialogs" },
+              "gridPos": { "h": 12, "w": 12, "x": 12, "y": 31 },
+              "id": 13,
+              "options": {
+                "dedupStrategy": "none",
+                "enableLogDetails": true,
+                "prettifyLogMessage": false,
+                "showCommonLabels": false,
+                "showLabels": true,
+                "showTime": true,
+                "sortOrder": "Descending",
+                "wrapLogMessage": true
+              },
+              "targets": [
+                {
+                  "datasource": { "type": "victoriametrics-logs-datasource", "uid": "victorialogs" },
+                  "expr": "app:postgresql",
+                  "refId": "A",
+                  "maxLines": 100
+                }
+              ],
+              "title": "PostgreSQL (CNPG)",
+              "type": "logs"
+            }
+          ]
+        },
+        {
+          "collapsed": true,
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 19 },
+          "id": 14,
+          "title": "Infrastructure",
+          "type": "row",
+          "panels": [
+            {
+              "datasource": { "type": "victoriametrics-logs-datasource", "uid": "victorialogs" },
+              "gridPos": { "h": 12, "w": 8, "x": 0, "y": 20 },
+              "id": 15,
+              "options": {
+                "dedupStrategy": "none",
+                "enableLogDetails": true,
+                "prettifyLogMessage": false,
+                "showCommonLabels": false,
+                "showLabels": true,
+                "showTime": true,
+                "sortOrder": "Descending",
+                "wrapLogMessage": true
+              },
+              "targets": [
+                {
+                  "datasource": { "type": "victoriametrics-logs-datasource", "uid": "victorialogs" },
+                  "expr": "namespace:openebs",
+                  "refId": "A",
+                  "maxLines": 100
+                }
+              ],
+              "title": "OpenEBS",
+              "type": "logs"
+            },
+            {
+              "datasource": { "type": "victoriametrics-logs-datasource", "uid": "victorialogs" },
+              "gridPos": { "h": 12, "w": 8, "x": 8, "y": 20 },
+              "id": 16,
+              "options": {
+                "dedupStrategy": "none",
+                "enableLogDetails": true,
+                "prettifyLogMessage": false,
+                "showCommonLabels": false,
+                "showLabels": true,
+                "showTime": true,
+                "sortOrder": "Descending",
+                "wrapLogMessage": true
+              },
+              "targets": [
+                {
+                  "datasource": { "type": "victoriametrics-logs-datasource", "uid": "victorialogs" },
+                  "expr": "namespace:monitoring AND (error OR ERROR OR warn OR WARN)",
+                  "refId": "A",
+                  "maxLines": 100
+                }
+              ],
+              "title": "Monitoring Stack Errors",
+              "type": "logs"
+            },
+            {
+              "datasource": { "type": "victoriametrics-logs-datasource", "uid": "victorialogs" },
+              "gridPos": { "h": 12, "w": 8, "x": 16, "y": 20 },
+              "id": 17,
+              "options": {
+                "dedupStrategy": "none",
+                "enableLogDetails": true,
+                "prettifyLogMessage": false,
+                "showCommonLabels": false,
+                "showLabels": true,
+                "showTime": true,
+                "sortOrder": "Descending",
+                "wrapLogMessage": true
+              },
+              "targets": [
+                {
+                  "datasource": { "type": "victoriametrics-logs-datasource", "uid": "victorialogs" },
+                  "expr": "namespace:kube-system",
+                  "refId": "A",
+                  "maxLines": 100
+                }
+              ],
+              "title": "System (kube-system)",
+              "type": "logs"
+            }
+          ]
         }
       ],
-      "schemaVersion": 39
+      "refresh": "30s",
+      "schemaVersion": 39,
+      "tags": ["logs", "victorialogs", "glug-infra"],
+      "templating": {
+        "list": [
+          {
+            "current": { "selected": false, "text": "All", "value": "$__all" },
+            "datasource": { "type": "victoriametrics-logs-datasource", "uid": "victorialogs" },
+            "definition": "* | stats by (namespace) count() as logs",
+            "hide": 0,
+            "includeAll": true,
+            "label": "Namespace",
+            "multi": true,
+            "name": "namespace",
+            "options": [],
+            "query": "* | stats by (namespace) count() as logs",
+            "refresh": 2,
+            "regex": "",
+            "skipUrlSync": false,
+            "sort": 1,
+            "type": "query"
+          },
+          {
+            "current": { "selected": false, "text": "All", "value": "$__all" },
+            "datasource": { "type": "victoriametrics-logs-datasource", "uid": "victorialogs" },
+            "definition": "* | stats by (app) count() as logs",
+            "hide": 0,
+            "includeAll": true,
+            "label": "App",
+            "multi": true,
+            "name": "app",
+            "options": [],
+            "query": "* | stats by (app) count() as logs",
+            "refresh": 2,
+            "regex": "",
+            "skipUrlSync": false,
+            "sort": 1,
+            "type": "query"
+          }
+        ]
+      },
+      "time": { "from": "now-1h", "to": "now" },
+      "timepicker": {
+        "refresh_intervals": ["10s", "30s", "1m", "5m", "15m"],
+        "time_options": ["5m", "15m", "1h", "6h", "12h", "24h", "2d", "7d"]
+      },
+      "timezone": "browser",
+      "title": "GLUG Infra \u2014 Logs Explorer",
+      "uid": "logs-explorer",
+      "version": 1,
+      "weekStart": ""
     }
