@@ -125,6 +125,7 @@ RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local
 
 # ─── Semantic MediaWiki (7.0-dev, supports MW 1.45) ──────────────────
 RUN cd /var/www/html && \
+    chown root:root composer.json composer.lock && \
     composer require --no-interaction --update-no-dev mediawiki/semantic-media-wiki "~7.0"
 
 # Lua for Scribunto
