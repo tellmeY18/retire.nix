@@ -3,9 +3,9 @@
 #
 # `kubectl apply -k k8s/clusters/glug-infra/pxc-ram`
 #
-# Deploys a single-node PXC cluster on kenobi (aarch64) using RAM-backed
-# emptyDir storage. Receives async replication from the primary PXC cluster
-# on chopper. Used as a low-latency read node and disaster recovery standby.
+# Deploys a plain Percona Server 8.0 instance on kenobi (aarch64) as an
+# async read replica. NOT managed by the PXC operator — just a StatefulSet
+# with hostPath storage and a ConfigMap for MySQL config.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
@@ -19,6 +19,6 @@ labels:
 
 resources:
   - namespace.yaml
-  - limitrange.yaml
   - networkpolicy.yaml
+  - mysql-ram-config.yaml
   - pxc-ram-cluster.yaml

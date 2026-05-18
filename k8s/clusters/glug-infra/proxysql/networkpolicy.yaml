@@ -39,6 +39,6 @@ spec:
               kubernetes.io/metadata.name: monitoring
       ports:
         - protocol: TCP
-          port: 6033
+          port: 3306
         - protocol: TCP
           port: 6032

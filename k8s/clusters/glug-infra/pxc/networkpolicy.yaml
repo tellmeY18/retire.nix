@@ -67,6 +67,10 @@ spec:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: mediawiki
+        # ProxySQL routes writes to HAProxy.
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: proxysql
       ports:
         - protocol: TCP
           port: 3306
@@ -119,6 +123,10 @@ spec:
             matchLabels:
               percona.com/backup-type: xtrabackup
               app.kubernetes.io/instance: mysql-pxc-db
+        # RAM replica (pxc-ram namespace) pulls binlogs for async replication.
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: pxc-ram
       ports:
         - protocol: TCP
           port: 3306

@@ -14,8 +14,8 @@ spec:
   ports:
     - name: mysql
       protocol: TCP
-      port: 6033
-      targetPort: 6033
+      port: 3306
+      targetPort: 3306
     - name: admin
       protocol: TCP
       port: 6032

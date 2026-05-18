@@ -8,5 +8,6 @@
     ./parts/network.nix
     ./parts/users.nix
     ./parts/k3s.nix
+    ./parts/storage.nix
   ];
 }
