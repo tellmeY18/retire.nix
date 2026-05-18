@@ -99,10 +99,15 @@ RUN cd /var/www/html/extensions && \
     # PageViewInfo — show page view statistics
     git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/PageViewInfo
 
-# ─── Extensions: S3 Storage ──────────────────────────────────────────────
+# ─── Extensions: S3 Storage ──────────────────────────────────────────
 RUN cd /var/www/html/extensions && \
     # AWS — S3-compatible storage backend for file uploads
     git clone --depth 1 https://github.com/edwardspec/mediawiki-aws-s3.git AWS
+
+# ─── Skins: Citizen ──────────────────────────────────────────────────
+RUN cd /var/www/html/skins && \
+    # Citizen — modern responsive skin with dark mode, command palette, etc.
+    git clone --depth 1 https://github.com/StarCitizenTools/mediawiki-skins-Citizen.git Citizen
 
 # ─── Extensions: Search (CirrusSearch + Elastica) ───────────────────────
 RUN cd /var/www/html/extensions && \

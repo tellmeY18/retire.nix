@@ -1,0 +1,97 @@
+---
+# maintenance-job.yaml — One-shot Job for MediaWiki maintenance/update.php.
+#
+# Runs independently of the MediaWiki pods. Connects DIRECTLY to the
+# primary MySQL (bypasses ProxySQL) to avoid read-only replica issues.
+#
+# Usage:
+#   kubectl apply -f k8s/clusters/glug-infra/mediawiki/maintenance-job.yaml
+#   kubectl logs -n mediawiki -l job-name=mw-update -f
+#   kubectl delete job mw-update -n mediawiki  # cleanup after
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: mw-update
+  namespace: mediawiki
+  labels:
+    app.kubernetes.io/name: mediawiki
+    app.kubernetes.io/component: maintenance
+spec:
+  backoffLimit: 1
+  ttlSecondsAfterFinished: 3600
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: mediawiki
+        app.kubernetes.io/component: maintenance
+        app.kubernetes.io/part-of: mediawiki
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: update
+          image: ghcr.io/tellmey18/mediawiki:build-32
+          command:
+            - sh
+            - -c
+            - |
+              echo "=== MediaWiki update.php (direct to primary DB) ==="
+              echo "DB Host: $MW_DB_HOST"
+              php /var/www/html/maintenance/run.php update --quick
+              echo "=== Done (exit: $?) ==="
+          env:
+            # Connect DIRECTLY to primary MySQL — bypass ProxySQL entirely.
+            - name: MW_DB_HOST
+              value: "mysql-pxc-db-haproxy.pxc-clusters.svc.cluster.local"
+            - name: MW_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mediawiki-credentials
+                  key: MW_DB_PASSWORD
+            - name: MW_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: mediawiki-credentials
+                  key: MW_SECRET_KEY
+            - name: MW_S3_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: mediawiki-credentials
+                  key: MW_S3_ACCESS_KEY
+            - name: MW_S3_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: mediawiki-credentials
+                  key: MW_S3_SECRET_KEY
+          volumeMounts:
+            - name: localsettings
+              mountPath: /var/www/html/LocalSettings.php
+              subPath: LocalSettings.php
+      volumes:
+        - name: localsettings
+          configMap:
+            name: mediawiki-localsettings
+---
+# ConfigMap that overrides DB settings for maintenance jobs.
+# This is loaded via MaintenanceSettings.php which is auto-loaded
+# by MediaWiki when present.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mediawiki-maintenance-override
+  namespace: mediawiki
+data:
+  MaintenanceSettings.php: |
+    <?php
+    # Override DB host to connect directly to primary (bypass ProxySQL).
+    # This file is only loaded by maintenance scripts, not web requests.
+    $wgDBserver = getenv('MW_DB_HOST') ?: 'mysql-pxc-db-haproxy.pxc-clusters.svc.cluster.local';
+    $wgDBservers = [
+        [
+            'host' => $wgDBserver,
+            'dbname' => 'mediawiki',
+            'user' => 'mediawiki',
+            'password' => getenv('MW_DB_PASSWORD'),
+            'type' => 'mysql',
+            'flags' => DBO_DEFAULT,
+        ],
+    ];

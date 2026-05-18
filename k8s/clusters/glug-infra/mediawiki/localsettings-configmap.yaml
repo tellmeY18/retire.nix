@@ -23,7 +23,7 @@ data:
 
     ## Database
     $wgDBtype = "mysql";
-    $wgDBserver = "proxysql.proxysql.svc.cluster.local";
+    $wgDBserver = getenv('MW_DB_HOST') ?: "proxysql.proxysql.svc.cluster.local";
     $wgDBname = "mediawiki";
     $wgDBuser = "mediawiki";
     $wgDBpassword = getenv('MW_DB_PASSWORD');
@@ -35,7 +35,7 @@ data:
     # enough for the worst case while still failing fast if MySQL is down.
     $wgDBservers = [
         [
-            'host' => 'proxysql.proxysql.svc.cluster.local',
+            'host' => getenv('MW_DB_HOST') ?: 'proxysql.proxysql.svc.cluster.local',
             'dbname' => 'mediawiki',
             'user' => 'mediawiki',
             'password' => getenv('MW_DB_PASSWORD'),
@@ -143,7 +143,8 @@ data:
     ## Skins
     wfLoadSkin( 'Vector' );
     wfLoadSkin( 'MinervaNeue' );
-    $wgDefaultSkin = "vector-2022";
+    wfLoadSkin( 'Citizen' );
+    $wgDefaultSkin = "citizen";
 
     ## Extensions — Bundled (already in base image)
     wfLoadExtension( 'AbuseFilter' );
@@ -177,16 +178,21 @@ data:
     wfLoadExtension( 'RelatedArticles' );
     wfLoadExtension( 'SmiteSpam' );
     wfLoadExtension( 'UserMerge' );
+    # --- Additional extensions (verified compatible with MW 1.45) ---
     wfLoadExtension( 'CodeMirror' );
     wfLoadExtension( 'AdvancedSearch' );
-    wfLoadExtension( 'CommentStreams' );
+    # CommentStreams: INCOMPATIBLE with Comments + MobileFrontend (both loaded above)
+    # Choose ONE: CommentStreams OR (Comments + MobileFrontend). We keep Comments + MF.
+    # wfLoadExtension( 'CommentStreams' );
+    # WhosOnline: REL1_45 branch, should work
+    wfLoadExtension( 'WhosOnline' );
+    # EmbedVideo v3.x (StarCitizenTools fork) — YouTube, Vimeo, Twitch embeds
+    wfLoadExtension( 'EmbedVideo' );
+    # RSS: requires SimplePie (verify in build-32)
     wfLoadExtension( 'RSS' );
+    # BlogPage + SocialProfile
     require_once "$IP/extensions/SocialProfile/SocialProfile.php";
     wfLoadExtension( 'BlogPage' );
-    # EmbedVideo v2.8 — try loading (old version, may work on 1.45)
-    wfLoadExtension( 'EmbedVideo' );
-    # WhosOnline — REL1_45 branch, should be fixed
-    wfLoadExtension( 'WhosOnline' );
 
     ## Extensions — Require DB schema (run maintenance/update.php after enabling)
     wfLoadExtension( 'Cargo' );
