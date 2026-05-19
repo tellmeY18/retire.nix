@@ -128,8 +128,9 @@ RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local
 # Must switch to root for write access to the base image's /var/www/html.
 USER root
 RUN cd /var/www/html && \
-    # Fix permissions on base image files that composer needs to modify
-    chmod a+w . composer.json && \
+    # Copy composer.json to create a writable version in this layer
+    # (base image files are read-only on overlay fs, chmod doesn't help)
+    cp composer.json composer.json.tmp && mv composer.json.tmp composer.json && \
     # Install SMW using --update-with-dependencies: only touches SMW's deps,
     # leaves all other MW core packages untouched (safer than `composer update`).
     COMPOSER_ALLOW_SUPERUSER=1 composer require --no-interaction --update-with-dependencies \
