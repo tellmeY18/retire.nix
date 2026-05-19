@@ -41,6 +41,7 @@ data:
             'password' => getenv('MW_DB_PASSWORD'),
             'type' => 'mysql',
             'flags' => DBO_DEFAULT,
+            'load' => 1,
             'connTimeout' => 10,
             'queryTimeout' => 30,
         ],
