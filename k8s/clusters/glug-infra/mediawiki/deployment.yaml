@@ -31,7 +31,7 @@ spec:
         node-role.glug.infra/compute: "true"
       containers:
         - name: mediawiki
-          image: ghcr.io/tellmey18/mediawiki:build-42
+          image: ghcr.io/tellmey18/mediawiki:build-45
           ports:
             - name: http
               containerPort: 80
@@ -79,7 +79,7 @@ spec:
         # Handles HTMLCacheUpdate (template purges), CirrusSearch indexing,
         # and all other async jobs. Replaces $wgJobRunRate on web requests.
         - name: jobrunner
-          image: ghcr.io/tellmey18/mediawiki:build-42
+          image: ghcr.io/tellmey18/mediawiki:build-45
           command:
             - sh
             - -c
