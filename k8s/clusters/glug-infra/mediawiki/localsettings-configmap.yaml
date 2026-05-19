@@ -208,6 +208,10 @@ data:
 
     ## Semantic MediaWiki 7.0-dev
     wfLoadExtension( 'SemanticMediaWiki' );
+    # Grant SMW admin rights to sysops
+    $wgGroupPermissions['sysop']['smw-admin'] = true;
+    $wgGroupPermissions['sysop']['smw-patternedit'] = true;
+    $wgGroupPermissions['sysop']['smw-schemaedit'] = true;
 
     ## Extensions — Search (CirrusSearch + OpenSearch)
     wfLoadExtension( 'Elastica' );

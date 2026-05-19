@@ -137,6 +137,8 @@ RUN cd /var/www/html && \
       mediawiki/semantic-media-wiki:"~7.0@dev" && \
     # Fix: SMW's dep resolution drops wikimedia/equivset which AbuseFilter needs
     COMPOSER_ALLOW_SUPERUSER=1 composer require --no-interaction wikimedia/equivset && \
+    # Ensure composer.lock is consistent (prevents update.php from refusing to run)
+    COMPOSER_ALLOW_SUPERUSER=1 composer dump-autoload --no-dev && \
     chown -R www-data:www-data /var/www/html/vendor /var/www/html/extensions/SemanticMediaWiki /var/www/html/composer.lock /var/www/html/composer.json
 # NOTE: Stay as root for the sed patches below. Switch to www-data after all patches.
 
@@ -184,7 +186,9 @@ RUN echo '[www]' > /usr/local/etc/php-fpm.d/zz-tuning.conf && \
     echo 'pm.max_spare_servers = 10' >> /usr/local/etc/php-fpm.d/zz-tuning.conf && \
     echo 'request_terminate_timeout = 300' >> /usr/local/etc/php-fpm.d/zz-tuning.conf && \
     # Increase PHP memory limit for SMW (default 128M is too low)
-    echo 'php_admin_value[memory_limit] = 512M' >> /usr/local/etc/php-fpm.d/zz-tuning.conf
+    echo 'php_admin_value[memory_limit] = 512M' >> /usr/local/etc/php-fpm.d/zz-tuning.conf && \
+    # Pass container env vars to PHP (needed for MW_DB_HOST, MW_DB_PASSWORD etc)
+    echo 'clear_env = no' >> /usr/local/etc/php-fpm.d/zz-tuning.conf
 
 # FOSSCELL NITC favicon/logo
 COPY favicon.svg /var/www/html/favicon.svg
