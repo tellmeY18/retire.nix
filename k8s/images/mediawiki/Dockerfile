@@ -135,6 +135,8 @@ RUN cd /var/www/html && \
     # leaves all other MW core packages untouched (safer than `composer update`).
     COMPOSER_ALLOW_SUPERUSER=1 composer require --no-interaction --update-with-dependencies \
       mediawiki/semantic-media-wiki:"~7.0@dev" && \
+    # Fix: SMW's dep resolution drops wikimedia/equivset which AbuseFilter needs
+    COMPOSER_ALLOW_SUPERUSER=1 composer require --no-interaction wikimedia/equivset && \
     chown -R www-data:www-data /var/www/html/vendor /var/www/html/extensions/SemanticMediaWiki /var/www/html/composer.lock /var/www/html/composer.json
 # NOTE: Stay as root for the sed patches below. Switch to www-data after all patches.
 
