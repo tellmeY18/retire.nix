@@ -205,9 +205,10 @@ data:
     wfLoadExtension( 'AJAXPoll' );
     wfLoadExtension( 'PageViewInfo' );
 
-    ## Semantic MediaWiki
+    ## Semantic MediaWiki 7.0-dev
     wfLoadExtension( 'SemanticMediaWiki' );
-    enableSemantics( 'wiki.fosscell.org' );
+    # SMW 7.0 auto-configures with correct store (SMW\SQLStore\SQLStore).
+    # No enableSemantics() or $smwgDefaultStore needed.
 
     ## Extensions — Search (CirrusSearch + OpenSearch)
     wfLoadExtension( 'Elastica' );
