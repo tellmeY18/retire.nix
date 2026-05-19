@@ -31,7 +31,7 @@ spec:
         node-role.glug.infra/compute: "true"
       containers:
         - name: mediawiki
-          image: ghcr.io/tellmey18/mediawiki:build-33
+          image: ghcr.io/tellmey18/mediawiki:build-42
           ports:
             - name: http
               containerPort: 80
@@ -79,7 +79,7 @@ spec:
         # Handles HTMLCacheUpdate (template purges), CirrusSearch indexing,
         # and all other async jobs. Replaces $wgJobRunRate on web requests.
         - name: jobrunner
-          image: ghcr.io/tellmey18/mediawiki:build-33
+          image: ghcr.io/tellmey18/mediawiki:build-42
           command:
             - sh
             - -c
@@ -89,6 +89,11 @@ spec:
                 # Sleep 2s between batches to avoid starving the DB
                 sleep 2
               done
+          env:
+            # Jobs do writes (INSERT, UPDATE) — bypass ProxySQL and connect
+            # directly to the primary via HAProxy to avoid read-only issues.
+            - name: MW_DB_HOST
+              value: "mysql-pxc-db-haproxy.pxc-clusters.svc.cluster.local"
           envFrom:
             - secretRef:
                 name: mediawiki-credentials

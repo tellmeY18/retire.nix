@@ -128,9 +128,11 @@ RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local
 # Must switch to root for write access to the base image's /var/www/html.
 USER root
 RUN cd /var/www/html && \
-    echo '{"require":{"mediawiki/semantic-media-wiki":"~7.0@dev"}}' > composer.local.json && \
-    COMPOSER_ALLOW_SUPERUSER=1 composer update --no-dev --no-interaction && \
-    chown -R www-data:www-data /var/www/html/vendor /var/www/html/extensions/SemanticMediaWiki /var/www/html/composer.lock /var/www/html/composer.local.json
+    # Install SMW using --update-with-dependencies: only touches SMW's deps,
+    # leaves all other MW core packages untouched (safer than `composer update`).
+    COMPOSER_ALLOW_SUPERUSER=1 composer require --no-interaction --update-with-dependencies \
+      mediawiki/semantic-media-wiki:"~7.0@dev" && \
+    chown -R www-data:www-data /var/www/html/vendor /var/www/html/extensions/SemanticMediaWiki /var/www/html/composer.lock /var/www/html/composer.json
 # NOTE: Stay as root for the sed patches below. Switch to www-data after all patches.
 
 # Lua for Scribunto
