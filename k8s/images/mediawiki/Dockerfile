@@ -131,7 +131,7 @@ RUN cd /var/www/html && \
     echo '{"require":{"mediawiki/semantic-media-wiki":"~7.0@dev"}}' > composer.local.json && \
     COMPOSER_ALLOW_SUPERUSER=1 composer update --no-dev --no-interaction && \
     chown -R www-data:www-data /var/www/html/vendor /var/www/html/extensions/SemanticMediaWiki /var/www/html/composer.lock /var/www/html/composer.local.json
-USER www-data
+# NOTE: Stay as root for the sed patches below. Switch to www-data after all patches.
 
 # Lua for Scribunto
 RUN ln -sf /usr/bin/lua5.1 /usr/bin/lua || true
