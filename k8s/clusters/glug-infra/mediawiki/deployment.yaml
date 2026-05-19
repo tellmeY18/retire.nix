@@ -29,9 +29,52 @@ spec:
     spec:
       nodeSelector:
         node-role.glug.infra/compute: "true"
+      initContainers:
+        # Runs DB migrations BEFORE web containers start.
+        # Ensures schema is always up-to-date on every deploy.
+        # Connects directly to primary MySQL (bypasses ProxySQL).
+        - name: db-migrate
+          image: ghcr.io/tellmey18/mediawiki:build-47
+          command:
+            - sh
+            - -c
+            - |
+              echo "=== Running MediaWiki update.php ==="
+              php -d memory_limit=512M /var/www/html/maintenance/run.php update --quick 2>&1 | tail -5
+              echo "=== Running SMW setupStore ==="
+              php -d memory_limit=512M /var/www/html/extensions/SemanticMediaWiki/maintenance/setupStore.php 2>&1 | tail -5
+              echo "=== Copying .smw.json to shared volume ==="
+              cp /var/www/html/.smw.json /smw-data/.smw.json 2>/dev/null && echo "OK" || echo "SKIP (no .smw.json generated)"
+              echo "=== Migrations complete ==="
+          env:
+            - name: MW_DB_HOST
+              value: "mysql-pxc-db-haproxy.pxc-clusters.svc.cluster.local"
+          envFrom:
+            - secretRef:
+                name: mediawiki-credentials
+          volumeMounts:
+            - name: localsettings
+              mountPath: /var/www/html/LocalSettings.php
+              subPath: LocalSettings.php
+            - name: smw-data
+              mountPath: /smw-data
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
       containers:
         - name: mediawiki
-          image: ghcr.io/tellmey18/mediawiki:build-46
+          image: ghcr.io/tellmey18/mediawiki:build-47
+          command:
+            - sh
+            - -c
+            - |
+              # Copy SMW setup file from shared volume (written by init container)
+              cp /smw-data/.smw.json /var/www/html/.smw.json 2>/dev/null || true
+              exec supervisord -c /etc/supervisord.conf
           ports:
             - name: http
               containerPort: 80
@@ -43,6 +86,9 @@ spec:
             - name: localsettings
               mountPath: /var/www/html/LocalSettings.php
               subPath: LocalSettings.php
+            - name: smw-data
+              mountPath: /smw-data
+              readOnly: true
           resources:
             requests:
               cpu: 100m
@@ -79,7 +125,7 @@ spec:
         # Handles HTMLCacheUpdate (template purges), CirrusSearch indexing,
         # and all other async jobs. Replaces $wgJobRunRate on web requests.
         - name: jobrunner
-          image: ghcr.io/tellmey18/mediawiki:build-46
+          image: ghcr.io/tellmey18/mediawiki:build-47
           command:
             - sh
             - -c
@@ -113,6 +159,8 @@ spec:
         - name: localsettings
           configMap:
             name: mediawiki-localsettings
+        - name: smw-data
+          emptyDir: {}
 ---
 apiVersion: v1
 kind: Service

@@ -22,3 +22,9 @@ data:
     The ProxySQL config is in Secret/proxysql-config (sops-encrypted).
     Edit with: sops clusters/glug-infra/proxysql/proxysql-config-secret.enc.yaml
     Apply with: sops --decrypt ... | kubectl apply -f -
+
+    IMPORTANT: Monitor is DISABLED (mysql-monitor_enabled=false) because
+    the monitor user credentials don't match after DB user table import.
+    ProxySQL trusts both backends are online without health checking.
+    To re-enable: fix monitor user password on both MySQL instances,
+    update monitor_password in the config, set monitor_enabled=true.
