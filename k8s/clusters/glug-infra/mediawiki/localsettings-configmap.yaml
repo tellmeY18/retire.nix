@@ -71,12 +71,20 @@ data:
     # Parser cache expiry — 7 days (covers most anon traffic without DB hit)
     $wgParserCacheExpireTime = 604800;
 
-    # File cache for anonymous users — serves pre-rendered HTML without
-    # touching PHP at all on subsequent requests. Eliminates DB latency
-    # for the vast majority of traffic.
-    $wgUseFileCache = true;
-    $wgFileCacheDirectory = '/tmp/mediawiki-cache';
-    $wgShowIPinHeader = false;
+    # Reduce cache TTL for pages with Cargo queries (dynamic content).
+    # Pages using {{#cargo_query:}} get a 5-minute cache instead of 7 days,
+    # so new submissions appear quickly without manual purging.
+    $wgHooks['ParserAfterTidy'][] = function( &$parser, &$text ) {
+        if ( strpos( $text, 'cargoTable' ) !== false || strpos( $text, 'cargo_query' ) !== false ) {
+            $parser->getOutput()->updateCacheExpiry( 300 ); // 5 minutes
+        }
+    };
+
+    # File cache DISABLED — causes stale content for anonymous users.
+    # Redis parser cache + buffer pool provide sufficient performance.
+    # $wgUseFileCache = true;
+    # $wgFileCacheDirectory = '/tmp/mediawiki-cache';
+    $wgUseFileCache = false;
 
     $wgMemCachedServers = [];
 
@@ -84,6 +92,41 @@ data:
     $wgSecretKey = getenv('MW_SECRET_KEY');
     $wgAuthenticationTokenVersion = "1";
     $wgUpgradeKey = getenv('MW_UPGRADE_KEY') ?: "upgrade123";
+
+    ## Reverse proxy / real IP detection
+    # MediaWiki must know which IPs are trusted proxies so it reads
+    # X-Forwarded-For to find the real client IP. Without this,
+    # CheckUser and rate-limiting see Traefik's pod IP (10.42.x.x).
+    $wgUsePrivateIPs = true;  # Required: immediate proxy is on RFC1918
+    $wgCdnServersNoPurge = [
+        # k3s internal networks (Traefik, Services)
+        '10.42.0.0/16',   # pod CIDR (flannel)
+        '10.43.0.0/16',   # service CIDR
+        # Cloudflare IPv4 — https://www.cloudflare.com/ips-v4/
+        '173.245.48.0/20',
+        '103.21.244.0/22',
+        '103.22.200.0/22',
+        '103.31.4.0/22',
+        '141.101.64.0/18',
+        '108.162.192.0/18',
+        '190.93.240.0/20',
+        '188.114.96.0/20',
+        '197.234.240.0/22',
+        '198.41.128.0/17',
+        '162.158.0.0/15',
+        '104.16.0.0/13',
+        '104.24.0.0/14',
+        '172.64.0.0/13',
+        '131.0.72.0/22',
+        # Cloudflare IPv6 — https://www.cloudflare.com/ips-v6/
+        '2400:cb00::/32',
+        '2606:4700::/32',
+        '2803:f800::/32',
+        '2405:b500::/32',
+        '2405:8100::/32',
+        '2a06:98c0::/29',
+        '2c0f:f248::/32',
+    ];
 
     ## Paths
     $wgUsePathInfo = true;
@@ -98,6 +141,16 @@ data:
     $wgEnotifWatchlist = false;
     $wgEmailAuthentication = true;
     $wgEmailConfirmToEdit = true;
+
+    # SMTP via Gmail (App Password)
+    $wgSMTP = [
+        'host'     => 'ssl://smtp.gmail.com',
+        'IDHost'   => 'wiki.fosscell.org',
+        'port'     => 465,
+        'auth'     => true,
+        'username' => 'wikinitc@gmail.com',
+        'password' => getenv('MW_SMTP_PASSWORD'),
+    ];
 
     ## File uploads — stored in RustFS S3
     $wgEnableUploads = true;
@@ -147,12 +200,88 @@ data:
     wfLoadSkin( 'Citizen' );
     $wgDefaultSkin = "citizen";
 
+    ## Citizen Theme — Full Configuration
+    # Theme & appearance
+    $wgCitizenThemeDefault = 'auto';           # auto/light/dark
+    $wgCitizenThemeColor = '#1a5fb4';          # Brand color (FOSSCELL blue)
+    $wgCitizenEnablePreferences = true;        # User preference panel
+    $wgCitizenEnableCollapsibleSections = true; # Collapsible article sections
+    $wgCitizenEnableDrawerSiteStats = true;    # Show site stats in drawer
+    $wgCitizenHeaderPosition = 'left';         # Header position: left/right/top/bottom
+    # PWA / Web App Manifest
+    $wgCitizenEnableManifest = true;
+    $wgCitizenManifestOptions = [
+        'short_name' => 'FOSSCELL Wiki',
+        'description' => 'The official wiki of FOSS Cell NITC — documenting events, projects, and community history.',
+        'theme_color' => '#1a5fb4',
+        'background_color' => '#ffffff',
+    ];
+    # Share button
+    $wgCitizenEnableShare = true;
+    $wgCitizenShareMode = 'auto';  # auto/panel/native
+    # Table of contents
+    $wgCitizenTableOfContentsCollapseAtCount = 20;
+
+    ## OpenGraph / Social Meta Tags
+    # Citizen skin + PageImages handles og:image natively.
+    # Description2 + TextExtracts provides <meta name="description">.
+    # This hook adds the remaining OG/Twitter tags using REAL page data.
+    $wgEnableMetaDescriptionFunctions = true;
+
+    # PageImages config — ensure it finds images for OG tags
+    $wgPageImagesNamespaces = array_merge(
+        [ NS_MAIN, NS_USER, NS_PROJECT ],
+        range(3000, 3200, 2)  # All year namespaces (3000, 3002, 3004, ...)
+    );
+    $wgPageImagesLeadSectionOnly = false;  # Search entire page, not just lead
+    $wgPageImagesOpenGraph = true;
+    $wgPageImagesOpenGraphFallbackImage = 'https://wiki.fosscell.org/favicon.svg';
+
+    # OG + Twitter Card tags (reads description from Description2 output)
+    $wgHooks['BeforePageDisplay'][] = function( $out ) {
+        $title = $out->getTitle();
+        if ( !$title || $title->isSpecialPage() ) return;
+
+        $siteName = 'WIKI FOSSCELL NITC';
+        $pageTitle = $title->getPrefixedText();
+        $url = $title->getFullURL();
+
+        # Read description from meta tags already set by Description2
+        $description = '';
+        foreach ( $out->getMetaTags() as $tag ) {
+            if ( $tag[0] === 'description' ) {
+                $description = $tag[1];
+                break;
+            }
+        }
+        if ( !$description ) {
+            $description = 'The official wiki of FOSS Cell NITC — documenting events, projects, and community history since 1961.';
+        }
+        # Truncate for social cards (max ~200 chars)
+        if ( strlen( $description ) > 200 ) {
+            $description = substr( $description, 0, 197 ) . '...';
+        }
+
+        $out->addMeta( 'og:type', 'article' );
+        $out->addMeta( 'og:title', $pageTitle . ' — ' . $siteName );
+        $out->addMeta( 'og:description', $description );
+        $out->addMeta( 'og:url', $url );
+        $out->addMeta( 'og:site_name', $siteName );
+        # og:image handled by PageImages ($wgPageImagesOpenGraph) — don't set here
+
+        # Twitter Card (image inherits from og:image automatically)
+        $out->addMeta( 'twitter:card', 'summary_large_image' );
+        $out->addMeta( 'twitter:title', $pageTitle );
+        $out->addMeta( 'twitter:description', $description );
+    };
+
     ## Extensions — Bundled (already in base image)
     wfLoadExtension( 'AbuseFilter' );
     wfLoadExtensions([ 'ConfirmEdit', 'ConfirmEdit/QuestyCaptcha' ]);
     wfLoadExtension( 'SpamBlacklist' );
     wfLoadExtension( 'Cite' );
     wfLoadExtension( 'CiteThisPage' );
+    wfLoadExtension( 'InputBox' );
     wfLoadExtension( 'Scribunto' );
     wfLoadExtension( 'TemplateStyles' );
     wfLoadExtension( 'ParserFunctions' );

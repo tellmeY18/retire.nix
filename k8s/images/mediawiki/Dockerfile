@@ -193,6 +193,9 @@ RUN echo '[www]' > /usr/local/etc/php-fpm.d/zz-tuning.conf && \
 # FOSSCELL NITC favicon/logo
 COPY favicon.svg /var/www/html/favicon.svg
 
+# Custom maintenance scripts
+COPY maintenance/confirmUserEmail.php /var/www/html/maintenance/confirmUserEmail.php
+
 # nginx.conf — serves MediaWiki with php_fastcgi, proper PATH_INFO support
 COPY nginx.conf /etc/nginx/nginx.conf
 

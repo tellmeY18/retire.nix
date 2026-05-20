@@ -29,7 +29,7 @@ spec:
       restartPolicy: Never
       containers:
         - name: update
-          image: ghcr.io/tellmey18/mediawiki:build-47
+          image: ghcr.io/tellmey18/mediawiki:build-48
           command:
             - sh
             - -c
