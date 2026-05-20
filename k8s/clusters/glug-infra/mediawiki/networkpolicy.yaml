@@ -91,6 +91,12 @@ spec:
     - ports:
         - port: 6379
           protocol: TCP
+    # SMTP (Gmail — email confirmation, password reset)
+    - ports:
+        - port: 465
+          protocol: TCP
+        - port: 587
+          protocol: TCP
 ---
 # Allow ingress to Redis from any mediawiki-part-of pod (includes CronJobs).
 apiVersion: networking.k8s.io/v1
