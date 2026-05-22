@@ -82,6 +82,13 @@
 
       devShells = myLib.forAllSystems (
         { pkgs, system, ... }:
+        let
+          chromiumPath =
+            if pkgs.stdenv.isDarwin then
+              "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+            else
+              "${pkgs.chromium}/bin/chromium";
+        in
         {
           default = pkgs.mkShell {
             packages = [
@@ -93,9 +100,13 @@
               pkgs.age
               pkgs.just
               pkgs.treefmt
+              pkgs.presenterm
+              pkgs.mermaid-cli # provides `mmdc` for presenterm mermaid rendering
               deploy-rs.packages.${system}.default
-            ];
+            ]
+            ++ pkgs.lib.optionals pkgs.stdenv.isLinux [ pkgs.chromium ];
             shellHook = ''
+              export PUPPETEER_EXECUTABLE_PATH="${chromiumPath}"
               echo "nix-config devshell ready — run 'just' for available commands"
             '';
           };
