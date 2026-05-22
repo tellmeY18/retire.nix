@@ -27,8 +27,17 @@ spec:
         app.kubernetes.io/name: mediawiki
         app.kubernetes.io/part-of: mediawiki
     spec:
-      nodeSelector:
-        node-role.glug.infra/compute: "true"
+      # Pin to kenobi (cloud VM, always available). MediaWiki must never
+      # run on c3po/chopper which are laptops subject to power/network loss.
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: In
+                    values:
+                      - kenobi
       initContainers:
         # Runs DB migrations BEFORE web containers start.
         # Ensures schema is always up-to-date on every deploy.

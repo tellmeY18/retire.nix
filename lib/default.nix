@@ -161,6 +161,10 @@ let
         profiles.system = {
           user = "root";
           path = deployLib.${meta.system}.activate.nixos nixosConfigurations.${meta.hostname};
+          # k3s restarts take time (etcd sync). Increase timeout to avoid
+          # false rollbacks and disable magic rollback for server nodes.
+          activationTimeout = 300;
+          confirmTimeout = 120;
         };
       }
     ) deployableHosts;
