@@ -143,6 +143,11 @@
             sops-nix.nixosModules.sops
             disko.nixosModules.disko
           ];
+          c3po = [
+            ./hosts/c3po/disko-config.nix
+            sops-nix.nixosModules.sops
+            disko.nixosModules.disko
+          ];
         };
       };
 

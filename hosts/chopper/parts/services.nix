@@ -46,6 +46,8 @@
       "--accept-routes"
       "--advertise-exit-node"
       "--accept-dns=false"
+      # Advertise this node's pod CIDR so other nodes can route to our pods
+      "--advertise-routes=10.42.0.0/24"
     ];
     openFirewall = true;
   };

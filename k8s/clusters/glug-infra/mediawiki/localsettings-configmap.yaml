@@ -186,8 +186,18 @@ data:
     $wgGroupPermissions['*']['edit'] = false;
     $wgGroupPermissions['*']['createaccount'] = true;
     $wgGroupPermissions['student']['edit'] = true;
+
+    # Protect Template namespace — only sysops can edit templates.
+    # Prevents students from accidentally (or intentionally) breaking templates.
+    $wgNamespaceProtection[NS_TEMPLATE] = [ 'editinterface' ];
+
     $wgGroupPermissions['bureaucrat']['smitespam'] = true;
     $wgGroupPermissions['bureaucrat']['usermerge'] = true;
+
+    # Auto-promote to 'student' once email is confirmed.
+    # This means: register with @nitc.ac.in → confirm email → instantly can edit.
+    # No manual group assignment needed.
+    $wgAutopromote['student'] = APCOND_EMAILCONFIRMED;
     $wgGroupPermissions['sysop']['usermerge'] = true;
     $wgGroupPermissions['sysop']['checkuser'] = true;
     $wgGroupPermissions['sysop']['checkuser-log'] = true;
@@ -285,6 +295,7 @@ data:
     wfLoadExtension( 'Scribunto' );
     wfLoadExtension( 'TemplateStyles' );
     wfLoadExtension( 'ParserFunctions' );
+    $wgPFEnableStringFunctions = true;  # enables #pos, #len, #sub, #pad, #replace, #explode, #arraymap etc.
     wfLoadExtension( 'PageImages' );
     wfLoadExtension( 'TextExtracts' );
     wfLoadExtension( 'Nuke' );
@@ -323,7 +334,9 @@ data:
     # RSS: requires SimplePie (verify in build-32)
     wfLoadExtension( 'RSS' );
     # BlogPage + SocialProfile
-    require_once "$IP/extensions/SocialProfile/SocialProfile.php";
+    # SocialProfile DISABLED — hijacks User: page creation/editing flow.
+    # Re-enable once we reconcile its UserWiki: namespace with our {{User Profile}} system.
+    # require_once "$IP/extensions/SocialProfile/SocialProfile.php";
     wfLoadExtension( 'BlogPage' );
 
     ## Extensions — Require DB schema (run maintenance/update.php after enabling)
