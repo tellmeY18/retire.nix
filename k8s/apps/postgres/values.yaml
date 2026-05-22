@@ -32,14 +32,10 @@ version:
 # Cluster — the heart of the configuration.
 # ---------------------------------------------------------------------------
 cluster:
-  # Three instances: one primary + two synchronous standbys.
-  #
-  # Phase 1 (single k3s node): all three pods land on the same node — no HA
-  # at the node level, but the topology is already correct for when more
-  # nodes are added. The pod anti-affinity below is `preferred` in this
-  # phase; flip to `required` once a second untainted node joins
-  # (see docs/runbooks/add-node.md).
-  instances: 3
+  # Four instances: one primary + three synchronous standbys spread across
+  # chopper and c3po. With anti-affinity preferred, CNPG will place new
+  # replicas on c3po (the second storage node).
+  instances: 4
 
   # Pin the PostgreSQL minor version explicitly. CNPG ships purpose-built
   # PostgreSQL container images that include all the operator-side tooling
@@ -136,8 +132,7 @@ cluster:
   # Pod scheduling
   # -------------------------------------------------------------------------
   # Phase 1 (single node): preferred — all three pods will end up on one
-  # node but the field is in place. Flip to `required` once a second
-  # untainted node joins the cluster.
+  # Pod anti-affinity spreads instances across storage nodes (chopper + c3po).
   affinity:
     podAntiAffinityType: preferred
     topologyKey: kubernetes.io/hostname

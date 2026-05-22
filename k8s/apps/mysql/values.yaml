@@ -33,12 +33,9 @@ finalizers:
 # PXC (Percona XtraDB Cluster) nodes
 # ---------------------------------------------------------------------------
 pxc:
-  # Single instance for Phase 1 (single k3s node). Galera with size > 1 on
-  # a single node causes crash-recovery failures: pods that can never
-  # schedule confuse the quorum logic, and "full cluster crash" recovery
-  # stalls indefinitely.
-  #
-  # When a second schedulable node joins, bump to size: 3.
+  # Single instance on chopper for reliability. 2-node Galera loses quorum
+  # when either node dies. Use size=3 (with garbd on kenobi) once c3po
+  # proves stable. Until then, single-node with autoRecovery is safest.
   size: 1
 
   # Auto-recovery: if the single PXC pod crashes or the node reboots,

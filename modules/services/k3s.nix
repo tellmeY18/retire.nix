@@ -239,6 +239,11 @@ in
             "--write-kubeconfig-mode=0640"
             # Disable components we replace with our own.
             "--disable=traefik,servicelb,local-storage"
+            # Disable NetworkPolicy enforcement — the tailnet IS the security
+            # boundary. kube-router's ipset-based policy enforcement doesn't
+            # work reliably with host-gw over Tailscale (can't match remote
+            # pod IPs to namespaces for cross-node traffic).
+            "--disable-network-policy"
             # host-gw backend — direct IP routing via tailscale0, no vxlan
             # encapsulation. Eliminates MTU/fragmentation issues from
             # double-encapsulation (vxlan inside wireguard).

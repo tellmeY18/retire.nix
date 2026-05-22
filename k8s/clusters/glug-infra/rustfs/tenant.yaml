@@ -55,33 +55,26 @@ spec:
   podManagementPolicy: Parallel
 
   # Storage pool configuration.
-  # Single pool, 4 servers, 2 volumes each = 8 total erasure-coded volumes.
+  # Pool-0: 4 servers on chopper (original).
+  # Pool-1: 4 servers on c3po (expansion for redundancy).
+  # Total: 8 servers × 2 volumes = 16 erasure-coded volumes.
   pools:
     - name: pool-0
       # 4 servers = 4 StatefulSet replicas.
-      # Minimum for meaningful erasure coding with volumesPerServer=2.
       servers: 4
 
       persistence:
-        # 2 volumes per server (4×2=8 total, satisfies >=4 requirement).
         volumesPerServer: 2
-
-        # PVC template — uses the default ZFS StorageClass.
         volumeClaimTemplate:
           accessModes: ["ReadWriteOnce"]
           storageClassName: zfs-localpv
           resources:
             requests:
               storage: 50Gi
-
-        # Labels for PVC identification and backup tooling.
         labels:
           app.kubernetes.io/part-of: rustfs
           environment: production
 
-      # Topology spread — distribute pods across nodes when available.
-      # Phase 1 (single node): constraint is satisfied trivially.
-      # Phase 2 (multi-node): pods spread across failure domains.
       topologySpreadConstraints:
         - maxSkew: 1
           topologyKey: kubernetes.io/hostname
@@ -90,7 +83,42 @@ spec:
             matchLabels:
               rustfs.pool: pool-0
 
-      # Resource requests — conservative for laptop hardware.
+      resources:
+        requests:
+          cpu: "200m"
+          memory: "512Mi"
+        limits:
+          cpu: "1000m"
+          memory: "2Gi"
+
+    - name: pool-1
+      # Second pool on c3po — mirrors pool-0 capacity.
+      servers: 4
+
+      persistence:
+        volumesPerServer: 2
+        volumeClaimTemplate:
+          accessModes: ["ReadWriteOnce"]
+          storageClassName: zfs-localpv
+          resources:
+            requests:
+              storage: 50Gi
+        labels:
+          app.kubernetes.io/part-of: rustfs
+          environment: production
+
+      # Prefer scheduling on c3po (the new storage node).
+      nodeSelector:
+        node-role.glug.infra/storage: "true"
+
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              rustfs.pool: pool-1
+
       resources:
         requests:
           cpu: "200m"
