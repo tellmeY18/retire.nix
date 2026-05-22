@@ -1,4 +1,5 @@
 # nix-config — infrastructure task runner
+
 #
 # This repo is the SINGLE SOURCE OF TRUTH for all NixOS infrastructure.
 # The Mac is the only admin workstation. deploy-rs pushes configs to all
@@ -22,6 +23,15 @@ default:
 
 [doc('k8s recipes (helmfile / kubectl / sops). `just k8s` to list')]
 mod k8s 'k8s/Justfile'
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  PRESENT — launch slides in a presentation-tuned terminal
+# ═══════════════════════════════════════════════════════════════════════════
+
+# Launch presenterm inside kitty with a large, presentation-friendly font.
+[doc('Present slides (kitty + Iosevka 22pt)')]
+present:
+    kitty --config KochiFoss/kitty-present.conf presenterm -x KochiFoss/Slides.md
 
 # ═══════════════════════════════════════════════════════════════════════════
 #  DEPLOY — push NixOS configs to remote hosts via deploy-rs
