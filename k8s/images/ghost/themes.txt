@@ -13,3 +13,6 @@
 
 # Journal — official Ghost theme (hosted as release asset, cleaned of macOS ._ files)
 https://github.com/tellmeY18/retire.nix/releases/download/ghost-themes-v1/journal-theme-1.0.1.tar.gz journal
+
+# Slate — clean & modern theme by Estudio Patagón (https://ghost.org/themes/slate/)
+https://github.com/estudiopatagon/slate-for-ghost/archive/refs/tags/v1.0.1.tar.gz slate
