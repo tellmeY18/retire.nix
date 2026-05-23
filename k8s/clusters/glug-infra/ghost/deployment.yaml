@@ -31,7 +31,7 @@ spec:
     spec:
       containers:
         - name: ghost
-          image: ghcr.io/tellmey18/ghost:build-10
+          image: ghcr.io/tellmey18/ghost:build-12
           ports:
             - name: http
               containerPort: 2368
