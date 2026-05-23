@@ -74,7 +74,7 @@ spec:
             - name: storage__s3__forcePathStyle
               value: "true"
             - name: storage__s3__assetHost
-              value: "https://s3.tail477f2f.ts.net/ghost"
+              value: "https://s3-1.tail477f2f.ts.net/ghost"
             - name: storage__s3__pathPrefix
               value: ""
             - name: storage__s3__acl
