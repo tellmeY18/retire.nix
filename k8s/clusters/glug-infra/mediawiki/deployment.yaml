@@ -53,7 +53,7 @@ spec:
               echo "=== Migrations complete ==="
           env:
             - name: MW_DB_HOST
-              value: "mysql-pxc-db-haproxy.pxc-clusters.svc.cluster.local"
+              value: "mysql-ram-pxc.pxc-ram.svc.cluster.local"
           envFrom:
             - secretRef:
                 name: mediawiki-credentials
@@ -78,8 +78,7 @@ spec:
               # Run SMW setup — retry until DB is reachable (handles pod starting before DB)
               echo "Running SemanticMediaWiki setupStore..."
               for i in $(seq 1 5); do
-                MW_DB_HOST=mysql-pxc-db-haproxy.pxc-clusters.svc.cluster.local \
-                  php -d memory_limit=512M /var/www/html/extensions/SemanticMediaWiki/maintenance/setupStore.php 2>&1 && break
+                php -d memory_limit=512M /var/www/html/extensions/SemanticMediaWiki/maintenance/setupStore.php 2>&1 && break
                 echo "Attempt $i failed, retrying in 5s..."
                 sleep 5
               done
@@ -88,6 +87,9 @@ spec:
             - name: http
               containerPort: 80
               protocol: TCP
+          env:
+            - name: MW_DB_HOST
+              value: "mysql-ram-pxc.pxc-ram.svc.cluster.local"
           envFrom:
             - secretRef:
                 name: mediawiki-credentials
@@ -120,11 +122,11 @@ spec:
             failureThreshold: 3
           startupProbe:
             httpGet:
-              path: /api.php?action=query&meta=siteinfo&format=json
+              path: /healthcheck.php
               port: 80
-            initialDelaySeconds: 10
-            periodSeconds: 5
-            timeoutSeconds: 10
+            initialDelaySeconds: 60
+            periodSeconds: 10
+            timeoutSeconds: 5
             failureThreshold: 30
 
         # Dedicated job runner — continuously drains the MW job queue.
@@ -141,10 +143,8 @@ spec:
                 sleep 2
               done
           env:
-            # Jobs do writes (INSERT, UPDATE) — bypass ProxySQL and connect
-            # directly to the primary via HAProxy to avoid read-only issues.
             - name: MW_DB_HOST
-              value: "mysql-pxc-db-haproxy.pxc-clusters.svc.cluster.local"
+              value: "mysql-ram-pxc.pxc-ram.svc.cluster.local"
           envFrom:
             - secretRef:
                 name: mediawiki-credentials
