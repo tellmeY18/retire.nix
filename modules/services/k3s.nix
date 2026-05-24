@@ -33,7 +33,6 @@
 {
   config,
   lib,
-  pkgs,
   ...
 }:
 

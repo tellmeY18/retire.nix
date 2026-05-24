@@ -3,7 +3,7 @@
 # The host's private age key must exist at the path below.
 # Generate on the host with: age-keygen -o /var/lib/sops-nix/key.txt
 # Then add the PUBLIC key to .sops.yaml under &kenobi.
-{ config, ... }:
+{ ... }:
 {
   sops = {
     defaultSopsFile = ../../secrets/kenobi/secrets.yaml;

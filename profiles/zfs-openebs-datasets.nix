@@ -11,7 +11,7 @@
 #   rpool/openebs-16k  — recordsize=16K (MySQL/PXC)
 #   rpool/k3s          — recordsize=16K (k3s server data)
 #
-{ config, lib, ... }:
+{ config, ... }:
 let
   pool = "rpool";
 in

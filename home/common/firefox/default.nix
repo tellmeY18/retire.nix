@@ -1,4 +1,4 @@
-{ pkgs, lib, ... }:
+{ pkgs, ... }:
 let
   #  isDarwin = pkgs.stdenv.isDarwin;
   #  # Helper function for forced extension installation

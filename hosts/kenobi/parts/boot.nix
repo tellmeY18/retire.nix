@@ -1,6 +1,6 @@
 # OCI aarch64 VM boot configuration.
 # UEFI + systemd-boot + ZFS.
-{ pkgs, lib, ... }:
+{ ... }:
 {
   boot = {
     loader = {

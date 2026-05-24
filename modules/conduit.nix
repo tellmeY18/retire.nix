@@ -1,8 +1,8 @@
-{ config, pkgs, lib, ... }:
+{ pkgs, lib, ... }:
 
 let
   # Overlay for building the conduit toolbox utility from source
-  conduitToolboxOverlay = self: super: {
+  conduitToolboxOverlay = _self: super: {
     conduit_toolbox = super.rustPlatform.buildRustPackage rec {
       pname = "conduit-toolbox";
       version = "0.1.0";

@@ -8,7 +8,7 @@
 # in the host's extraModules list.
 {
   # Custom packages overlay — adds our own derivations to nixpkgs
-  custom-packages = final: prev: {
+  custom-packages = final: _prev: {
     neondb = final.callPackage ../packages/neondb/default.nix { };
   };
 }
