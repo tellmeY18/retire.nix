@@ -48,13 +48,32 @@ Context and tracking for the FOSSCell NITC wiki — https://wiki.fosscell.org
 | `{{FOSSMeet Tabs}}` | — | Subpage navigation |
 | `{{FOSSMeet Navbox}}` | — | All-editions bottom nav |
 
-### ⚠️ Needs Attention
+### Scribunto / Lua Status
 
-| Template | Issue |
-|----------|-------|
-| `{{Infobox}}` (base) | Lua error — Scribunto module broken |
-| `{{Infobox sport overview}}` | Template loop detected |
-| `{{Whos Online}}` | MW 1.45 compat issue |
+**Engine:** `luasandbox` PHP extension (v4.1.2) — confirmed working on aarch64
+**Config:** `$wgScribuntoDefaultEngine = 'luasandbox';` with 200MB memory, 10s CPU limit
+
+**Issue:** `Module:Citation/CS1/Configuration` crashes at line 2058 with
+`attempt to index field '?' (a nil value)` during the module's data initialization.
+This is a **version mismatch** — the CS1 module set was imported from Wikipedia at
+different points in time, causing incompatible interfaces between sub-modules.
+
+**Fix required:** Re-import all CS1 modules from English Wikipedia at the same revision:
+- `Module:Citation/CS1` (main, ~4400 lines)
+- `Module:Citation/CS1/Configuration` (111KB, line 2058 is the crash)
+- `Module:Citation/CS1/Utilities`
+- `Module:Citation/CS1/Identifiers`
+- `Module:Citation/CS1/COinS`
+- `Module:Citation/CS1/Date validation`
+- `Module:Citation/CS1/Whitelist`
+- `Module:Citation/CS1/Suggestions` (stub created, needs real content)
+- `Module:Citation/CS1/styles.css`
+
+Use Special:Export on en.wikipedia.org to export all at once, then Special:Import
+on wiki.fosscell.org. They MUST be from the same revision to avoid interface mismatches.
+
+**Workaround (current):** Pages using `{{cite news}}`, `{{cite web}}` etc. show
+Lua errors. Other Lua-based templates unrelated to CS1 work fine.
 
 ## TODO — Remaining Work
 
