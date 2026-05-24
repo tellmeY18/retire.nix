@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+# Pre-commit hook: auto-format staged .nix files with nixpkgs-fmt.
+#
+# Only formats files that are part of this commit (not the whole tree),
+# so it's fast and won't touch unstaged work.
+#
+# Installed by: git config core.hooksPath .githooks
+# (done automatically when entering the devShell)
+
+set -euo pipefail
+
+# Get staged .nix files (Added, Copied, Modified, Renamed)
+staged_nix=$(git diff --cached --name-only --diff-filter=ACMR -- '*.nix')
+
+if [[ -z "$staged_nix" ]]; then
+  exit 0
+fi
+
+# Check if nixpkgs-fmt is available
+if ! command -v nixpkgs-fmt &>/dev/null; then
+  echo "pre-commit: nixpkgs-fmt not found — skipping format check."
+  echo "  Enter the devShell (nix develop) to enable formatting."
+  exit 0
+fi
+
+# Format only the staged files
+echo "$staged_nix" | xargs nixpkgs-fmt
+
+# Re-stage any files that were reformatted
+echo "$staged_nix" | xargs git add
+
+echo "pre-commit: formatted $(echo "$staged_nix" | wc -l | tr -d ' ') .nix file(s)"

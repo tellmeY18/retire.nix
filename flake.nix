@@ -46,16 +46,15 @@
   };
 
   outputs =
-    inputs@{
-      self,
-      nix-homebrew,
-      nix-index-database,
-      nixvim,
-      fenix,
-      disko,
-      sops-nix,
-      deploy-rs,
-      ...
+    inputs@{ self
+    , nix-homebrew
+    , nix-index-database
+    , nixvim
+    , fenix
+    , disko
+    , sops-nix
+    , deploy-rs
+    , ...
     }:
     let
       myLib = import ./lib { inherit inputs; };
@@ -104,6 +103,7 @@
             ++ pkgs.lib.optionals pkgs.stdenv.isLinux [ pkgs.chromium ];
             shellHook = ''
               export PUPPETEER_EXECUTABLE_PATH="${chromiumPath}"
+              git config core.hooksPath .githooks
               echo "nix-config devshell ready — run 'just' for available commands"
             '';
           };
