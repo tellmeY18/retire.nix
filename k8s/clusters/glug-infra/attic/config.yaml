@@ -12,27 +12,21 @@ data:
     # Attic server configuration
     # See: https://github.com/zhaofengli/attic
 
-    [listen]
-    address = "0.0.0.0:8080"
+    listen = "[::]:8080"
 
-    # JWT token signing — uses HS256 secret from environment variable
-    [token]
-    hs256-secret-base64 = "${ATTIC_SERVER_TOKEN_HS256_SECRET_BASE64}"
+    # Disable proof-of-possession for simpler CI integration
+    require-proof-of-possession = false
 
-    # Database connection — password injected via environment variable
+    # Database connection
     [database]
     url = "postgresql://attic:${ATTIC_DB_PASSWORD}@postgres-cluster-pooler-rw.cnpg-clusters.svc:5432/attic"
 
     # S3-compatible object storage (RustFS)
     [storage]
     type = "s3"
-
-    [storage.s3]
     endpoint = "http://rustfs-storage-io.rustfs-clusters.svc:9000"
     bucket = "attic"
     region = "us-east-1"
-    force-path-style = true
-    # Credentials read from AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY env vars
 
     # Content-addressed chunking for deduplication
     [chunking]
@@ -41,7 +35,7 @@ data:
     avg-size = 65536
     max-size = 262144
 
-    # Compression algorithm
+    # Compression
     [compression]
     type = "zstd"
 
@@ -49,7 +43,6 @@ data:
     [garbage-collection]
     default-retention-period = "6 months"
 
-    # Disable proof-of-possession for simpler CI integration
-    # (clients don't need to prove they have the NAR before uploading)
-    [security]
-    require-proof-of-possession = false
+    # JWT signing
+    [jwt.signing]
+    token-hs256-secret-base64 = "${ATTIC_SERVER_TOKEN_HS256_SECRET_BASE64}"
