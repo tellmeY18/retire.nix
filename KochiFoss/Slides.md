@@ -1,5 +1,5 @@
 ---
-title: "Building **THE GLUG-INFRA**"
+title: "**I Might Have Built a Cool Infra Setup with K3s, Nix and ZFS**"
 sub_title: "_k3s_ · _ZFS_ · _Nix_ · _Tailscale_ · _CNPG_ · _PXC_ · _RustFS_"
 author: Vysakh Premkumar
 event: KochiFOSS
@@ -46,6 +46,48 @@ NIT Calicut · OHC Network
 
 
 <!-- end_slide -->
+**Quick History**
+
+So Much has happened since I last had a talk in Kochi FOSS
+![](Images/1.png)
+<!-- end_slide -->
+**I went to Tokyo for a Talk**
+
+![](Images/tokyo.jpg)
+<!-- end_slide -->
+
+**Then Taiwan**
+
+![](Images/taiwan.jpg)
+
+<!-- end_slide -->
+
+<!-- no_footer -->
+<!-- jump_to_middle -->
+<!-- alignment: center -->
+
+**I've Lost, I've Gained**
+
+<!-- end_slide -->
+
+<!-- no_footer -->
+<!-- jump_to_middle -->
+<!-- alignment: center -->
+
+
+
+**ONE BIG INSECURITY.**
+
+<!-- pause -->
+
+**A GIANT IMPOSTER SYNDROME**
+
+<!-- pause -->
+
+**THE PLEDGE**
+
+<!-- end_slide -->
+
 
 <!-- no_footer -->
 <!-- jump_to_middle -->
@@ -124,9 +166,6 @@ WHY A FLAKE?
 > + declarative outputs (systems, pkgs, shells).
 
 <!-- pause -->
-<!-- speaker_note: |
-show sudo apt update && Upgrade
-<!-- new_line -->
 
 **Three things change:**
 
@@ -254,6 +293,131 @@ flowchart LR
   C <--> K
   C <--> T
 ```
+
+<!-- end_slide -->
+
+<!-- alignment: center -->
+**ODIKKONDIRIKKUNNA CARINTE ENGINEUM BODYUM MAARAAN PATTUO SAKKEER BHAAI ???**
+![](Images/nixos-anywhere.png)
+
+<!-- end_slide -->
+
+NIXOS-ANYWHERE — THE CLOUD TRICK
+==================================
+
+> [!NOTE]
+> `nixos-anywhere` installs NixOS over SSH
+> onto **any** running Linux — even one you
+> can't reboot from a USB.
+
+<!-- pause -->
+
+<!-- new_line -->
+
+**The problem:**
+
+OCI gives you **Ubuntu**. No NixOS image.
+No ISO boot. No console access.
+Just SSH and a running kernel.
+
+<!-- pause -->
+
+<!-- new_line -->
+
+**The solution — one command:**
+
+```bash
+nix run github:nix-community/nixos-anywhere \
+  -- --flake .#kenobi root@<ip>
+```
+
+<!-- end_slide -->
+
+HOW NIXOS-ANYWHERE WORKS
+=========================
+
+```mermaid +render
+flowchart TD
+  A[SSH into Ubuntu VM] --> B[Upload kexec image]
+  B --> C[kexec into NixOS installer RAM]
+  C --> D[Disko partitions the disk]
+  D --> E[nixos-install from flake]
+  E --> F[Reboot into NixOS]
+```
+
+<!-- end_slide -->
+
+<!-- new_line -->
+
+<!-- incremental_lists: true -->
+
+1. **SSH** — connects to the running Ubuntu
+2. **kexec** — boots a NixOS installer _in RAM_
+   (the old OS is gone, disk is free)
+3. **Disko** — partitions exactly as declared
+4. **Install** — builds closure from your flake
+5. **Reboot** — pure NixOS, first boot
+
+<!-- incremental_lists: false -->
+
+<!-- end_slide -->
+
+KENOBI — UBUNTU → NIXOS IN 5 MIN
+==================================
+
+OCI free-tier ARM VM. Started as Ubuntu 22.04.
+
+<!-- new_line -->
+
+<!-- column_layout: [1, 1] -->
+
+<!-- column: 0 -->
+
+**BEFORE**
+
+<!-- new_line -->
+
+- Ubuntu 22.04 aarch64
+- OCI "always free" shape
+- No NixOS image available
+- No ISO/PXE boot option
+- Just root SSH access
+
+<!-- column: 1 -->
+
+**AFTER**
+
+<!-- new_line -->
+
+- NixOS unstable aarch64
+- ZFS root (disko)
+- Tailscale joined
+- k3s node ready
+- `just deploy kenobi` works
+
+<!-- reset_layout -->
+
+<!-- pause -->
+
+<!-- new_line -->
+
+> [!TIP]
+> The VM **never left the network**.
+> Same IP, same SSH host key (imported),
+> same OCI instance — new OS.
+
+<!-- speaker_note: |
+  Steps we took:
+  1. Provisioned OCI free-tier ARM (A1.Flex)
+  2. SSH'd in as ubuntu user, set root password
+  3. Wrote hosts/kenobi/ with disko + metadata
+  4. Ran nixos-anywhere from the Mac
+  5. ~5 minutes later: NixOS, ZFS, Tailscale
+  Key insight: kexec means you don't need
+  provider support for custom images.
+  Works on AWS, GCP, Hetzner, OCI — anywhere
+  you have root SSH.
+-->
 
 <!-- end_slide -->
 
@@ -901,8 +1065,6 @@ flowchart LR
 
 **PART 5**
 
-**Day-2 Operations**
-
 _what running it actually looks like_
 
 <!-- end_slide -->
@@ -1007,38 +1169,6 @@ WHAT I DELIBERATELY DO NOT DO
 
 <!-- alignment: center -->
 
-**CONSTRAINT IS A FEATURE.**
-
-<!-- end_slide -->
-
-THE HA REALITY CHECK
-=====================
-
-> [!WARNING]
-> **2 nodes ≠ HA.** Etcd needs ODD quorum.
-> Losing either = **read-only** cluster.
-
-<!-- pause -->
-
-<!-- new_line -->
-
-| NODES | QUORUM     | REALITY        |
-| ----- | ---------- | -------------- |
-| 1     | Trivial    | SPOF. Backups. |
-| 2     | Needs BOTH | Worse than 1.  |
-| 3     | Survives 1 | **TRUE HA.**   |
-
-<!-- pause -->
-
-<!-- new_line -->
-
-**Roadmap to three:**
-
-- Third node = **$4/mo VPS** on tailnet
-- Tainted `quorum-only:NoExecute`
-- **NO workloads**, just etcd vote
-- Pod anti-affinity already in place
-
 <!-- end_slide -->
 
 <!-- no_footer -->
@@ -1061,8 +1191,7 @@ DEMO
 1. `nix flake show` — every host
 2. `just eval-all` — **under a second**
 3. `kubectl get nodes` — 3 on tailnet
-4. `psql pg-rw.ts.net` — **from here**
-5. `just k8s::pxc-status` — Galera
+
 
 <!-- incremental_lists: false -->
 
@@ -1070,25 +1199,9 @@ DEMO
 
 <!-- incremental_lists: true -->
 
-6. `mc ls s3.ts.net` — RustFS
-7. **Open Grafana** — dashboards
-8. **Kill a pod.** Watch failover.
+4. **Open Grafana** — dashboards
 
 <!-- incremental_lists: false -->
-
-<!-- speaker_note: |
-  Full demo list:
-  1. nix flake show — every host this repo builds
-  2. just eval-all — evaluates in under a second
-  3. just secrets chopper — encrypted in $EDITOR
-  4. kubectl get nodes -o wide — 3 on tailnet
-  5. kubectl -n cnpg-clusters get cluster
-  6. psql "postgresql://pg-rw.ts.net/app"
-  7. just k8s::pxc-status — Galera writer + replicas
-  8. mc ls s3.ts.net — RustFS via tailnet
-  9. Open Grafana — metrics, dashboards, alerts
-  10. Kill a pod. Watch failover. Live.
--->
 
 <!-- end_slide -->
 
@@ -1096,33 +1209,49 @@ DEMO
 <!-- jump_to_middle -->
 <!-- alignment: center -->
 
-**REMEMBER THIS**
 
-<!-- pause -->
-
-<!-- new_line -->
-
-**BORING IS BEAUTIFUL.**
+**WHYY ???.**
 
 <!-- end_slide -->
 
-TAKEAWAYS
+Me as A Student Aspect
 ==========
 
 <!-- incremental_lists: true -->
 
-- Unit of change = a **COMMIT**,
-  not a `kubectl edit`.
-- Unit of deploy = a **HOST**,
-  not a YAML file.
-- Trust root = **ONE AGE KEY**,
-  not a sprawl of vaults.
-- Disk layout = **CODE**,
-  not a wiki page.
-- Cluster = **INVISIBLE**
-  to the internet by default.
+- Ownership and Responsibility 
+- Freedom to do things Permissionless. 
+
+<!-- end_slide -->
+
+
+Me as an Employee Aspect
+==========
+
+<!-- incremental_lists: true -->
+
+- Ownership and Responsibility 
+- Freedom to do things Permissionless. 
+
 
 <!-- incremental_lists: false -->
+
+<!-- end_slide -->
+
+
+Thanks
+==========
+
+<!-- incremental_lists: true -->
+
+- Farseen
+- Edvin Basil 
+- FOSSCell NITC Kids
+- GLUG NITC
+
+<!-- incremental_lists: false -->
+
+<!-- new_line -->
 
 <!-- pause -->
 
@@ -1130,26 +1259,26 @@ TAKEAWAYS
 
 <!-- alignment: center -->
 
-_Repo:_ `github.com/<you>/nix-config`
-_Roadmap:_ `ROADMAP.md`
-_Architecture:_ `CLAUDE.md`
+_Repo:_ `github.com/tellmeY18/retire.nix`
 
 <!-- end_slide -->
 
+
+<!-- alignment: center -->
+The Flaky Bois
+
+![](Images/flaky-bois.png)
 <!-- no_footer -->
+<!-- jump_to_middle -->
+<!-- alignment: center -->
+
+
+<!-- end_slide -->
 <!-- jump_to_middle -->
 <!-- alignment: center -->
 
 **QUESTIONS?**
 
-`@vysakh` · `vysakh@chopper`
-
 <!-- new_line -->
 
 <!-- pause -->
-
-_or, equivalently:_
-
-```bash
-$ just secrets chopper  # 😉
-```

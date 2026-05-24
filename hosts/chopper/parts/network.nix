@@ -36,9 +36,10 @@
       '';
     };
 
-    # k3s flannel host-gw: route kenobi's pod CIDR via its Tailscale IP.
+    # k3s flannel host-gw: route other nodes' pod CIDRs via their Tailscale IPs.
     localCommands = ''
       ip route replace 10.42.1.0/24 via 100.73.101.89 dev tailscale0 onlink 2>/dev/null || true
+      ip route replace 10.42.2.0/24 via 100.109.132.76 dev tailscale0 onlink 2>/dev/null || true
     '';
   };
 
@@ -56,7 +57,7 @@
       Type = "oneshot";
       RemainAfterExit = true;
       ExecStartPre = ''/bin/sh -c "until ip link show tailscale0 2>/dev/null | grep -q UP; do sleep 2; done"'';
-      ExecStart = ''/bin/sh -c "ip route replace 10.42.1.0/24 via 100.73.101.89 dev tailscale0 onlink"'';
+      ExecStart = ''/bin/sh -c "ip route replace 10.42.1.0/24 via 100.73.101.89 dev tailscale0 onlink; ip route replace 10.42.2.0/24 via 100.109.132.76 dev tailscale0 onlink"'';
     };
   };
 }
