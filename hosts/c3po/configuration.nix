@@ -1,7 +1,7 @@
 # hosts/c3po/default.nix — Minimal NixOS config for nixos-anywhere.
 # Just enough to boot, SSH in, connect to Tailscale, and have ZFS.
 # Everything else gets added via deploy-rs later.
-{ config, pkgs, ... }:
+{ pkgs, ... }:
 {
   imports = [
     ./disko-config.nix

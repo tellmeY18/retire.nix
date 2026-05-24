@@ -2,8 +2,6 @@
 # nixos-anywhere generates the real one during install.
 # This just needs enough to evaluate the flake.
 {
-  config,
-  lib,
   modulesPath,
   ...
 }:

@@ -9,7 +9,7 @@
 { lib, pkgs, ... }:
 
 let
-  lua = pkgs.sbarlua.luaModule.withPackages (ps: [
+  lua = pkgs.sbarlua.luaModule.withPackages (_ps: [
     pkgs.sbarlua
   ]);
 in

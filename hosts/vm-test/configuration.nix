@@ -1,7 +1,7 @@
 # hosts/vm-test/configuration.nix
 # Minimal NixOS host to validate auto-discovery and metadata abstractions.
 # This host can be built in a VM with: nix build .#nixosConfigurations.vm-test.config.system.build.toplevel
-{ lib, ... }:
+{ ... }:
 {
   # Minimal boot config for evaluation
   boot.loader.grub.enable = false;

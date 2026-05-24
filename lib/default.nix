@@ -152,7 +152,7 @@ let
       deployableHosts = lib.filterAttrs (_: meta: meta.type == "nixos" && meta ? deploy) allHosts;
     in
     lib.mapAttrs' (
-      dirName: meta:
+      _dirName: meta:
       lib.nameValuePair meta.hostname {
         hostname = meta.deploy.host;
         sshUser = meta.deploy.sshUser or "root";

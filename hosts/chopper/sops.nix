@@ -4,7 +4,7 @@
 # The host's private age key must exist at the path below.
 # Generate it on the host with: age-keygen -o /var/lib/sops-nix/key.txt
 # Then add the PUBLIC key to .sops.yaml under &chopper.
-{ config, ... }:
+{ ... }:
 {
   sops = {
     defaultSopsFile = ../../secrets/chopper/secrets.yaml;

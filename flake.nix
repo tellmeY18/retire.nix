@@ -48,9 +48,6 @@
   outputs =
     inputs@{
       self,
-      nixpkgs,
-      home-manager,
-      nix-darwin,
       nix-homebrew,
       nix-index-database,
       nixvim,

@@ -41,9 +41,6 @@
 #     nodeIP     = "100.x.y.z";  # tailscale IP of this VM
 #   };
 {
-  config,
-  lib,
-  pkgs,
   ...
 }:
 
