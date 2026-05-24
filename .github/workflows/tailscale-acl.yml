@@ -1,0 +1,88 @@
+# CI: Tailscale ACL GitOps — sync policy from tailscale/acl.hujson to the tailnet.
+#
+# On push to develop (when the ACL file changes), this workflow:
+#   1. Decrypts the Tailscale OAuth credentials from sops
+#   2. Validates the ACL via the Tailscale API (dry-run test)
+#   3. Pushes the policy to the tailnet
+#
+# Manual trigger also available for force-syncing without code changes.
+#
+# Prerequisites:
+#   - secrets/ci/actions.yaml contains ts_oauth_client_id + ts_oauth_secret
+#   - The OAuth client must have acl:write scope
+#   - SOPS_AGE_KEY GitHub secret for decryption
+name: Tailscale ACL Sync
+
+on:
+  push:
+    branches: [develop]
+    paths:
+      - "tailscale/acl.hujson"
+      - ".github/workflows/tailscale-acl.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: tailscale-acl
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: DeterminateSystems/nix-installer-action@main
+
+      - name: Decrypt CI secrets
+        id: secrets
+        env:
+          SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
+        run: |
+          nix run nixpkgs#sops -- -d secrets/ci/actions.yaml > /tmp/ci-secrets.yaml
+          echo "ts_oauth_client_id=$(grep '^ts_oauth_client_id:' /tmp/ci-secrets.yaml | cut -d'"' -f2)" >> "$GITHUB_OUTPUT"
+          echo "ts_oauth_secret=$(grep '^ts_oauth_secret:' /tmp/ci-secrets.yaml | cut -d'"' -f2)" >> "$GITHUB_OUTPUT"
+          rm /tmp/ci-secrets.yaml
+
+      - name: Get Tailscale API token
+        id: token
+        run: |
+          TOKEN=$(curl -s -X POST "https://api.tailscale.com/api/v2/oauth/token" \
+            -d "client_id=${{ steps.secrets.outputs.ts_oauth_client_id }}" \
+            -d "client_secret=${{ steps.secrets.outputs.ts_oauth_secret }}" \
+            -d "grant_type=client_credentials" | jq -r '.access_token')
+          echo "::add-mask::$TOKEN"
+          echo "token=$TOKEN" >> "$GITHUB_OUTPUT"
+
+      - name: Validate ACL (dry-run)
+        run: |
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+            "https://api.tailscale.com/api/v2/tailnet/-/acl/validate" \
+            -H "Authorization: Bearer ${{ steps.token.outputs.token }}" \
+            -H "Content-Type: application/hujson" \
+            --data-binary @tailscale/acl.hujson)
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | sed '$d')
+          echo "$BODY"
+          if [[ "$HTTP_CODE" != "200" ]]; then
+            echo "::error::ACL validation failed (HTTP $HTTP_CODE)"
+            exit 1
+          fi
+          echo "✅ ACL policy is valid"
+
+      - name: Push ACL to tailnet
+        run: |
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+            "https://api.tailscale.com/api/v2/tailnet/-/acl" \
+            -H "Authorization: Bearer ${{ steps.token.outputs.token }}" \
+            -H "Content-Type: application/hujson" \
+            --data-binary @tailscale/acl.hujson)
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | sed '$d')
+          if [[ "$HTTP_CODE" != "200" ]]; then
+            echo "::error::ACL push failed (HTTP $HTTP_CODE): $BODY"
+            exit 1
+          fi
+          echo "✅ ACL policy synced to tailnet"
