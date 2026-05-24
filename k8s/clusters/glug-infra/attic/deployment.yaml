@@ -27,6 +27,42 @@ spec:
         fsGroup: 1000
         seccompProfile:
           type: RuntimeDefault
+      initContainers:
+        - name: render-config
+          image: ghcr.io/zhaofengli/attic:latest
+          command: ["sh", "-c"]
+          args:
+            - |
+              sed \
+                -e "s|\${ATTIC_SERVER_TOKEN_HS256_SECRET_BASE64}|$ATTIC_SERVER_TOKEN_HS256_SECRET_BASE64|g" \
+                -e "s|\${ATTIC_DB_PASSWORD}|$ATTIC_DB_PASSWORD|g" \
+                /etc/attic-template/server.toml > /etc/attic/server.toml
+          envFrom:
+            - secretRef:
+                name: attic-credentials
+          volumeMounts:
+            - name: config-template
+              mountPath: /etc/attic-template
+              readOnly: true
+            - name: config-rendered
+              mountPath: /etc/attic
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 1000
+            capabilities:
+              drop:
+                - ALL
+            seccompProfile:
+              type: RuntimeDefault
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 100m
+              memory: 32Mi
       containers:
         - name: atticd
           image: ghcr.io/zhaofengli/attic:latest
@@ -40,9 +76,8 @@ spec:
             - secretRef:
                 name: attic-credentials
           volumeMounts:
-            - name: config
-              mountPath: /etc/attic/server.toml
-              subPath: server.toml
+            - name: config-rendered
+              mountPath: /etc/attic
               readOnly: true
             - name: tmp
               mountPath: /tmp
@@ -80,9 +115,12 @@ spec:
             timeoutSeconds: 3
             failureThreshold: 3
       volumes:
-        - name: config
+        - name: config-template
           configMap:
             name: attic-config
+        - name: config-rendered
+          emptyDir:
+            sizeLimit: 1Mi
         - name: tmp
           emptyDir:
             sizeLimit: 128Mi
