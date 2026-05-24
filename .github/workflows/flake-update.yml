@@ -2,15 +2,19 @@
 #
 # Every 3 days (or on manual trigger), this workflow:
 #   1. Runs `nix flake update` to pull the latest nixpkgs-unstable + inputs
-#   2. Builds ALL host configurations (real builds, not --dry-run)
-#   3. On success: pushes binaries to Cachix, auto-merges the PR
-#   4. On failure: leaves the PR open with a failure comment, discards the
-#      lock — next cron run does a FRESH `nix flake update` (retrying the
-#      same lock is pointless since the fix will be in a newer commit)
+#   2. Evaluates flake checks (deploy-rs validation, formatter, devShells)
+#   3. Builds EVERY host configuration on native-arch runners (real builds)
+#   4. On success: pushes binaries to Cachix, auto-merges the PR
+#   5. On failure: comments + closes the PR — main keeps the last working
+#      flake.lock. Next cron run does a FRESH `nix flake update`.
 #
-# Your local machines have `tellmey18.cachix.org` as a substituter, so
-# after a successful CI run, `nixos-rebuild switch` / `darwin-rebuild switch`
-# pulls pre-built binaries from Cachix instead of rebuilding from source.
+# Hosts built (must match flake.nix configurations):
+#   x86_64-linux   — chopper (NixOS), c3po (NixOS), vysakh@chopper (HM)
+#   aarch64-linux  — kenobi (NixOS)
+#   aarch64-darwin — Vysakhs-MacBook-Pro (darwin), mathewalex@MacBook (HM)
+#
+# Invariant: `main` always contains a flake.lock that builds successfully
+# for every host. If an update breaks any config, the PR never merges.
 #
 # Required GitHub secrets:
 #   CACHIX_AUTH_TOKEN — push token for the tellmey18 Cachix cache
@@ -39,7 +43,6 @@ permissions:
 env:
   CACHIX_CACHE: tellmey18
   PR_BRANCH: automation/flake-update
-  PR_LABEL: flake-update
 
 jobs:
   # ---------------------------------------------------------------------------
@@ -79,21 +82,26 @@ jobs:
           commit-message: "chore(flake): update flake.lock"
           title: "chore(flake): update flake.lock"
           body: |
-            Automated `nix flake update` — builds are running.
+            Automated `nix flake update` — builds running for **all systems**.
 
-            | Config | Status |
-            |---|---|
-            | NixOS (chopper) | ⏳ building… |
-            | darwin (MacBook) | ⏳ building… |
+            | Arch | Config | Status |
+            |---|---|---|
+            | x86_64-linux | NixOS `chopper` | ⏳ building… |
+            | x86_64-linux | NixOS `c3po` | ⏳ building… |
+            | x86_64-linux | HM `vysakh@chopper` | ⏳ building… |
+            | aarch64-linux | NixOS `kenobi` | ⏳ building… |
+            | aarch64-darwin | darwin `Vysakhs-MacBook-Pro` | ⏳ building… |
+            | aarch64-darwin | HM `mathewalex@Vysakhs-MacBook-Pro` | ⏳ building… |
 
-            This PR will auto-merge once all builds pass and binaries are cached.
-          labels: ${{ env.PR_LABEL }}
+            **Invariant:** this PR only merges when every config builds.
+            On failure it is closed — `main` keeps the last working lock.
+          labels: flake-update
           delete-branch: true
 
   # ---------------------------------------------------------------------------
-  # 2. Build Linux configurations (NixOS + Home Manager)
+  # 2. Build x86_64-linux — chopper, c3po, vysakh@chopper
   # ---------------------------------------------------------------------------
-  build-linux:
+  build-x86_64-linux:
     needs: prepare
     if: needs.prepare.outputs.has_changes == 'true'
     runs-on: ubuntu-latest
@@ -107,21 +115,54 @@ jobs:
       - uses: DeterminateSystems/magic-nix-cache-action@main
 
       - name: Setup Cachix
+        if: ${{ !inputs.skip_cache }}
         uses: cachix/cachix-action@v15
         with:
           name: ${{ env.CACHIX_CACHE }}
           authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
 
+      - name: Evaluate flake checks
+        run: nix flake check --no-build
+
       - name: Build NixOS system (chopper)
         run: nix build .#nixosConfigurations.chopper.config.system.build.toplevel --print-build-logs
 
-      - name: Build Home Manager (chopper)
+      - name: Build NixOS system (c3po)
+        run: nix build .#nixosConfigurations.c3po.config.system.build.toplevel --print-build-logs
+
+      - name: Build Home Manager (vysakh@chopper)
         run: nix build .#homeConfigurations."vysakh@chopper".activationPackage --print-build-logs
 
   # ---------------------------------------------------------------------------
-  # 3. Build macOS configurations (darwin + Home Manager)
+  # 3. Build aarch64-linux — kenobi
   # ---------------------------------------------------------------------------
-  build-darwin:
+  build-aarch64-linux:
+    needs: prepare
+    if: needs.prepare.outputs.has_changes == 'true'
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.PR_BRANCH }}
+
+      - uses: DeterminateSystems/nix-installer-action@main
+
+      - uses: DeterminateSystems/magic-nix-cache-action@main
+
+      - name: Setup Cachix
+        if: ${{ !inputs.skip_cache }}
+        uses: cachix/cachix-action@v15
+        with:
+          name: ${{ env.CACHIX_CACHE }}
+          authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
+
+      - name: Build NixOS system (kenobi)
+        run: nix build .#nixosConfigurations.kenobi.config.system.build.toplevel --print-build-logs
+
+  # ---------------------------------------------------------------------------
+  # 4. Build aarch64-darwin — MacBook darwin + Home Manager
+  # ---------------------------------------------------------------------------
+  build-aarch64-darwin:
     needs: prepare
     if: needs.prepare.outputs.has_changes == 'true'
     runs-on: macos-14
@@ -135,6 +176,7 @@ jobs:
       - uses: DeterminateSystems/magic-nix-cache-action@main
 
       - name: Setup Cachix
+        if: ${{ !inputs.skip_cache }}
         uses: cachix/cachix-action@v15
         with:
           name: ${{ env.CACHIX_CACHE }}
@@ -147,73 +189,79 @@ jobs:
         run: nix build .#homeConfigurations."mathewalex@Vysakhs-MacBook-Pro".activationPackage --print-build-logs
 
   # ---------------------------------------------------------------------------
-  # 4. Finalize: merge PR on success, comment on failure
+  # 5. Finalize — auto-merge on all-green, close + discard on any failure
   # ---------------------------------------------------------------------------
   finalize:
-    needs: [prepare, build-linux, build-darwin]
+    needs:
+      [prepare, build-x86_64-linux, build-aarch64-linux, build-aarch64-darwin]
     if: always() && needs.prepare.outputs.has_changes == 'true'
     runs-on: ubuntu-latest
+    env:
+      PR_NUMBER: ${{ needs.prepare.outputs.pr_number }}
     steps:
       - name: Determine build result
         id: result
+        env:
+          R_X86: ${{ needs.build-x86_64-linux.result }}
+          R_ARM: ${{ needs.build-aarch64-linux.result }}
+          R_DAR: ${{ needs.build-aarch64-darwin.result }}
         run: |
-          if [[ "${{ needs.build-linux.result }}" == "success" && "${{ needs.build-darwin.result }}" == "success" ]]; then
+          echo "x86_64-linux:  $R_X86"
+          echo "aarch64-linux: $R_ARM"
+          echo "aarch64-darwin: $R_DAR"
+          if [[ "$R_X86" == "success" && "$R_ARM" == "success" && "$R_DAR" == "success" ]]; then
             echo "outcome=success" >> "$GITHUB_OUTPUT"
           else
             echo "outcome=failure" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Comment success and auto-merge
-        if: steps.result.outputs.outcome == 'success'
-        uses: peter-evans/create-or-update-comment@v4
-        with:
-          issue-number: ${{ needs.prepare.outputs.pr_number }}
-          body: |
-            ## ✅ All builds passed
-
-            | Config | Status |
-            |---|---|
-            | NixOS (chopper) | ✅ built + cached |
-            | darwin (MacBook) | ✅ built + cached |
-
-            Binaries pushed to [`tellmey18.cachix.org`](https://app.cachix.org/cache/tellmey18).
-            Auto-merging — run `nix flake update` locally to upgrade.
-
-      - name: Enable auto-merge
+      # --- All builds passed: comment, merge, done ---
+      - name: Comment success + auto-merge
         if: steps.result.outputs.outcome == 'success'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh pr merge "${{ needs.prepare.outputs.pr_number }}" \
-            --repo "${{ github.repository }}" \
-            --squash \
-            --auto \
-            --delete-branch
+          gh pr comment "$PR_NUMBER" --repo "${{ github.repository }}" --body "## ✅ All builds passed
 
-      - name: Comment failure
-        if: steps.result.outputs.outcome == 'failure'
-        uses: peter-evans/create-or-update-comment@v4
-        with:
-          issue-number: ${{ needs.prepare.outputs.pr_number }}
-          body: |
-            ## ❌ Build failed
+          | Arch | Config | Status |
+          |---|---|---|
+          | x86_64-linux | NixOS \`chopper\` | ✅ built + cached |
+          | x86_64-linux | NixOS \`c3po\` | ✅ built + cached |
+          | x86_64-linux | HM \`vysakh@chopper\` | ✅ built + cached |
+          | aarch64-linux | NixOS \`kenobi\` | ✅ built + cached |
+          | aarch64-darwin | darwin \`Vysakhs-MacBook-Pro\` | ✅ built + cached |
+          | aarch64-darwin | HM \`mathewalex@Vysakhs-MacBook-Pro\` | ✅ built + cached |
 
-            | Config | Status |
-            |---|---|
-            | NixOS (chopper) | ${{ needs.build-linux.result == 'success' && '✅' || '❌' }} ${{ needs.build-linux.result }} |
-            | darwin (MacBook) | ${{ needs.build-darwin.result == 'success' && '✅' || '❌' }} ${{ needs.build-darwin.result }} |
+          Binaries pushed to [\`tellmey18.cachix.org\`](https://app.cachix.org/cache/tellmey18).
+          Auto-merging — \`main\` gets the new lock. Run \`nix flake update\` locally to upgrade."
 
-            The flake.lock update broke something. This PR will **not** merge.
-            Next scheduled run will try a fresh `nix flake update` with newer inputs.
+          gh pr merge "$PR_NUMBER" --repo "${{ github.repository }}" \
+            --squash --auto --delete-branch
 
-            Check the [workflow logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) for details.
-
-      - name: Close PR on failure
+      # --- Any build failed: comment, close PR, main keeps old lock ---
+      - name: Comment failure + close PR
         if: steps.result.outputs.outcome == 'failure'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          R_X86: ${{ needs.build-x86_64-linux.result }}
+          R_ARM: ${{ needs.build-aarch64-linux.result }}
+          R_DAR: ${{ needs.build-aarch64-darwin.result }}
         run: |
-          gh pr close "${{ needs.prepare.outputs.pr_number }}" \
-            --repo "${{ github.repository }}" \
-            --comment "Closing — builds failed. Next cron run will try a fresh update." \
+          status() { if [[ "$1" == "success" ]]; then echo "✅ $1"; else echo "❌ $1"; fi; }
+
+          gh pr comment "$PR_NUMBER" --repo "${{ github.repository }}" --body "## ❌ Build failed — keeping current flake.lock
+
+          | Arch | Config | Status |
+          |---|---|---|
+          | x86_64-linux | chopper + c3po + HM | $(status "$R_X86") |
+          | aarch64-linux | kenobi | $(status "$R_ARM") |
+          | aarch64-darwin | darwin + HM | $(status "$R_DAR") |
+
+          \`main\` is untouched — your systems stay on the last working lock.
+          Next scheduled run will try a fresh \`nix flake update\` with newer inputs.
+
+          [Workflow logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})"
+
+          gh pr close "$PR_NUMBER" --repo "${{ github.repository }}" \
+            --comment "Closing — builds failed. main keeps the working lock." \
             --delete-branch
