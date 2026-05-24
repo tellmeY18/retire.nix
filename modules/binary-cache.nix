@@ -27,11 +27,8 @@
 
     trusted-public-keys = [
       "cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY="
-      # Attic cache signing key — generated when you run:
-      #   attic cache create system --public
-      # Retrieve with: attic cache info system
-      # TODO: Replace with the actual public key after cache creation
-      "system:REPLACE_WITH_ACTUAL_PUBLIC_KEY"
+      # Attic cache signing key (auto-generated at cache creation)
+      "system:mvnfTi6w7gvX6oksJ4JhHLL4wVUa576bgtLJ6lh9C2Y="
     ];
 
     # Trust the Attic HTTP endpoint (not HTTPS, encrypted via WireGuard/tailnet)
