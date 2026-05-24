@@ -4,7 +4,7 @@ name: Build Ghost Image
 on:
   workflow_dispatch:
   push:
-    branches: [main, develop]
+    branches: [develop]
     paths:
       - "k8s/images/ghost/**"
       - ".github/workflows/ghost-build.yml"

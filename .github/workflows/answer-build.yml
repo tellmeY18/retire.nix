@@ -12,7 +12,7 @@ name: Build Answer Image
 on:
   workflow_dispatch:
   push:
-    branches: [main, develop]
+    branches: [develop]
     paths:
       - "k8s/images/answer/**"
       - ".github/workflows/answer-build.yml"
