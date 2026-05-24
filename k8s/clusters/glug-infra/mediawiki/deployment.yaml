@@ -75,12 +75,14 @@ spec:
             - sh
             - -c
             - |
-              # Generate SMW upgrade key before serving (requires full MW context)
-              if [ ! -f /var/www/html/.smw.json ]; then
-                echo "Generating .smw.json..."
+              # Run SMW setup — retry until DB is reachable (handles pod starting before DB)
+              echo "Running SemanticMediaWiki setupStore..."
+              for i in $(seq 1 5); do
                 MW_DB_HOST=mysql-pxc-db-haproxy.pxc-clusters.svc.cluster.local \
-                  php -d memory_limit=512M /var/www/html/extensions/SemanticMediaWiki/maintenance/setupStore.php 2>/dev/null | tail -2
-              fi
+                  php -d memory_limit=512M /var/www/html/extensions/SemanticMediaWiki/maintenance/setupStore.php 2>&1 && break
+                echo "Attempt $i failed, retrying in 5s..."
+                sleep 5
+              done
               exec supervisord -c /etc/supervisord.conf
           ports:
             - name: http
@@ -110,19 +112,19 @@ spec:
             failureThreshold: 3
           readinessProbe:
             httpGet:
-              path: /healthcheck.php
+              path: /api.php?action=query&meta=siteinfo&format=json
               port: 80
-            initialDelaySeconds: 10
-            periodSeconds: 10
-            timeoutSeconds: 5
+            initialDelaySeconds: 15
+            periodSeconds: 15
+            timeoutSeconds: 10
             failureThreshold: 3
           startupProbe:
             httpGet:
-              path: /health.txt
+              path: /api.php?action=query&meta=siteinfo&format=json
               port: 80
-            initialDelaySeconds: 5
-            periodSeconds: 3
-            timeoutSeconds: 5
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 10
             failureThreshold: 30
 
         # Dedicated job runner — continuously drains the MW job queue.
