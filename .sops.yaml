@@ -79,6 +79,9 @@ keys:
   - &kenobi age1vexywt66s7fzakttu4tw0kyzyl6dc73u6jr870w08nsdegmanudshv3kjv
   - &c3po age1kxdlut9r8fxw9hsfhdq0jgs798qy4zrs2traxsxvw46wldsd7qdqye7m2n
 
+  # CI key — GitHub Actions can only decrypt secrets/ci/*
+  - &ci age15arhyjjf09vy4he9qfhzyvl2p4kx8plzqycjfw4fjmkq32lhvgmscq5s2w
+
 creation_rules:
   # ---------------------------------------------------------------------------
   # TIER 1: NixOS-side secrets — decrypted by sops-nix at system activation
@@ -116,6 +119,22 @@ creation_rules:
   #     - age:
   #         - *master
   #         - *newhost
+
+  # ---------------------------------------------------------------------------
+  # CI secrets — decrypted by GitHub Actions using the &ci age key
+  # ---------------------------------------------------------------------------
+  #
+  # secrets/ci/* contains tokens and credentials needed by CI workflows.
+  # Only the master key and the CI key can decrypt these. Host keys have
+  # NO access — if a host is compromised, CI tokens remain safe.
+  #
+  # The only GitHub Actions secret needed is SOPS_AGE_KEY (the CI private key).
+  # Everything else (ATTIC_TOKEN, CACHIX_AUTH_TOKEN, TS_OAUTH_*) lives here.
+  - path_regex: secrets/ci/.*
+    key_groups:
+      - age:
+          - *master
+          - *ci
 
   # ---------------------------------------------------------------------------
   # TIER 2: Cluster-side secrets — decrypted by the operator at apply time
