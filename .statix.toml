@@ -1,0 +1,16 @@
+# Statix configuration — https://github.com/nerdypepper/statix
+#
+# Disabled lints are stylistic preferences that are conventional in NixOS
+# module code and would require restructuring 30+ files to satisfy.
+# Statix still catches real errors (syntax, deprecated features, etc.).
+
+disabled = [
+  "manual_inherit",       # W03 — `x = x;` vs `inherit x;` (preference)
+  "manual_inherit_from",  # W04 — `x = cfg.x;` vs `inherit (cfg) x;` (preference)
+  "empty_pattern",        # W10 — `{ ... }:` is idiomatic for NixOS modules
+  "repeated_keys",        # W20 — flat `services.x = …; services.y = …;` is standard NixOS style
+]
+
+ignore = [
+  "hosts/chopper/hardware-configuration.nix",  # nixos-generate-config output
+]

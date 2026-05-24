@@ -26,7 +26,7 @@ jobs:
         run: nix flake check --no-build
 
       - name: Statix lint
-        run: nix run nixpkgs#statix -- check .
+        run: nix run nixpkgs#statix -- check . --config .statix.toml
 
       - name: Deadnix check
         run: nix run nixpkgs#deadnix -- --fail .
