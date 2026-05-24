@@ -42,6 +42,8 @@ permissions:
 
 env:
   CACHIX_CACHE: tellmey18
+  ATTIC_SERVER: http://attic.tail477f2f.ts.net:8080
+  ATTIC_CACHE: system
   PR_BRANCH: automation/flake-update
 
 jobs:
@@ -121,17 +123,44 @@ jobs:
           name: ${{ env.CACHIX_CACHE }}
           authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
 
+      - name: Connect to Tailscale
+        if: ${{ !inputs.skip_cache }}
+        uses: tailscale/github-action@v3
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+
+      - name: Configure Attic
+        if: ${{ !inputs.skip_cache }}
+        run: |
+          nix profile install github:zhaofengli/attic#attic-client
+          attic login ci "$ATTIC_SERVER" "${{ secrets.ATTIC_TOKEN }}"
+          attic use "$ATTIC_CACHE"
+
       - name: Evaluate flake checks
         run: nix flake check --no-build
 
       - name: Build NixOS system (chopper)
         run: nix build .#nixosConfigurations.chopper.config.system.build.toplevel --print-build-logs
 
+      - name: Push chopper to Attic
+        if: ${{ !inputs.skip_cache }}
+        run: attic push "$ATTIC_CACHE" ./result
+
       - name: Build NixOS system (c3po)
         run: nix build .#nixosConfigurations.c3po.config.system.build.toplevel --print-build-logs
 
+      - name: Push c3po to Attic
+        if: ${{ !inputs.skip_cache }}
+        run: attic push "$ATTIC_CACHE" ./result
+
       - name: Build Home Manager (vysakh@chopper)
         run: nix build .#homeConfigurations."vysakh@chopper".activationPackage --print-build-logs
+
+      - name: Push HM chopper to Attic
+        if: ${{ !inputs.skip_cache }}
+        run: attic push "$ATTIC_CACHE" ./result
 
   # ---------------------------------------------------------------------------
   # 3. Build aarch64-linux — kenobi
@@ -156,8 +185,27 @@ jobs:
           name: ${{ env.CACHIX_CACHE }}
           authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
 
+      - name: Connect to Tailscale
+        if: ${{ !inputs.skip_cache }}
+        uses: tailscale/github-action@v3
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+
+      - name: Configure Attic
+        if: ${{ !inputs.skip_cache }}
+        run: |
+          nix profile install github:zhaofengli/attic#attic-client
+          attic login ci "$ATTIC_SERVER" "${{ secrets.ATTIC_TOKEN }}"
+          attic use "$ATTIC_CACHE"
+
       - name: Build NixOS system (kenobi)
         run: nix build .#nixosConfigurations.kenobi.config.system.build.toplevel --print-build-logs
+
+      - name: Push kenobi to Attic
+        if: ${{ !inputs.skip_cache }}
+        run: attic push "$ATTIC_CACHE" ./result
 
   # ---------------------------------------------------------------------------
   # 4. Build aarch64-darwin — MacBook darwin + Home Manager
@@ -182,11 +230,34 @@ jobs:
           name: ${{ env.CACHIX_CACHE }}
           authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
 
+      - name: Connect to Tailscale
+        if: ${{ !inputs.skip_cache }}
+        uses: tailscale/github-action@v3
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+
+      - name: Configure Attic
+        if: ${{ !inputs.skip_cache }}
+        run: |
+          nix profile install github:zhaofengli/attic#attic-client
+          attic login ci "$ATTIC_SERVER" "${{ secrets.ATTIC_TOKEN }}"
+          attic use "$ATTIC_CACHE"
+
       - name: Build macOS system (darwin)
         run: nix build .#darwinConfigurations."Vysakhs-MacBook-Pro".system --print-build-logs
 
+      - name: Push darwin to Attic
+        if: ${{ !inputs.skip_cache }}
+        run: attic push "$ATTIC_CACHE" ./result
+
       - name: Build Home Manager (darwin)
         run: nix build .#homeConfigurations."mathewalex@Vysakhs-MacBook-Pro".activationPackage --print-build-logs
+
+      - name: Push HM darwin to Attic
+        if: ${{ !inputs.skip_cache }}
+        run: attic push "$ATTIC_CACHE" ./result
 
   # ---------------------------------------------------------------------------
   # 5. Finalize — auto-merge on all-green, close + discard on any failure
