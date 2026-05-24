@@ -1,4 +1,4 @@
-# hosts/c3po/parts/network.nix — Networking for c3po (k3s agent + Tailscale)
+# hosts/c3po/parts/network.nix — Networking for c3po (k3s server + Tailscale)
 { config, ... }:
 {
   networking = {
@@ -26,11 +26,47 @@
   # Tailscale — accept routes from other nodes + advertise our pod CIDR
   services.tailscale = {
     enable = true;
+    openFirewall = true;
+    # Opens the WireGuard UDP port — required for direct
+    # peer connections. Without this, Tailscale falls back
+    # to DERP relay and flannel host-gw can't initialize.
+    authKeyFile = config.sops.secrets."tailscale-auth-key".path;
     extraUpFlags = [
       "--accept-routes"
       "--accept-dns=false"
       "--advertise-routes=10.42.2.0/24"
     ];
+  };
+
+  # ---------------------------------------------------------------------------
+  # Ensure tailscale0 is UP before k3s starts.
+  #
+  # The k3s module orders k3s after tailscaled.service, but that only means the
+  # daemon is running — NOT that the WireGuard tunnel is established and
+  # tailscale0 has its IP. On WiFi (c3po), the interface can take 10–30s to
+  # appear after tailscaled starts. If k3s starts before tailscale0 exists,
+  # flannel (--flannel-iface=tailscale0) fails to find its interface and the
+  # node stays NotReady permanently.
+  #
+  # This gate service blocks k3s until tailscale0 is UP with an IP.
+  # ---------------------------------------------------------------------------
+  systemd.services.tailscale-online = {
+    description = "Wait for tailscale0 interface to be UP";
+    after = [
+      "tailscaled.service"
+      "network-online.target"
+    ];
+    requires = [ "tailscaled.service" ];
+    wants = [ "network-online.target" ];
+    wantedBy = [ "multi-user.target" ];
+    before = [ "k3s.service" ];
+    serviceConfig = {
+      Type = "oneshot";
+      RemainAfterExit = true;
+      # Wait up to 90s for tailscale0 to appear and have RUNNING state.
+      # WiFi association + DHCP + Tailscale handshake can take 30–60s.
+      ExecStart = ''/bin/sh -c "timeout 90 sh -c 'until ip link show tailscale0 2>/dev/null | grep -q UP; do sleep 2; done'"'';
+    };
   };
 
   # Pod CIDR route for other nodes — added after tailscale is online.
