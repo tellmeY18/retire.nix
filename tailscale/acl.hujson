@@ -1,0 +1,80 @@
+// Tailscale ACL Policy — managed via GitOps.
+//
+// This file is the source of truth for the tailnet's access control policy.
+// Changes here are synced to Tailscale on push to `develop` via the
+// tailscale-acl.yml GitHub Actions workflow.
+//
+// Syntax: HuJSON (JSON with comments and trailing commas)
+// Docs:   https://tailscale.com/kb/1018/acls
+//
+// To test locally:
+//   tailscale debug acl --file tailscale/acl.hujson
+//
+// Architecture:
+//   - Homelab nodes (chopper, kenobi, c3po) run k3s + services
+//   - k8s operator creates ephemeral devices for LoadBalancers/Funnels
+//   - CI runners join ephemerally with tag:ci to push to Attic
+//   - Personal devices (MacBook, phone) access everything
+{
+	// ─── Tag Ownership ────────────────────────────────────────────────
+	// Tags are assigned by the Tailscale operator or manually by admins.
+	"tagOwners": {
+		"tag:k8s":          ["autogroup:admin"],
+		"tag:k8s-operator": ["autogroup:admin"],
+		"tag:server":       ["autogroup:admin"],
+		"tag:ci":           ["autogroup:admin"],
+	},
+
+	// ─── Access Control Rules ─────────────────────────────────────────
+	// Default-allow within the tailnet. All members and tagged devices
+	// can reach each other on all ports. This is appropriate for a
+	// personal/homelab tailnet with trusted devices only.
+	"acls": [
+		// All users → all destinations (personal tailnet, fully trusted)
+		{
+			"action": "accept",
+			"src":    ["autogroup:member"],
+			"dst":    ["*:*"],
+		},
+		// k8s-tagged devices (services, operators, LBs) → all
+		{
+			"action": "accept",
+			"src":    ["tag:k8s", "tag:k8s-operator"],
+			"dst":    ["*:*"],
+		},
+		// Server-tagged nodes → all (inter-node communication)
+		{
+			"action": "accept",
+			"src":    ["tag:server"],
+			"dst":    ["*:*"],
+		},
+		// CI runners → only Attic (port 8080) for pushing build artifacts
+		{
+			"action": "accept",
+			"src":    ["tag:ci"],
+			"dst":    ["tag:k8s:8080"],
+		},
+	],
+
+	// ─── Node Attributes ──────────────────────────────────────────────
+	// Funnel: allows k8s-tagged devices to expose services to the public
+	// internet via Tailscale Funnel (e.g., s3-1 for Ghost images).
+	"nodeAttrs": [
+		{
+			"target": ["tag:k8s"],
+			"attr":   ["funnel"],
+		},
+	],
+
+	// ─── SSH Policy ───────────────────────────────────────────────────
+	// Allow admin users to SSH into servers. Tagged devices cannot SSH
+	// into anything (principle of least privilege).
+	"ssh": [
+		{
+			"action": "accept",
+			"src":    ["autogroup:admin"],
+			"dst":    ["tag:server", "autogroup:self"],
+			"users":  ["autogroup:nonroot", "root"],
+		},
+	],
+}
