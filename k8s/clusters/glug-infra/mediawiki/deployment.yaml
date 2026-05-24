@@ -137,8 +137,7 @@ spec:
             - -c
             - |
               while true; do
-                php /var/www/html/maintenance/run.php runJobs --maxjobs=50 --maxtime=30 2>&1
-                # Sleep 2s between batches to avoid starving the DB
+                php /var/www/html/maintenance/run.php runJobs --maxjobs=50 --maxtime=30 2>&1 || echo "[jobrunner] Error, retrying in 10s..."
                 sleep 2
               done
           env:
