@@ -12,7 +12,7 @@ metadata:
     app.kubernetes.io/name: mediawiki
     app.kubernetes.io/part-of: mediawiki
 spec:
-  replicas: 2
+  replicas: 5
   strategy:
     type: RollingUpdate
     rollingUpdate:
