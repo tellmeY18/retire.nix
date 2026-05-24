@@ -4,7 +4,7 @@ name: Build MediaWiki Image
 on:
   workflow_dispatch:
   push:
-    branches: [main, develop]
+    branches: [develop]
     paths:
       - "k8s/images/mediawiki/**"
       - ".github/workflows/mediawiki-build.yml"

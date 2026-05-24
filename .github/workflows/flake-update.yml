@@ -5,7 +5,7 @@
 #   2. Evaluates flake checks (deploy-rs validation, formatter, devShells)
 #   3. Builds EVERY host configuration on native-arch runners (real builds)
 #   4. On success: pushes binaries to Cachix, auto-merges the PR
-#   5. On failure: comments + closes the PR — main keeps the last working
+#   5. On failure: comments + closes the PR — develop keeps the last working
 #      flake.lock. Next cron run does a FRESH `nix flake update`.
 #
 # Hosts built (must match flake.nix configurations):
@@ -13,7 +13,7 @@
 #   aarch64-linux  — kenobi (NixOS)
 #   aarch64-darwin — Vysakhs-MacBook-Pro (darwin), mathewalex@MacBook (HM)
 #
-# Invariant: `main` always contains a flake.lock that builds successfully
+# Invariant: `develop` always contains a flake.lock that builds successfully
 # for every host. If an update breaks any config, the PR never merges.
 #
 # Required GitHub secrets:
@@ -94,7 +94,7 @@ jobs:
             | aarch64-darwin | HM `mathewalex@Vysakhs-MacBook-Pro` | ⏳ building… |
 
             **Invariant:** this PR only merges when every config builds.
-            On failure it is closed — `main` keeps the last working lock.
+            On failure it is closed — `develop` keeps the last working lock.
           labels: flake-update
           delete-branch: true
 
@@ -233,12 +233,12 @@ jobs:
           | aarch64-darwin | HM \`mathewalex@Vysakhs-MacBook-Pro\` | ✅ built + cached |
 
           Binaries pushed to [\`tellmey18.cachix.org\`](https://app.cachix.org/cache/tellmey18).
-          Auto-merging — \`main\` gets the new lock. Run \`nix flake update\` locally to upgrade."
+          Auto-merging — \`develop\` gets the new lock. Run \`nix flake update\` locally to upgrade."
 
           gh pr merge "$PR_NUMBER" --repo "${{ github.repository }}" \
             --squash --auto --delete-branch
 
-      # --- Any build failed: comment, close PR, main keeps old lock ---
+      # --- Any build failed: comment, close PR, develop keeps old lock ---
       - name: Comment failure + close PR
         if: steps.result.outputs.outcome == 'failure'
         env:
@@ -257,11 +257,11 @@ jobs:
           | aarch64-linux | kenobi | $(status "$R_ARM") |
           | aarch64-darwin | darwin + HM | $(status "$R_DAR") |
 
-          \`main\` is untouched — your systems stay on the last working lock.
+          \`develop\` is untouched — your systems stay on the last working lock.
           Next scheduled run will try a fresh \`nix flake update\` with newer inputs.
 
           [Workflow logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})"
 
           gh pr close "$PR_NUMBER" --repo "${{ github.repository }}" \
-            --comment "Closing — builds failed. main keeps the working lock." \
+            --comment "Closing — builds failed. develop keeps the working lock." \
             --delete-branch
