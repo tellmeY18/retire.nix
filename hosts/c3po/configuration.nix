@@ -22,7 +22,10 @@
     };
     # ZFS support
     supportedFilesystems = [ "zfs" ];
-    zfs.extraPools = [ "rpool" ];
+    zfs = {
+      extraPools = [ "rpool" ];
+      forceImportRoot = false; # reduce risk of data loss (new default from 26.11)
+    };
   };
 
   # Networking — NetworkManager (wired LAN primary)
