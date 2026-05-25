@@ -25,18 +25,16 @@
     zfs.extraPools = [ "rpool" ];
   };
 
-  # Networking — wpa_supplicant for WiFi, USB-C Ethernet for wired
-  # nmtui/iwctl available as CLI tools (not managing connections)
-  # To migrate to NetworkManager: needs physical access (switch drops SSH)
+  # Networking — NetworkManager (wired LAN primary)
+  # Switch done physically: `sudo nixos-rebuild switch --flake github:tellmeY18/retire.nix#c3po`
   networking = {
     hostName = "c3po";
     hostId = "663cc5c7"; # required for ZFS (8 hex chars)
-    wireless.enable = true;
-    useDHCP = true;
-    nameservers = [
-      "8.8.8.8"
-      "1.1.1.1"
-    ];
+    networkmanager = {
+      enable = true;
+      wifi.backend = "iwd";
+    };
+    wireless.enable = false;
   };
 
   # SSH — essential for deploy-rs
