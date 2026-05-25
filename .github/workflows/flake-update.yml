@@ -245,7 +245,8 @@ jobs:
 
       - uses: DeterminateSystems/nix-installer-action@main
 
-      - uses: DeterminateSystems/magic-nix-cache-action@main
+      # magic-nix-cache skipped on macOS — dyld symbol incompatibility
+      # with macos-14 runner's libc++. Cachix handles caching instead.
 
       - name: Decrypt CI secrets
         id: secrets
