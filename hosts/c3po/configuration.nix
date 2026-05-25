@@ -25,16 +25,17 @@
     zfs.extraPools = [ "rpool" ];
   };
 
-  # ZFS
-  networking.hostId = "663cc5c7"; # required for ZFS (8 hex chars)
-
-  # Networking — WiFi + basic firewall (extended in parts/network.nix)
+  # Networking — WiFi via wpa_supplicant (existing, don't break)
+  # nmtui/iwctl available as tools but not managing the connection
   networking = {
     hostName = "c3po";
-    wireless = {
-      enable = true;
-    };
+    hostId = "663cc5c7"; # required for ZFS (8 hex chars)
+    wireless.enable = true;
     useDHCP = true;
+    nameservers = [
+      "8.8.8.8"
+      "1.1.1.1"
+    ];
   };
 
   # SSH — essential for deploy-rs
@@ -74,12 +75,23 @@
     ];
   };
 
-  # Minimal packages — just enough to be useful
+  # Minimal packages + networking utilities
   environment.systemPackages = with pkgs; [
     vim
     htop
     git
     tmux
+    # Networking management
+    networkmanager # provides nmtui, nmcli
+    iwd # provides iwctl
+    # Networking debugging
+    iw # low-level WiFi config
+    wirelesstools # iwconfig, iwlist
+    ethtool
+    traceroute
+    dnsutils # dig, nslookup
+    nmap
+    iperf3
   ];
 
   # Locale & timezone
