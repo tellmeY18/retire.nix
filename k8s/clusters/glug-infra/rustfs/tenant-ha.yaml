@@ -1,0 +1,80 @@
+---
+# tenant-ha.yaml — RustFS HA Tenant spanning chopper + c3po.
+#
+# Single pool, 8 servers distributed evenly across 2 storage nodes.
+# Uses DoNotSchedule topology constraint to GUARANTEE even spread.
+#
+# Erasure coding (8 drives, parity 4):
+#   Read quorum:  4 drives → survives either node dying ✓
+#   Write quorum: 5 drives → requires both nodes for writes
+#
+# This means:
+#   - S3 reads work if either chopper OR c3po goes down
+#   - S3 writes pause until both nodes are available
+#   - Ghost image serving (reads) stays up regardless
+#
+# Migration plan:
+#   1. Deploy this tenant alongside the old one (different name)
+#   2. mc mirror old → new
+#   3. Switch services to new endpoint
+#   4. Decommission old tenant
+apiVersion: rustfs.com/v1alpha1
+kind: Tenant
+metadata:
+  name: rustfs-ha
+  namespace: rustfs-clusters
+  labels:
+    app.kubernetes.io/part-of: rustfs
+    app.kubernetes.io/managed-by: kustomize
+    environment: production
+spec:
+  image: rustfs/rustfs:latest
+
+  credsSecret:
+    name: rustfs-credentials
+
+  podManagementPolicy: Parallel
+
+  pools:
+    - name: pool-0
+      # 4 servers total — topology spread ensures 2 on chopper + 2 on c3po
+      servers: 4
+
+      persistence:
+        volumesPerServer: 2
+        volumeClaimTemplate:
+          accessModes: ["ReadWriteOnce"]
+          storageClassName: zfs-localpv
+          resources:
+            requests:
+              storage: 50Gi
+        labels:
+          app.kubernetes.io/part-of: rustfs
+          environment: production
+
+      # CRITICAL: DoNotSchedule guarantees even distribution.
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              rustfs.tenant: rustfs-ha
+
+      # Only schedule on storage-labeled nodes (chopper + c3po)
+      nodeSelector:
+        node-role.glug.infra/storage: "true"
+
+      resources:
+        requests:
+          cpu: "100m"
+          memory: "256Mi"
+        limits:
+          cpu: "500m"
+          memory: "1Gi"
+
+  env:
+    - name: RUST_LOG
+      value: info
+    - name: RUSTFS_DOMAIN
+      value: s3.internal
