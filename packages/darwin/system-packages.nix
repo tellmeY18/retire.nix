@@ -30,6 +30,7 @@
     pkgs.docker
     pkgs.kubectl
     pkgs.podman-tui
+    pkgs.just
 
     # Runtime & Languages
     pkgs.cargo
@@ -68,7 +69,7 @@
     pkgs.testdisk
     pkgs.mkalias
     pkgs.inetutils
-    #pkgs.yt-dlp
+    pkgs.yt-dlp
     pkgs.ripgrep
 
     # Build Tools
