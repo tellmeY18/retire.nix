@@ -25,8 +25,9 @@
     zfs.extraPools = [ "rpool" ];
   };
 
-  # Networking — WiFi via wpa_supplicant (existing, don't break)
-  # nmtui/iwctl available as tools but not managing the connection
+  # Networking — wpa_supplicant for WiFi, USB-C Ethernet for wired
+  # nmtui/iwctl available as CLI tools (not managing connections)
+  # To migrate to NetworkManager: needs physical access (switch drops SSH)
   networking = {
     hostName = "c3po";
     hostId = "663cc5c7"; # required for ZFS (8 hex chars)
