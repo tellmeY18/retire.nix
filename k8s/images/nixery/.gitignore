@@ -1,0 +1,3 @@
+# Upstream nixery source — checked out at build time by CI / local nix-build
+nixery-src/
+result
