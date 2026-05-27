@@ -1,0 +1,7 @@
+---
+# kustomization.yaml — Nixery (on-demand Nix container registry)
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - deployment.yaml

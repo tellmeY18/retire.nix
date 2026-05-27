@@ -1,0 +1,30 @@
+---
+# tailscale-service.yaml — Expose Penpot on the tailnet via Tailscale Ingress.
+#
+# The Tailscale Kubernetes operator provisions a ts-proxy device and registers
+# it on the tailnet with MagicDNS name:
+#   https://penpot.<tailnet>.ts.net
+#
+# Access is restricted to tailnet members only (no public internet exposure).
+# Tailscale handles TLS automatically (ACME cert tied to the tailnet device),
+# so the browser sees a valid HTTPS endpoint.
+#
+# To make it publicly accessible in the future, add:
+#   annotations:
+#     tailscale.com/funnel: "true"
+# and update config.publicUri in apps/penpot/values.yaml to match.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: penpot-tailscale
+  namespace: penpot
+spec:
+  ingressClassName: tailscale
+  defaultBackend:
+    service:
+      name: penpot-frontend
+      port:
+        number: 8080
+  tls:
+    - hosts:
+        - penpot

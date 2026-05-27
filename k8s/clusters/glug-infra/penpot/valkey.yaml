@@ -1,0 +1,89 @@
+---
+# valkey.yaml — Standalone Valkey for Penpot pub/sub and session state.
+#
+# Penpot uses Redis-protocol (Valkey) for:
+#   - WebSocket message fan-out between backend replicas
+#   - Short-lived session tokens and transient state
+#
+# No AOF / RDB persistence — this data is inherently ephemeral.
+# A pod restart causes in-flight WebSocket sessions to drop (reconnect is
+# automatic from the browser). Designs and assets live in PostgreSQL + S3.
+#
+# Memory cap: 128 MB with volatile-lfu eviction, matching Penpot's own
+# recommended default for most deployments.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: valkey
+  namespace: penpot
+  labels:
+    app.kubernetes.io/name: valkey
+    app.kubernetes.io/component: cache
+    app.kubernetes.io/part-of: penpot
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: valkey
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: valkey
+        app.kubernetes.io/component: cache
+        app.kubernetes.io/part-of: penpot
+    spec:
+      containers:
+        - name: valkey
+          image: valkey/valkey:8-alpine
+          args:
+            - valkey-server
+            - --maxmemory
+            - 128mb
+            - --maxmemory-policy
+            - volatile-lfu
+            - --save
+            - ""       # disable RDB snapshots (ephemeral)
+            - --appendonly
+            - "no"     # disable AOF (ephemeral)
+          ports:
+            - name: redis
+              containerPort: 6379
+          resources:
+            requests:
+              cpu: 20m
+              memory: 32Mi
+            limits:
+              cpu: 200m
+              memory: 160Mi
+          readinessProbe:
+            exec:
+              command: ["valkey-cli", "ping"]
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          livenessProbe:
+            exec:
+              command: ["valkey-cli", "ping"]
+            initialDelaySeconds: 5
+            periodSeconds: 30
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 999
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: valkey
+  namespace: penpot
+spec:
+  selector:
+    app.kubernetes.io/name: valkey
+  ports:
+    - name: redis
+      port: 6379
+      targetPort: 6379

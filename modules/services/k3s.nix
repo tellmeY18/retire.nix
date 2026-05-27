@@ -30,10 +30,9 @@
 #
 #   sops.secrets.k3s-token.sopsFile = ../../secrets/chopper/k3s-token;
 
-{
-  config,
-  lib,
-  ...
+{ config
+, lib
+, ...
 }:
 
 let
@@ -190,6 +189,38 @@ in
   };
 
   config = mkIf cfg.enable {
+
+    # -----------------------------------------------------------------------
+    # Private registry — allow HTTP for the in-cluster Nixery instance.
+    #
+    # k3s containerd defaults to HTTPS for all registries. Nixery runs on
+    # the tailnet over plain HTTP (port 8080), so we must explicitly mark
+    # it as insecure (http-only). Without this, image pulls fail with:
+    #   "http: server gave HTTP response to HTTPS client"
+    #
+    # Uses a dedicated oneshot (not preStart) to avoid conflicts with
+    # per-host preStart scripts (e.g. kenobi's flannel cleanup).
+    #
+    # Ref: https://docs.k3s.io/installation/private-registry
+    # -----------------------------------------------------------------------
+    systemd.services.k3s-registries = {
+      description = "Write k3s private registry config";
+      before = [ "k3s.service" ];
+      wantedBy = [ "multi-user.target" ];
+      serviceConfig = {
+        Type = "oneshot";
+        RemainAfterExit = true;
+      };
+      script = ''
+        mkdir -p /etc/rancher/k3s
+        cat > /etc/rancher/k3s/registries.yaml <<'EOF'
+        mirrors:
+          "nixery.tail477f2f.ts.net:8080":
+            endpoint:
+              - "http://nixery.tail477f2f.ts.net:8080"
+        EOF
+      '';
+    };
 
     # -----------------------------------------------------------------------
     # Underlying services.k3s configuration

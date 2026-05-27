@@ -35,8 +35,7 @@ spec:
         kubernetes.io/hostname: kenobi
       containers:
         - name: nixery
-          image: nixery.dev/shell
-          command: ["/nixery/server"]
+          image: ghcr.io/tellmey18/nixery:latest
           ports:
             - name: http
               containerPort: 8080
