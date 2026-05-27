@@ -107,6 +107,7 @@ apply:
     kubectl apply -k clusters/glug-infra/pxc
     kubectl apply -k clusters/glug-infra/rustfs
     kubectl apply -k clusters/glug-infra/changala
+    kubectl apply -k clusters/glug-infra/penpot
     kubectl apply -f clusters/glug-infra/monitoring/namespace.yaml
     helmfile sync
     @echo "Applying RustFS credentials (sops-decrypt)..."
@@ -126,6 +127,7 @@ diff:
     kubectl diff -k clusters/glug-infra/rustfs || true
     kubectl diff -f clusters/glug-infra/rustfs/tenant.yaml 2>/dev/null || true
     kubectl diff -k clusters/glug-infra/changala || true
+    kubectl diff -k clusters/glug-infra/penpot || true
     kubectl diff -k clusters/glug-infra/monitoring || true
     helmfile diff
 

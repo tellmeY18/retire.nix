@@ -1,0 +1,151 @@
+---
+# Default-deny all ingress for the penpot namespace.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: penpot
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+---
+# Allow ingress to the frontend from anywhere in the cluster (Traefik +
+# Tailscale proxy). The frontend is the single entry-point for browsers;
+# it reverse-proxies /api and /ws to the backend internally.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-frontend-ingress
+  namespace: penpot
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: frontend
+  policyTypes:
+    - Ingress
+  ingress:
+    - ports:
+        - port: 8080
+          protocol: TCP
+---
+# Allow ingress to the backend from the frontend (nginx proxy) and from
+# the exporter (which calls back to the backend on task completion).
+# Port 6060 = HTTP API + WebSocket.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-backend-ingress
+  namespace: penpot
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: backend
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/part-of: penpot
+      ports:
+        - port: 6060
+          protocol: TCP
+---
+# Allow ingress to the exporter from the backend (backend triggers exports).
+# Port 6061 = internal exporter HTTP API.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-exporter-ingress
+  namespace: penpot
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: exporter
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/part-of: penpot
+      ports:
+        - port: 6061
+          protocol: TCP
+---
+# Allow ingress to Valkey from all penpot-part-of pods (backend).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-valkey-ingress
+  namespace: penpot
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: valkey
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/part-of: penpot
+      ports:
+        - port: 6379
+          protocol: TCP
+---
+# Egress for all penpot pods.
+# Backend needs: Valkey (6379), PostgreSQL (5432), RustFS S3 (9000),
+#   exporter (6061), frontend (8080 — exporter's headless Chromium renders it),
+#   DNS, HTTPS (Google Fonts, avatars, external OAuth).
+# Frontend needs: backend (6060), DNS.
+# Exporter needs: frontend (8080 — renders page in headless Chromium), DNS.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-penpot-egress
+  namespace: penpot
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/part-of: penpot
+  policyTypes:
+    - Egress
+  egress:
+    # DNS
+    - ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    # Valkey (in-namespace)
+    - ports:
+        - port: 6379
+          protocol: TCP
+    # PostgreSQL via CNPG PgBouncer pooler
+    - ports:
+        - port: 5432
+          protocol: TCP
+    # RustFS S3
+    - ports:
+        - port: 9000
+          protocol: TCP
+    # Penpot internal: backend API, exporter
+    - ports:
+        - port: 6060
+          protocol: TCP
+        - port: 6061
+          protocol: TCP
+        - port: 8080
+          protocol: TCP
+    # HTTPS (Google Fonts, external OAuth providers, avatars)
+    - ports:
+        - port: 443
+          protocol: TCP
+    # SMTP (enable when smtp.enabled: true)
+    - ports:
+        - port: 587
+          protocol: TCP
+        - port: 465
+          protocol: TCP
