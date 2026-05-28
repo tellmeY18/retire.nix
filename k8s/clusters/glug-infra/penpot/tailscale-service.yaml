@@ -22,7 +22,7 @@ spec:
   ingressClassName: tailscale
   defaultBackend:
     service:
-      name: penpot-frontend
+      name: penpot
       port:
         number: 8080
   tls:

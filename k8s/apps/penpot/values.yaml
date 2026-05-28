@@ -40,13 +40,13 @@ config:
   # migration. Replace <tailnet> with your actual tailnet domain (e.g.
   # tail477f2f.ts.net). The hostname 'penpot' comes from the tls.hosts entry
   # in clusters/glug-infra/penpot/tailscale-service.yaml.
-  publicUri: "https://penpot.tail477f2f.ts.net"
+  publicUri: "https://pot.tellmey.fyi"
 
   # Feature flags. Full list: https://help.penpot.app/technical-guide/configuration/
   #   disable-email-verification  — skip email confirm (no SMTP required)
   #   disable-telemetry           — no anonymous stats sent to Penpot servers
   #   enable-smtp                 — add this (+ smtp config below) when ready
-  flags: "enable-registration enable-login-with-password disable-email-verification disable-telemetry"
+  flags: "enable-login-with-password disable-email-verification disable-telemetry enable-mcp"
 
   # apiSecretKey is supplied by secrets.yaml (never commit plaintext).
   # Generate: python3 -c "import secrets; print(secrets.token_urlsafe(64))"
@@ -58,7 +58,7 @@ config:
   # Prerequisite: run `just k8s::create-db penpot` once.
   # ---------------------------------------------------------------------------
   postgresql:
-    host: "postgres-pooler-rw.cnpg-clusters.svc.cluster.local"
+    host: "postgres-cluster-pooler-rw.cnpg-clusters.svc.cluster.local"
     port: 5432
     database: "penpot"
     # username + password supplied by secrets.yaml

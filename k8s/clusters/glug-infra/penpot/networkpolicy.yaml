@@ -13,6 +13,7 @@ spec:
 # Allow ingress to the frontend from anywhere in the cluster (Traefik +
 # Tailscale proxy). The frontend is the single entry-point for browsers;
 # it reverse-proxies /api and /ws to the backend internally.
+# Pod label set by chart: app.kubernetes.io/name=penpot (frontend svc).
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -21,7 +22,7 @@ metadata:
 spec:
   podSelector:
     matchLabels:
-      app.kubernetes.io/component: frontend
+      app.kubernetes.io/name: penpot
   policyTypes:
     - Ingress
   ingress:
@@ -29,9 +30,8 @@ spec:
         - port: 8080
           protocol: TCP
 ---
-# Allow ingress to the backend from the frontend (nginx proxy) and from
-# the exporter (which calls back to the backend on task completion).
-# Port 6060 = HTTP API + WebSocket.
+# Allow ingress to the backend from other penpot pods (frontend nginx proxy,
+# exporter callback). All chart pods share app.kubernetes.io/instance=penpot.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -40,20 +40,19 @@ metadata:
 spec:
   podSelector:
     matchLabels:
-      app.kubernetes.io/component: backend
+      app.kubernetes.io/name: penpot-backend
   policyTypes:
     - Ingress
   ingress:
     - from:
         - podSelector:
             matchLabels:
-              app.kubernetes.io/part-of: penpot
+              app.kubernetes.io/instance: penpot
       ports:
         - port: 6060
           protocol: TCP
 ---
-# Allow ingress to the exporter from the backend (backend triggers exports).
-# Port 6061 = internal exporter HTTP API.
+# Allow ingress to the exporter from the backend only.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -62,19 +61,19 @@ metadata:
 spec:
   podSelector:
     matchLabels:
-      app.kubernetes.io/component: exporter
+      app.kubernetes.io/name: penpot-exporter
   policyTypes:
     - Ingress
   ingress:
     - from:
         - podSelector:
             matchLabels:
-              app.kubernetes.io/part-of: penpot
+              app.kubernetes.io/instance: penpot
       ports:
         - port: 6061
           protocol: TCP
 ---
-# Allow ingress to Valkey from all penpot-part-of pods (backend).
+# Allow ingress to Valkey from all penpot chart pods (backend uses blpop/pub-sub).
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -90,17 +89,39 @@ spec:
     - from:
         - podSelector:
             matchLabels:
-              app.kubernetes.io/part-of: penpot
+              app.kubernetes.io/instance: penpot
       ports:
         - port: 6379
           protocol: TCP
 ---
-# Egress for all penpot pods.
+# Allow ingress to the MCP server from other penpot pods (frontend nginx
+# proxies /mcp/ paths to penpot-mcp). Port 4401 = HTTP/SSE, 4402 = WebSocket.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-mcp-ingress
+  namespace: penpot
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: penpot-mcp
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/instance: penpot
+      ports:
+        - port: 4401
+          protocol: TCP
+        - port: 4402
+          protocol: TCP
+---
+# Egress for all penpot chart pods (matched by the shared instance label).
 # Backend needs: Valkey (6379), PostgreSQL (5432), RustFS S3 (9000),
 #   exporter (6061), frontend (8080 — exporter's headless Chromium renders it),
 #   DNS, HTTPS (Google Fonts, avatars, external OAuth).
-# Frontend needs: backend (6060), DNS.
-# Exporter needs: frontend (8080 — renders page in headless Chromium), DNS.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -109,7 +130,7 @@ metadata:
 spec:
   podSelector:
     matchLabels:
-      app.kubernetes.io/part-of: penpot
+      app.kubernetes.io/instance: penpot
   policyTypes:
     - Egress
   egress:
@@ -131,13 +152,17 @@ spec:
     - ports:
         - port: 9000
           protocol: TCP
-    # Penpot internal: backend API, exporter
+    # Penpot internal: backend API, exporter, frontend (exporter renders it), MCP
     - ports:
         - port: 6060
           protocol: TCP
         - port: 6061
           protocol: TCP
         - port: 8080
+          protocol: TCP
+        - port: 4401
+          protocol: TCP
+        - port: 4402
           protocol: TCP
     # HTTPS (Google Fonts, external OAuth providers, avatars)
     - ports:
