@@ -12,8 +12,9 @@ FROM ghost:6-alpine
 # Install the S3 storage adapter (colinmeinke/ghost-storage-adapter-s3).
 # This adapter stores the full public S3 URL in the database so browsers
 # fetch images directly from S3 — Ghost pod is never a proxy.
-RUN mkdir -p /var/lib/ghost/versions/6.25.1/core/server/adapters/storage/s3 && \
-    cd /var/lib/ghost/versions/6.25.1/core/server/adapters/storage/s3 && \
+RUN GHOST_VERSION=$(ls /var/lib/ghost/versions/) && \
+    mkdir -p /var/lib/ghost/versions/$GHOST_VERSION/core/server/adapters/storage/s3 && \
+    cd /var/lib/ghost/versions/$GHOST_VERSION/core/server/adapters/storage/s3 && \
     npm init -y > /dev/null 2>&1 && \
     npm install ghost-storage-adapter-s3 --omit=dev && \
     cp -r node_modules/ghost-storage-adapter-s3/* . && \
