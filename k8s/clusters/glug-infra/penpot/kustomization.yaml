@@ -30,4 +30,5 @@ resources:
   - namespace.yaml
   - valkey.yaml
   - networkpolicy.yaml
+  - ingress-traefik.yaml
   - tailscale-service.yaml

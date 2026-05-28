@@ -7,7 +7,7 @@
 # Build:
 #   docker build -t ghcr.io/tellmey18/ghost:latest .
 
-FROM ghost:6.25-alpine
+FROM ghost:6-alpine
 
 # Install the S3 storage adapter (colinmeinke/ghost-storage-adapter-s3).
 # This adapter stores the full public S3 URL in the database so browsers
