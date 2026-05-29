@@ -1,0 +1,14 @@
+---
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: ghost
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: ghost-activitypub
+      app.kubernetes.io/managed-by: kustomize
+    includeSelectors: false
+resources:
+  - valkey.yaml
+  - pubsub-emulator.yaml
+  - deployment.yaml
+  - ingress-traefik.yaml

@@ -1,0 +1,76 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: valkey-ap
+  namespace: ghost
+  labels:
+    app.kubernetes.io/name: valkey-ap
+    app.kubernetes.io/part-of: ghost-activitypub
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: valkey-ap
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: valkey-ap
+        app.kubernetes.io/part-of: ghost-activitypub
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+      containers:
+        - name: valkey
+          image: valkey/valkey:8-alpine
+          command:
+            - valkey-server
+            - --maxmemory
+            - 128mb
+            - --maxmemory-policy
+            - volatile-lfu
+            - --save
+            - ""
+          ports:
+            - name: valkey
+              containerPort: 6379
+          resources:
+            requests:
+              cpu: 20m
+              memory: 32Mi
+            limits:
+              cpu: 200m
+              memory: 160Mi
+          readinessProbe:
+            exec:
+              command:
+                - valkey-cli
+                - ping
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            exec:
+              command:
+                - valkey-cli
+                - ping
+            initialDelaySeconds: 10
+            periodSeconds: 30
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: valkey-ap
+  namespace: ghost
+  labels:
+    app.kubernetes.io/name: valkey-ap
+    app.kubernetes.io/part-of: ghost-activitypub
+spec:
+  selector:
+    app.kubernetes.io/name: valkey-ap
+  ports:
+    - name: valkey
+      port: 6379
+      targetPort: 6379
