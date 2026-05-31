@@ -13,7 +13,7 @@ metadata:
     app.kubernetes.io/component: blog
     app.kubernetes.io/part-of: ghost
 spec:
-  replicas: 3
+  replicas: 4
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -31,7 +31,7 @@ spec:
     spec:
       containers:
         - name: ghost
-          image: ghcr.io/tellmey18/ghost:build-14
+          image: ghcr.io/tellmey18/ghost:build-16
           ports:
             - name: http
               containerPort: 2368
@@ -50,11 +50,11 @@ spec:
             - name: server__trustProxy
               value: "true"
 
-            # Database (PXC MySQL via HAProxy)
+            # Database (PXC MySQL via ProxySQL)
             - name: database__client
               value: "mysql"
             - name: database__connection__host
-              value: "proxysql.proxysql.svc.cluster.local"
+              value: "mysql-pxc-db-haproxy.pxc-clusters.svc.cluster.local"
             - name: database__connection__port
               value: "3306"
             - name: database__connection__database

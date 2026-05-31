@@ -8,7 +8,6 @@ labels:
       app.kubernetes.io/managed-by: kustomize
     includeSelectors: false
 resources:
-  - valkey.yaml
   - pubsub-emulator.yaml
   - deployment.yaml
   - ingress-traefik.yaml

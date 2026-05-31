@@ -228,3 +228,18 @@ gc-all: (gc "chopper") (gc "kenobi")
 [doc('Garbage-collect the local Mac nix store')]
 clean:
     nix-collect-garbage -d
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  FLAKE — input management
+# ═══════════════════════════════════════════════════════════════════════════
+
+# Update flake.lock from a local git checkout (skips GitHub archive download).
+# Usage: just fast-update nixpkgs ../nixpkgs
+[doc('Update a flake input from a local git repo (e.g. just fast-update nixpkgs ~/code/nixpkgs)')]
+fast-update input repo:
+    fast-flake-update {{ input }} {{ repo }}
+
+# Update all flake inputs (standard nix flake update).
+[doc('Update all flake inputs')]
+flake-update:
+    nix flake update
