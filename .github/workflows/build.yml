@@ -85,12 +85,23 @@ jobs:
           sudo tailscaled --state=mem: &
           sleep 2
 
-          # Generate ephemeral auth key via Tailscale API (the proper way)
+          # OAuth token exchange → ephemeral auth key (proper 2-step flow)
+          ACCESS_TOKEN=$(curl -fsSL \
+            -d "client_id=${TS_CLIENT_ID}" \
+            -d "client_secret=${TS_CLIENT_SECRET}" \
+            -d "grant_type=client_credentials" \
+            "https://api.tailscale.com/api/v2/oauth/token" | jq -r '.access_token')
+
           AUTH_KEY=$(curl -fsSL \
-            -u "${TS_CLIENT_ID}:${TS_CLIENT_SECRET}" \
+            -H "Authorization: Bearer ${ACCESS_TOKEN}" \
             -H "Content-Type: application/json" \
             -d '{"capabilities":{"devices":{"create":{"reusable":false,"ephemeral":true,"preauthorized":true,"tags":["tag:ci"]}}}}' \
             "https://api.tailscale.com/api/v2/tailnet/-/keys" | jq -r '.key')
+
+          if [ -z "$AUTH_KEY" ] || [ "$AUTH_KEY" = "null" ]; then
+            echo "::error::Failed to generate Tailscale auth key"
+            exit 1
+          fi
 
           sudo tailscale up --authkey="$AUTH_KEY" --hostname="gh-ci-$(hostname | cut -c1-20)"
 
@@ -173,11 +184,22 @@ jobs:
           sudo tailscaled --state=mem: &
           sleep 2
 
+          ACCESS_TOKEN=$(curl -fsSL \
+            -d "client_id=${TS_CLIENT_ID}" \
+            -d "client_secret=${TS_CLIENT_SECRET}" \
+            -d "grant_type=client_credentials" \
+            "https://api.tailscale.com/api/v2/oauth/token" | jq -r '.access_token')
+
           AUTH_KEY=$(curl -fsSL \
-            -u "${TS_CLIENT_ID}:${TS_CLIENT_SECRET}" \
+            -H "Authorization: Bearer ${ACCESS_TOKEN}" \
             -H "Content-Type: application/json" \
             -d '{"capabilities":{"devices":{"create":{"reusable":false,"ephemeral":true,"preauthorized":true,"tags":["tag:ci"]}}}}' \
             "https://api.tailscale.com/api/v2/tailnet/-/keys" | jq -r '.key')
+
+          if [ -z "$AUTH_KEY" ] || [ "$AUTH_KEY" = "null" ]; then
+            echo "::error::Failed to generate Tailscale auth key"
+            exit 1
+          fi
 
           sudo tailscale up --authkey="$AUTH_KEY" --hostname="gh-ci-$(hostname | cut -c1-20)"
 
@@ -242,11 +264,22 @@ jobs:
           sudo "$TS_PATH/bin/tailscaled" --state=mem: &
           sleep 3
 
+          ACCESS_TOKEN=$(curl -fsSL \
+            -d "client_id=${TS_CLIENT_ID}" \
+            -d "client_secret=${TS_CLIENT_SECRET}" \
+            -d "grant_type=client_credentials" \
+            "https://api.tailscale.com/api/v2/oauth/token" | jq -r '.access_token')
+
           AUTH_KEY=$(curl -fsSL \
-            -u "${TS_CLIENT_ID}:${TS_CLIENT_SECRET}" \
+            -H "Authorization: Bearer ${ACCESS_TOKEN}" \
             -H "Content-Type: application/json" \
             -d '{"capabilities":{"devices":{"create":{"reusable":false,"ephemeral":true,"preauthorized":true,"tags":["tag:ci"]}}}}' \
             "https://api.tailscale.com/api/v2/tailnet/-/keys" | jq -r '.key')
+
+          if [ -z "$AUTH_KEY" ] || [ "$AUTH_KEY" = "null" ]; then
+            echo "::error::Failed to generate Tailscale auth key"
+            exit 1
+          fi
 
           sudo "$TS_PATH/bin/tailscale" up --authkey="$AUTH_KEY" --hostname="gh-ci-$(hostname | cut -c1-20)"
 
