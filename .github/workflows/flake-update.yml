@@ -150,7 +150,6 @@ jobs:
           ACCESS_TOKEN=$(curl -fsSL \
             -d "client_id=${TS_CLIENT_ID}" \
             -d "client_secret=${TS_CLIENT_SECRET}" \
-            -d "grant_type=client_credentials" \
             "https://api.tailscale.com/api/v2/oauth/token" | jq -r '.access_token')
 
           AUTH_KEY=$(curl -fsSL \
@@ -245,7 +244,6 @@ jobs:
           ACCESS_TOKEN=$(curl -fsSL \
             -d "client_id=${TS_CLIENT_ID}" \
             -d "client_secret=${TS_CLIENT_SECRET}" \
-            -d "grant_type=client_credentials" \
             "https://api.tailscale.com/api/v2/oauth/token" | jq -r '.access_token')
 
           AUTH_KEY=$(curl -fsSL \
@@ -325,7 +323,6 @@ jobs:
           ACCESS_TOKEN=$(curl -fsSL \
             -d "client_id=${TS_CLIENT_ID}" \
             -d "client_secret=${TS_CLIENT_SECRET}" \
-            -d "grant_type=client_credentials" \
             "https://api.tailscale.com/api/v2/oauth/token" | jq -r '.access_token')
 
           AUTH_KEY=$(curl -fsSL \
