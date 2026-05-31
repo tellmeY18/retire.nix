@@ -69,7 +69,7 @@ jobs:
 
       - name: Connect to Tailscale
         if: github.event_name == 'push'
-        uses: tailscale/github-action@main
+        uses: tailscale/github-action@v4
         with:
           oauth-client-id: ${{ steps.secrets.outputs.ts_oauth_client_id }}
           oauth-secret: ${{ steps.secrets.outputs.ts_oauth_secret }}
@@ -146,7 +146,7 @@ jobs:
 
       - name: Connect to Tailscale
         if: github.event_name == 'push'
-        uses: tailscale/github-action@main
+        uses: tailscale/github-action@v4
         with:
           oauth-client-id: ${{ steps.secrets.outputs.ts_oauth_client_id }}
           oauth-secret: ${{ steps.secrets.outputs.ts_oauth_secret }}
@@ -204,7 +204,7 @@ jobs:
 
       - name: Connect to Tailscale
         if: github.event_name == 'push'
-        uses: tailscale/github-action@main
+        uses: tailscale/github-action@v4
         with:
           oauth-client-id: ${{ steps.secrets.outputs.ts_oauth_client_id }}
           oauth-secret: ${{ steps.secrets.outputs.ts_oauth_secret }}
