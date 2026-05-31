@@ -44,6 +44,7 @@ env:
   CACHIX_CACHE: tellmey18
   ATTIC_SERVER: http://attic.tail477f2f.ts.net:8080
   ATTIC_CACHE: system
+  TAILSCALE_VERSION: "1.82.5"
   PR_BRANCH: automation/flake-update
 
 jobs:
@@ -137,11 +138,21 @@ jobs:
 
       - name: Connect to Tailscale
         if: ${{ !inputs.skip_cache }}
-        uses: tailscale/github-action@v4
-        with:
-          oauth-client-id: ${{ steps.secrets.outputs.ts_oauth_client_id }}
-          oauth-secret: ${{ steps.secrets.outputs.ts_oauth_secret }}
-          tags: tag:ci
+        env:
+          TS_CLIENT_ID: ${{ steps.secrets.outputs.ts_oauth_client_id }}
+          TS_CLIENT_SECRET: ${{ steps.secrets.outputs.ts_oauth_secret }}
+        run: |
+          curl -fsSL "https://pkgs.tailscale.com/stable/tailscale_${TAILSCALE_VERSION}_amd64.tgz" | sudo tar -xzf - -C /usr/local/bin --strip-components=1 "tailscale_${TAILSCALE_VERSION}_amd64/tailscale" "tailscale_${TAILSCALE_VERSION}_amd64/tailscaled"
+          sudo tailscaled --state=mem: &
+          sleep 2
+
+          AUTH_KEY=$(curl -fsSL \
+            -u "${TS_CLIENT_ID}:${TS_CLIENT_SECRET}" \
+            -H "Content-Type: application/json" \
+            -d '{"capabilities":{"devices":{"create":{"reusable":false,"ephemeral":true,"preauthorized":true,"tags":["tag:ci"]}}}}' \
+            "https://api.tailscale.com/api/v2/tailnet/-/keys" | jq -r '.key')
+
+          sudo tailscale up --authkey="$AUTH_KEY" --hostname="gh-ci-$(hostname | cut -c1-20)"
 
       - name: Configure Attic
         if: ${{ !inputs.skip_cache }}
@@ -211,11 +222,21 @@ jobs:
 
       - name: Connect to Tailscale
         if: ${{ !inputs.skip_cache }}
-        uses: tailscale/github-action@v4
-        with:
-          oauth-client-id: ${{ steps.secrets.outputs.ts_oauth_client_id }}
-          oauth-secret: ${{ steps.secrets.outputs.ts_oauth_secret }}
-          tags: tag:ci
+        env:
+          TS_CLIENT_ID: ${{ steps.secrets.outputs.ts_oauth_client_id }}
+          TS_CLIENT_SECRET: ${{ steps.secrets.outputs.ts_oauth_secret }}
+        run: |
+          curl -fsSL "https://pkgs.tailscale.com/stable/tailscale_${TAILSCALE_VERSION}_arm64.tgz" | sudo tar -xzf - -C /usr/local/bin --strip-components=1 "tailscale_${TAILSCALE_VERSION}_arm64/tailscale" "tailscale_${TAILSCALE_VERSION}_arm64/tailscaled"
+          sudo tailscaled --state=mem: &
+          sleep 2
+
+          AUTH_KEY=$(curl -fsSL \
+            -u "${TS_CLIENT_ID}:${TS_CLIENT_SECRET}" \
+            -H "Content-Type: application/json" \
+            -d '{"capabilities":{"devices":{"create":{"reusable":false,"ephemeral":true,"preauthorized":true,"tags":["tag:ci"]}}}}' \
+            "https://api.tailscale.com/api/v2/tailnet/-/keys" | jq -r '.key')
+
+          sudo tailscale up --authkey="$AUTH_KEY" --hostname="gh-ci-$(hostname | cut -c1-20)"
 
       - name: Configure Attic
         if: ${{ !inputs.skip_cache }}
@@ -269,11 +290,22 @@ jobs:
 
       - name: Connect to Tailscale
         if: ${{ !inputs.skip_cache }}
-        uses: tailscale/github-action@v4
-        with:
-          oauth-client-id: ${{ steps.secrets.outputs.ts_oauth_client_id }}
-          oauth-secret: ${{ steps.secrets.outputs.ts_oauth_secret }}
-          tags: tag:ci
+        env:
+          TS_CLIENT_ID: ${{ steps.secrets.outputs.ts_oauth_client_id }}
+          TS_CLIENT_SECRET: ${{ steps.secrets.outputs.ts_oauth_secret }}
+        run: |
+          # Install Tailscale via Nix (no tarball for macOS, v4 action builds from source which is fragile)
+          TS_PATH=$(nix build nixpkgs#tailscale --no-link --print-out-paths)
+          sudo "$TS_PATH/bin/tailscaled" --state=mem: &
+          sleep 3
+
+          AUTH_KEY=$(curl -fsSL \
+            -u "${TS_CLIENT_ID}:${TS_CLIENT_SECRET}" \
+            -H "Content-Type: application/json" \
+            -d '{"capabilities":{"devices":{"create":{"reusable":false,"ephemeral":true,"preauthorized":true,"tags":["tag:ci"]}}}}' \
+            "https://api.tailscale.com/api/v2/tailnet/-/keys" | jq -r '.key')
+
+          sudo "$TS_PATH/bin/tailscale" up --authkey="$AUTH_KEY" --hostname="gh-ci-$(hostname | cut -c1-20)"
 
       - name: Configure Attic
         if: ${{ !inputs.skip_cache }}
