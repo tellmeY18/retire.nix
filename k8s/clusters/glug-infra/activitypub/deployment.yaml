@@ -22,11 +22,9 @@ spec:
         app.kubernetes.io/component: federation
         app.kubernetes.io/part-of: ghost-activitypub
     spec:
-      nodeSelector:
-        node-role.glug.infra/compute: "true"
       containers:
         - name: activitypub
-          image: ghcr.io/tellmey18/activitypub:latest
+          image: ghcr.io/tellmey18/activitypub:build-1
           ports:
             - name: http
               containerPort: 8080
@@ -35,7 +33,7 @@ spec:
                 name: activitypub-credentials
           env:
             - name: NODE_ENV
-              value: "production"
+              value: "development"
             - name: MYSQL_HOST
               value: "mysql-pxc-db-haproxy.pxc-clusters.svc.cluster.local"
             - name: MYSQL_PORT
@@ -50,16 +48,18 @@ spec:
               value: "https://s3-1.tail477f2f.ts.net/activitypub"
             - name: S3_REGION
               value: "us-east-1"
-            - name: FEDIFY_KV_STORE_TYPE
-              value: "redis"
-            - name: REDIS_URL
-              value: "redis://valkey-ap.ghost.svc:6379"
+            # Fedify KV store: uses MySQL by default (no FEDIFY_KV_STORE_TYPE set)
+            # Redis Cluster mode is hardcoded upstream — standalone Valkey won't work.
             - name: USE_MQ
               value: "true"
             - name: MQ_PUBSUB_PROJECT_ID
               value: "activitypub"
             - name: MQ_PUBSUB_HOST
               value: "pubsub-ap.ghost.svc:8085"
+            - name: PUBSUB_EMULATOR_HOST
+              value: "pubsub-ap.ghost.svc:8085"
+            - name: GCP_PROJECT_ID
+              value: "activitypub"
             - name: MQ_PUBSUB_TOPIC_NAME
               value: "fedify-topic"
             - name: MQ_PUBSUB_RETRY_TOPIC_NAME
@@ -92,22 +92,20 @@ spec:
               value: "true"
           resources:
             requests:
-              cpu: 100m
-              memory: 256Mi
+              cpu: 50m
+              memory: 192Mi
             limits:
               cpu: "1"
               memory: 512Mi
           livenessProbe:
-            httpGet:
-              path: /.ghost/activitypub/healthcheck
+            tcpSocket:
               port: 8080
             initialDelaySeconds: 30
             periodSeconds: 30
           readinessProbe:
-            httpGet:
-              path: /.ghost/activitypub/healthcheck
+            tcpSocket:
               port: 8080
-            initialDelaySeconds: 10
+            initialDelaySeconds: 5
             periodSeconds: 10
 ---
 apiVersion: v1
