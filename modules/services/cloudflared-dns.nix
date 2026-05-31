@@ -19,11 +19,10 @@
 #   - You must provide `services.cloudflared-dns.certificateFile` pointing
 #     to that secret (e.g. `/run/secrets/cloudflare-cert`).
 
-{
-  config,
-  lib,
-  pkgs,
-  ...
+{ config
+, lib
+, pkgs
+, ...
 }:
 
 let
@@ -33,12 +32,14 @@ let
   # We exclude wildcard hostnames (containing "*") because cloudflared can't
   # provision DNS for those — they need to be set up manually.
   pairs = lib.flatten (
-    lib.mapAttrsToList (
-      tunnelId: tunnel:
-      map (hostname: { inherit tunnelId hostname; }) (
-        lib.filter (h: !(lib.hasInfix "*" h)) (lib.attrNames tunnel.ingress)
+    lib.mapAttrsToList
+      (
+        tunnelId: tunnel:
+          map (hostname: { inherit tunnelId hostname; }) (
+            lib.filter (h: !(lib.hasInfix "*" h)) (lib.attrNames tunnel.ingress)
+          )
       )
-    ) config.services.cloudflared.tunnels
+      config.services.cloudflared.tunnels
   );
 
   # cert.pem path inside the unit's credentials directory (set by LoadCredential)

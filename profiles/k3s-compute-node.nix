@@ -40,8 +40,7 @@
 #     tokenFile  = config.sops.secrets.k3s-token.path;
 #     nodeIP     = "100.x.y.z";  # tailscale IP of this VM
 #   };
-{
-  ...
+{ ...
 }:
 
 {

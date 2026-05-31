@@ -39,11 +39,10 @@
 # Guard: this module is a no-op unless services.k3s-cluster.enable = true,
 # so it is safe to import unconditionally in a shared host profile.
 
-{
-  config,
-  lib,
-  pkgs,
-  ...
+{ config
+, lib
+, pkgs
+, ...
 }:
 
 let

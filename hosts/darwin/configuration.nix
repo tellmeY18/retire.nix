@@ -1,8 +1,7 @@
-{
-  pkgs,
-  config,
-  self,
-  ...
+{ pkgs
+, config
+, self
+, ...
 }:
 {
   nixpkgs = {
