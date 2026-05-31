@@ -1,13 +1,22 @@
-# CI: Build Configurations — evaluate all host and home-manager configs.
+# CI: Build Configurations — dual-mode evaluation and build pipeline.
 #
-# Uses --dry-run so Nix fully evaluates every derivation (catching syntax
-# errors, missing attributes, type mismatches) without downloading or
-# building store paths. Full builds are done by the flake-update workflow.
+# On pull_request → develop:
+#   Evaluate-only (--dry-run). Fast feedback on syntax errors, missing
+#   attributes, and type mismatches. No secrets needed, no cache push.
+#
+# On push → develop:
+#   Real builds. Closures are pushed to both Cachix and Attic so that
+#   `nix build` / `nh os switch` on local machines hits pre-built paths.
+#   This ensures EVERY commit to develop (not just flake-update PRs)
+#   has its full closure in cache before you run `nh os switch`.
 #
 # Covers EVERY host in flake.nix across all architectures:
 #   x86_64-linux   — chopper, c3po, vysakh@chopper (HM)
 #   aarch64-linux  — kenobi
 #   aarch64-darwin — Vysakhs-MacBook-Pro, mathewalex@MacBook (HM)
+#
+# Required GitHub secrets (push only):
+#   SOPS_AGE_KEY — decrypts secrets/ci/actions.yaml for Cachix + Attic tokens
 name: Build Configurations
 
 on:
@@ -20,7 +29,15 @@ concurrency:
   group: build-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  CACHIX_CACHE: tellmey18
+  ATTIC_SERVER: http://attic.tail477f2f.ts.net:8080
+  ATTIC_CACHE: system
+
 jobs:
+  # ---------------------------------------------------------------------------
+  # x86_64-linux — chopper, c3po, vysakh@chopper
+  # ---------------------------------------------------------------------------
   build-x86_64-linux:
     runs-on: ubuntu-latest
     steps:
@@ -30,15 +47,74 @@ jobs:
 
       - uses: DeterminateSystems/magic-nix-cache-action@main
 
-      - name: Evaluate NixOS (chopper)
-        run: nix build .#nixosConfigurations.chopper.config.system.build.toplevel --dry-run
+      - name: Decrypt CI secrets
+        if: github.event_name == 'push'
+        id: secrets
+        env:
+          SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
+        run: |
+          nix run nixpkgs#sops -- -d secrets/ci/actions.yaml > /tmp/ci-secrets.yaml
+          echo "attic_token=$(grep '^attic_token:' /tmp/ci-secrets.yaml | cut -d'"' -f2)" >> "$GITHUB_OUTPUT"
+          echo "cachix_auth_token=$(grep '^cachix_auth_token:' /tmp/ci-secrets.yaml | cut -d'"' -f2)" >> "$GITHUB_OUTPUT"
+          echo "ts_oauth_client_id=$(grep '^ts_oauth_client_id:' /tmp/ci-secrets.yaml | cut -d'"' -f2)" >> "$GITHUB_OUTPUT"
+          echo "ts_oauth_secret=$(grep '^ts_oauth_secret:' /tmp/ci-secrets.yaml | cut -d'"' -f2)" >> "$GITHUB_OUTPUT"
+          rm /tmp/ci-secrets.yaml
 
-      - name: Evaluate NixOS (c3po)
-        run: nix build .#nixosConfigurations.c3po.config.system.build.toplevel --dry-run
+      - name: Setup Cachix
+        if: github.event_name == 'push'
+        uses: cachix/cachix-action@v15
+        with:
+          name: ${{ env.CACHIX_CACHE }}
+          authToken: ${{ steps.secrets.outputs.cachix_auth_token }}
 
-      - name: Evaluate Home Manager (vysakh@chopper)
-        run: nix build .#homeConfigurations."vysakh@chopper".activationPackage --dry-run
+      - name: Connect to Tailscale
+        if: github.event_name == 'push'
+        uses: tailscale/github-action@main
+        with:
+          oauth-client-id: ${{ steps.secrets.outputs.ts_oauth_client_id }}
+          oauth-secret: ${{ steps.secrets.outputs.ts_oauth_secret }}
+          tags: tag:ci
 
+      - name: Configure Attic
+        if: github.event_name == 'push'
+        run: |
+          nix profile install github:zhaofengli/attic#attic-client
+          attic login ci "$ATTIC_SERVER" "${{ steps.secrets.outputs.attic_token }}"
+          attic use "$ATTIC_CACHE"
+
+      - name: Build NixOS (chopper)
+        run: >
+          nix build .#nixosConfigurations.chopper.config.system.build.toplevel
+          --print-build-logs
+          ${{ github.event_name == 'pull_request' && '--dry-run' || '' }}
+
+      - name: Push chopper to Attic
+        if: github.event_name == 'push'
+        run: attic push "$ATTIC_CACHE" ./result
+
+      - name: Build NixOS (c3po)
+        run: >
+          nix build .#nixosConfigurations.c3po.config.system.build.toplevel
+          --print-build-logs
+          ${{ github.event_name == 'pull_request' && '--dry-run' || '' }}
+
+      - name: Push c3po to Attic
+        if: github.event_name == 'push'
+        run: attic push "$ATTIC_CACHE" ./result
+
+      - name: Build Home Manager (vysakh@chopper)
+        run: >
+          nix build .#homeConfigurations."vysakh@chopper".activationPackage
+          --print-build-logs
+          ${{ github.event_name == 'pull_request' && '--dry-run' || '' }}
+
+      - name: Push HM chopper to Attic
+        if: github.event_name == 'push'
+        run: attic push "$ATTIC_CACHE" ./result
+
+  # ---------------------------------------------------------------------------
+  # aarch64-linux — kenobi
+  # ---------------------------------------------------------------------------
   build-aarch64-linux:
     runs-on: ubuntu-24.04-arm
     steps:
@@ -48,9 +124,54 @@ jobs:
 
       - uses: DeterminateSystems/magic-nix-cache-action@main
 
-      - name: Evaluate NixOS (kenobi)
-        run: nix build .#nixosConfigurations.kenobi.config.system.build.toplevel --dry-run
+      - name: Decrypt CI secrets
+        if: github.event_name == 'push'
+        id: secrets
+        env:
+          SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
+        run: |
+          nix run nixpkgs#sops -- -d secrets/ci/actions.yaml > /tmp/ci-secrets.yaml
+          echo "attic_token=$(grep '^attic_token:' /tmp/ci-secrets.yaml | cut -d'"' -f2)" >> "$GITHUB_OUTPUT"
+          echo "cachix_auth_token=$(grep '^cachix_auth_token:' /tmp/ci-secrets.yaml | cut -d'"' -f2)" >> "$GITHUB_OUTPUT"
+          echo "ts_oauth_client_id=$(grep '^ts_oauth_client_id:' /tmp/ci-secrets.yaml | cut -d'"' -f2)" >> "$GITHUB_OUTPUT"
+          echo "ts_oauth_secret=$(grep '^ts_oauth_secret:' /tmp/ci-secrets.yaml | cut -d'"' -f2)" >> "$GITHUB_OUTPUT"
+          rm /tmp/ci-secrets.yaml
 
+      - name: Setup Cachix
+        if: github.event_name == 'push'
+        uses: cachix/cachix-action@v15
+        with:
+          name: ${{ env.CACHIX_CACHE }}
+          authToken: ${{ steps.secrets.outputs.cachix_auth_token }}
+
+      - name: Connect to Tailscale
+        if: github.event_name == 'push'
+        uses: tailscale/github-action@main
+        with:
+          oauth-client-id: ${{ steps.secrets.outputs.ts_oauth_client_id }}
+          oauth-secret: ${{ steps.secrets.outputs.ts_oauth_secret }}
+          tags: tag:ci
+
+      - name: Configure Attic
+        if: github.event_name == 'push'
+        run: |
+          nix profile install github:zhaofengli/attic#attic-client
+          attic login ci "$ATTIC_SERVER" "${{ steps.secrets.outputs.attic_token }}"
+          attic use "$ATTIC_CACHE"
+
+      - name: Build NixOS (kenobi)
+        run: >
+          nix build .#nixosConfigurations.kenobi.config.system.build.toplevel
+          --print-build-logs
+          ${{ github.event_name == 'pull_request' && '--dry-run' || '' }}
+
+      - name: Push kenobi to Attic
+        if: github.event_name == 'push'
+        run: attic push "$ATTIC_CACHE" ./result
+
+  # ---------------------------------------------------------------------------
+  # aarch64-darwin — Vysakhs-MacBook-Pro, mathewalex@MacBook (HM)
+  # ---------------------------------------------------------------------------
   build-aarch64-darwin:
     runs-on: macos-14
     steps:
@@ -59,9 +180,59 @@ jobs:
       - uses: DeterminateSystems/nix-installer-action@main
 
       # magic-nix-cache skipped on macOS — dyld symbol incompatibility
+      # with macos-14 runner's libc++. Cachix handles caching instead.
 
-      - name: Evaluate macOS (darwin)
-        run: nix build .#darwinConfigurations."Vysakhs-MacBook-Pro".system --dry-run
+      - name: Decrypt CI secrets
+        if: github.event_name == 'push'
+        id: secrets
+        env:
+          SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
+        run: |
+          nix run nixpkgs#sops -- -d secrets/ci/actions.yaml > /tmp/ci-secrets.yaml
+          echo "attic_token=$(grep '^attic_token:' /tmp/ci-secrets.yaml | cut -d'"' -f2)" >> "$GITHUB_OUTPUT"
+          echo "cachix_auth_token=$(grep '^cachix_auth_token:' /tmp/ci-secrets.yaml | cut -d'"' -f2)" >> "$GITHUB_OUTPUT"
+          echo "ts_oauth_client_id=$(grep '^ts_oauth_client_id:' /tmp/ci-secrets.yaml | cut -d'"' -f2)" >> "$GITHUB_OUTPUT"
+          echo "ts_oauth_secret=$(grep '^ts_oauth_secret:' /tmp/ci-secrets.yaml | cut -d'"' -f2)" >> "$GITHUB_OUTPUT"
+          rm /tmp/ci-secrets.yaml
 
-      - name: Evaluate Home Manager (darwin)
-        run: nix build .#homeConfigurations."mathewalex@Vysakhs-MacBook-Pro".activationPackage --dry-run
+      - name: Setup Cachix
+        if: github.event_name == 'push'
+        uses: cachix/cachix-action@v15
+        with:
+          name: ${{ env.CACHIX_CACHE }}
+          authToken: ${{ steps.secrets.outputs.cachix_auth_token }}
+
+      - name: Connect to Tailscale
+        if: github.event_name == 'push'
+        uses: tailscale/github-action@main
+        with:
+          oauth-client-id: ${{ steps.secrets.outputs.ts_oauth_client_id }}
+          oauth-secret: ${{ steps.secrets.outputs.ts_oauth_secret }}
+          tags: tag:ci
+
+      - name: Configure Attic
+        if: github.event_name == 'push'
+        run: |
+          nix profile install github:zhaofengli/attic#attic-client
+          attic login ci "$ATTIC_SERVER" "${{ steps.secrets.outputs.attic_token }}"
+          attic use "$ATTIC_CACHE"
+
+      - name: Build macOS (darwin)
+        run: >
+          nix build .#darwinConfigurations."Vysakhs-MacBook-Pro".system
+          --print-build-logs
+          ${{ github.event_name == 'pull_request' && '--dry-run' || '' }}
+
+      - name: Push darwin to Attic
+        if: github.event_name == 'push'
+        run: attic push "$ATTIC_CACHE" ./result
+
+      - name: Build Home Manager (darwin)
+        run: >
+          nix build .#homeConfigurations."mathewalex@Vysakhs-MacBook-Pro".activationPackage
+          --print-build-logs
+          ${{ github.event_name == 'pull_request' && '--dry-run' || '' }}
+
+      - name: Push HM darwin to Attic
+        if: github.event_name == 'push'
+        run: attic push "$ATTIC_CACHE" ./result
