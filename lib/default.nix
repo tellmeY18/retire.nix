@@ -33,9 +33,9 @@ let
 
   # NixOS host factory — caller supplies all modules.
   mkHost =
-    {
-      system,
-      modules ? [ ],
+    { system
+    , modules ? [ ]
+    ,
     }:
     inputs.nixpkgs.lib.nixosSystem {
       inherit system;
@@ -44,9 +44,9 @@ let
 
   # nix-darwin host factory — injects `self` into module args automatically.
   mkDarwinHost =
-    {
-      system ? "aarch64-darwin",
-      modules ? [ ],
+    { system ? "aarch64-darwin"
+    , modules ? [ ]
+    ,
     }:
     inputs.nix-darwin.lib.darwinSystem {
       inherit system;
@@ -73,11 +73,13 @@ let
     let
       entries = builtins.readDir hostsDir;
       hostDirs = lib.filterAttrs (name: type: type == "directory" && name != "template") entries;
-      withMetadata = lib.filterAttrs (
-        name: _:
-        builtins.pathExists (hostsDir + "/${name}/metadata.nix")
-        && builtins.pathExists (hostsDir + "/${name}/configuration.nix")
-      ) hostDirs;
+      withMetadata = lib.filterAttrs
+        (
+          name: _:
+            builtins.pathExists (hostsDir + "/${name}/metadata.nix")
+            && builtins.pathExists (hostsDir + "/${name}/configuration.nix")
+        )
+        hostDirs;
       loadHost = name: _: import (hostsDir + "/${name}/metadata.nix");
     in
     lib.mapAttrs loadHost withMetadata;
@@ -87,46 +89,50 @@ let
   # extraModules is keyed by *directory name* so callers don't need to know
   # the hostname — only the directory they created.
   mkNixosConfigurations =
-    {
-      hostsDir,
-      extraModules ? { },
+    { hostsDir
+    , extraModules ? { }
+    ,
     }:
     let
       allHosts = discoverHosts hostsDir;
       nixosHosts = lib.filterAttrs (_: meta: meta.type == "nixos") allHosts;
     in
-    lib.mapAttrs' (
-      dirName: meta:
-      lib.nameValuePair meta.hostname (mkHost {
-        system = meta.system;
-        modules = [
-          (hostsDir + "/${dirName}/configuration.nix")
-        ]
-        ++ (extraModules.${dirName} or [ ]);
-      })
-    ) nixosHosts;
+    lib.mapAttrs'
+      (
+        dirName: meta:
+        lib.nameValuePair meta.hostname (mkHost {
+          system = meta.system;
+          modules = [
+            (hostsDir + "/${dirName}/configuration.nix")
+          ]
+          ++ (extraModules.${dirName} or [ ]);
+        })
+      )
+      nixosHosts;
 
   # Build all Darwin configurations from discovered hosts.
   # Same hostname-keying and dirName-based extraModules as above.
   mkDarwinConfigurations =
-    {
-      hostsDir,
-      extraModules ? { },
+    { hostsDir
+    , extraModules ? { }
+    ,
     }:
     let
       allHosts = discoverHosts hostsDir;
       darwinHosts = lib.filterAttrs (_: meta: meta.type == "darwin") allHosts;
     in
-    lib.mapAttrs' (
-      dirName: meta:
-      lib.nameValuePair meta.hostname (mkDarwinHost {
-        system = meta.system;
-        modules = [
-          (hostsDir + "/${dirName}/configuration.nix")
-        ]
-        ++ (extraModules.${dirName} or [ ]);
-      })
-    ) darwinHosts;
+    lib.mapAttrs'
+      (
+        dirName: meta:
+        lib.nameValuePair meta.hostname (mkDarwinHost {
+          system = meta.system;
+          modules = [
+            (hostsDir + "/${dirName}/configuration.nix")
+          ]
+          ++ (extraModules.${dirName} or [ ]);
+        })
+      )
+      darwinHosts;
 
   # ---------------------------------------------------------------------------
   # deploy-rs node generation
@@ -142,41 +148,43 @@ let
   #     deployLib = deploy-rs.lib;
   #   };
   mkDeployNodes =
-    {
-      hostsDir,
-      nixosConfigurations,
-      deployLib,
+    { hostsDir
+    , nixosConfigurations
+    , deployLib
+    ,
     }:
     let
       allHosts = discoverHosts hostsDir;
       deployableHosts = lib.filterAttrs (_: meta: meta.type == "nixos" && meta ? deploy) allHosts;
     in
-    lib.mapAttrs' (
-      _dirName: meta:
-      lib.nameValuePair meta.hostname {
-        hostname = meta.deploy.host;
-        sshUser = meta.deploy.sshUser or "root";
-        remoteBuild = meta.deploy.remoteBuild or true;
+    lib.mapAttrs'
+      (
+        _dirName: meta:
+        lib.nameValuePair meta.hostname {
+          hostname = meta.deploy.host;
+          sshUser = meta.deploy.sshUser or "root";
+          remoteBuild = meta.deploy.remoteBuild or true;
 
-        profiles.system = {
-          user = "root";
-          path = deployLib.${meta.system}.activate.nixos nixosConfigurations.${meta.hostname};
-          # k3s restarts take time (etcd sync). Increase timeout to avoid
-          # false rollbacks and disable magic rollback for server nodes.
-          activationTimeout = 300;
-          confirmTimeout = 120;
-        };
-      }
-    ) deployableHosts;
+          profiles.system = {
+            user = "root";
+            path = deployLib.${meta.system}.activate.nixos nixosConfigurations.${meta.hostname};
+            # k3s restarts take time (etcd sync). Increase timeout to avoid
+            # false rollbacks and disable magic rollback for server nodes.
+            activationTimeout = 300;
+            confirmTimeout = 120;
+          };
+        }
+      )
+      deployableHosts;
 
   # ---------------------------------------------------------------------------
   # Standalone Home Manager factory
   # ---------------------------------------------------------------------------
 
   mkHome =
-    {
-      system,
-      modules ? [ ],
+    { system
+    , modules ? [ ]
+    ,
     }:
     inputs.home-manager.lib.homeManagerConfiguration {
       pkgs = inputs.nixpkgs.legacyPackages.${system};

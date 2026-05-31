@@ -17,11 +17,10 @@
 # The `cert.pem` (account-level Cloudflare credential) is required, the
 # same one used by `services.cloudflared-dns`. See `docs/cloudflare.md`.
 
-{
-  config,
-  lib,
-  pkgs,
-  ...
+{ config
+, lib
+, pkgs
+, ...
 }:
 
 let

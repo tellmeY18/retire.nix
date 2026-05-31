@@ -1,7 +1,7 @@
 { pkgs, ... }:
 {
   home.packages = with pkgs; [
-    pulseaudio  # includes paplay, parecord utilities
+    pulseaudio # includes paplay, parecord utilities
   ];
 
   # PulseAudio configuration

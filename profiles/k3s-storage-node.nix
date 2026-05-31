@@ -36,9 +36,8 @@
 #     role      = "server-init";
 #     # ...
 #   };
-{
-  config,
-  ...
+{ config
+, ...
 }:
 
 {
