@@ -130,7 +130,7 @@ jobs:
       - name: Push to Attic
         if: ${{ !inputs.skip_cache }}
         continue-on-error: true
-        timeout-minutes: 10
+        timeout-minutes: 20
         env:
           SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
         run: |
@@ -147,7 +147,7 @@ jobs:
             ".#nixosConfigurations.c3po.config.system.build.toplevel" \
             ".#homeConfigurations.\"vysakh@chopper\".activationPackage"; do
             nix build "$target" 2>/dev/null
-            attic push "$ATTIC_CACHE" ./result || true
+            attic push -j 4 "$ATTIC_CACHE" ./result || true
             nix-collect-garbage >/dev/null 2>&1
           done
 
@@ -177,7 +177,7 @@ jobs:
       - name: Push to Attic
         if: ${{ !inputs.skip_cache }}
         continue-on-error: true
-        timeout-minutes: 10
+        timeout-minutes: 20
         env:
           SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
         run: |
@@ -189,7 +189,7 @@ jobs:
           attic login ci "$ATTIC_SERVER" "$ATTIC_TOKEN"
           attic use "$ATTIC_CACHE"
           nix build .#nixosConfigurations.kenobi.config.system.build.toplevel 2>/dev/null
-          attic push "$ATTIC_CACHE" ./result || true
+          attic push -j 4 "$ATTIC_CACHE" ./result || true
 
   build-aarch64-darwin:
     needs: prepare
@@ -221,7 +221,7 @@ jobs:
       - name: Push to Attic
         if: ${{ !inputs.skip_cache }}
         continue-on-error: true
-        timeout-minutes: 10
+        timeout-minutes: 20
         env:
           SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
         run: |
@@ -237,7 +237,7 @@ jobs:
             ".#darwinConfigurations.\"Vysakhs-MacBook-Pro\".system" \
             ".#homeConfigurations.\"mathewalex@Vysakhs-MacBook-Pro\".activationPackage"; do
             nix build "$target" 2>/dev/null
-            attic push "$ATTIC_CACHE" ./result || true
+            attic push -j 4 "$ATTIC_CACHE" ./result || true
             nix-collect-garbage >/dev/null 2>&1
           done
 

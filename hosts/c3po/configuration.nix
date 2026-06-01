@@ -10,6 +10,7 @@
     ./parts/k3s.nix
     ./parts/network.nix
     ./parts/power.nix
+    ./parts/swap.nix
     ../../profiles/k3s-storage-node.nix
     ../../profiles/zfs-openebs-datasets.nix
   ];
