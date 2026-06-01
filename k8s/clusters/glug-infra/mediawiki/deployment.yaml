@@ -43,13 +43,13 @@ spec:
         # Ensures schema is always up-to-date on every deploy.
         # Connects directly to primary MySQL (bypasses ProxySQL).
         - name: db-migrate
-          image: ghcr.io/tellmey18/mediawiki:build-48
+          image: ghcr.io/tellmey18/mediawiki:build-53
           command:
             - sh
             - -c
             - |
               echo "=== Running MediaWiki update.php ==="
-              MW_SKIP_EXTERNAL_DEPENDENCIES=1 php -d memory_limit=512M /var/www/html/maintenance/run.php update --quick 2>&1 | tail -10 || true
+              timeout 60 php -d memory_limit=512M /var/www/html/maintenance/run.php update --quick 2>&1 | tail -10 || true
               echo "=== Migrations complete ==="
           env:
             - name: MW_DB_HOST
@@ -70,7 +70,7 @@ spec:
               cpu: "500m"
       containers:
         - name: mediawiki
-          image: ghcr.io/tellmey18/mediawiki:build-48
+          image: ghcr.io/tellmey18/mediawiki:build-53
           command:
             - sh
             - -c
@@ -133,7 +133,7 @@ spec:
         # Handles HTMLCacheUpdate (template purges), CirrusSearch indexing,
         # and all other async jobs. Replaces $wgJobRunRate on web requests.
         - name: jobrunner
-          image: ghcr.io/tellmey18/mediawiki:build-48
+          image: ghcr.io/tellmey18/mediawiki:build-53
           command:
             - sh
             - -c
