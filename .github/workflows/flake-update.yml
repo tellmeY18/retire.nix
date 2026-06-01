@@ -168,7 +168,7 @@ jobs:
       - name: Configure Attic
         if: ${{ !inputs.skip_cache }}
         run: |
-          nix profile install github:zhaofengli/attic#attic-client
+          nix profile install nixpkgs#attic-client
           attic login ci "$ATTIC_SERVER" "${{ steps.secrets.outputs.attic_token }}"
           attic use "$ATTIC_CACHE"
 
@@ -262,7 +262,7 @@ jobs:
       - name: Configure Attic
         if: ${{ !inputs.skip_cache }}
         run: |
-          nix profile install github:zhaofengli/attic#attic-client
+          nix profile install nixpkgs#attic-client
           attic login ci "$ATTIC_SERVER" "${{ steps.secrets.outputs.attic_token }}"
           attic use "$ATTIC_CACHE"
 
@@ -341,7 +341,7 @@ jobs:
       - name: Configure Attic
         if: ${{ !inputs.skip_cache }}
         run: |
-          nix profile install github:zhaofengli/attic#attic-client
+          nix profile install nixpkgs#attic-client
           attic login ci "$ATTIC_SERVER" "${{ steps.secrets.outputs.attic_token }}"
           attic use "$ATTIC_CACHE"
 
