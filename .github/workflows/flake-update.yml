@@ -114,6 +114,14 @@ jobs:
     if: needs.prepare.outputs.has_changes == 'true'
     runs-on: ubuntu-latest
     steps:
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+            /usr/share/swift /usr/local/share/powershell \
+            /usr/local/share/chromium /usr/local/lib/node_modules \
+            /opt/hostedtoolcache 2>/dev/null || true
+          sudo docker image prune -af 2>/dev/null || true
+          df -h / | tail -1
       - uses: actions/checkout@v4
         with:
           ref: ${{ env.PR_BRANCH }}
@@ -126,8 +134,14 @@ jobs:
       - name: Build NixOS (chopper)
         run: nix build .#nixosConfigurations.chopper.config.system.build.toplevel --print-build-logs
 
+      - name: GC between builds
+        run: nix-collect-garbage >/dev/null 2>&1
+
       - name: Build NixOS (c3po)
         run: nix build .#nixosConfigurations.c3po.config.system.build.toplevel --print-build-logs
+
+      - name: GC between builds
+        run: nix-collect-garbage >/dev/null 2>&1
 
       - name: Build Home Manager (vysakh@chopper)
         run: nix build .#homeConfigurations."vysakh@chopper".activationPackage --print-build-logs
@@ -137,6 +151,14 @@ jobs:
     if: needs.prepare.outputs.has_changes == 'true'
     runs-on: ubuntu-24.04-arm
     steps:
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+            /usr/share/swift /usr/local/share/powershell \
+            /usr/local/share/chromium /usr/local/lib/node_modules \
+            /opt/hostedtoolcache 2>/dev/null || true
+          sudo docker image prune -af 2>/dev/null || true
+          df -h / | tail -1
       - uses: actions/checkout@v4
         with:
           ref: ${{ env.PR_BRANCH }}
@@ -154,6 +176,14 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ env.PR_BRANCH }}
+      - name: Free disk space
+        run: |
+          # macOS runners have limited disk — remove heavy preinstalled tools
+          sudo rm -rf /Users/runner/Library/Android 2>/dev/null || true
+          sudo rm -rf /Applications/Xcode_*.app 2>/dev/null || true
+          sudo rm -rf /usr/local/share/powershell 2>/dev/null || true
+          sudo rm -rf /usr/local/lib/node_modules 2>/dev/null || true
+          df -h / | tail -1
       - uses: DeterminateSystems/nix-installer-action@main
       # magic-nix-cache skipped on macOS — dyld symbol incompatibility
 
@@ -191,6 +221,27 @@ jobs:
               .#homeConfigurations."mathewalex@Vysakhs-MacBook-Pro".activationPackage
     runs-on: ${{ matrix.runner }}
     steps:
+      - name: Free disk space (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+            /usr/share/swift /usr/local/share/powershell \
+            /usr/local/share/chromium /usr/local/lib/node_modules \
+            /opt/hostedtoolcache 2>/dev/null || true
+          sudo docker image prune -af 2>/dev/null || true
+          df -h / | tail -1
+
+      - name: Free disk space (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          sudo rm -rf /Users/runner/Library/Android \
+            /Applications/Xcode_*.app \
+            /usr/local/share/powershell \
+            /usr/local/lib/node_modules \
+            /Library/Frameworks/Mono.framework \
+            /usr/local/share/dotnet 2>/dev/null || true
+          df -h / | tail -1
+
       - uses: actions/checkout@v4
         with:
           ref: ${{ env.PR_BRANCH }}
@@ -274,6 +325,8 @@ jobs:
             echo "::group::Pushing $target to Attic"
             attic push "$ATTIC_CACHE" ./result
             echo "::endgroup::"
+            # GC to free disk for next target (closures are large)
+            nix-collect-garbage >/dev/null 2>&1 || true
           done
 
   # ---------------------------------------------------------------------------
