@@ -390,6 +390,14 @@ data:
 
     ## Semantic MediaWiki 7.0-dev + ecosystem
     wfLoadExtension( 'SemanticMediaWiki' );
+    # SMW 7.0 keeps its setup state in the database (shared by all pods).
+    # setupStore is therefore run ONCE per deploy — by the maintenance Job
+    # and, for cold bootstrap, by a flock-guarded sentinel in the db-migrate
+    # init container (see deployment.yaml + maintenance-job.yaml). This
+    # prevents the per-pod OPTIMIZE-TABLE lock cascade that caused 502s.
+    # $smwgConfigFileDir kept on the shared volume in case a future SMW
+    # version reintroduces a file-based marker; harmless today.
+    $smwgConfigFileDir = '/smw-config';
     # Grant SMW admin rights to sysops
     $wgGroupPermissions['sysop']['smw-admin'] = true;
     $wgGroupPermissions['sysop']['smw-patternedit'] = true;
