@@ -282,7 +282,7 @@ We just installed 17 extensions but most are **loaded but unused**. This plan fi
 - [x] **ExternalData:** security allowlist configured (nitc.ac.in, en.wikipedia.org, wikidata, api.github.com) + 1h cache. ConfigMap applied (takes effect next rollout). '''Live news ticker deferred''' — NITC exposes no stable JSON/RSS feed (all endpoints return HTML); scraping would be fragile.
 - [ ] **Widgets:** deferred — the `Widget:` namespace is protected (`editwidgets` right); enabling needs a LocalSettings grant + rollout. `Widget:GoogleForm` drafted but not yet creatable.
 
-> ⚠️ **Rollout hazard (discovered this sprint):** the `db-migrate` init container runs `update.php` → SMW `setupStore`, which `OPTIMIZE`s the shared `smw_*` tables. During a rolling restart, multiple pods run this concurrently and '''deadlock on the table locks''', hanging every pod's `api.php` past the 10s readiness timeout → all pods unready → 502. Recovery: scale to 0 (kills the stuck `OPTIMIZE`, releases locks), then scale back up. '''Fix needed before next rollout''' — see Risks.
+> ⚠️ **Rollout hazard (✅ RESOLVED this sprint):** the per-pod `setupStore` `OPTIMIZE` deadlock that took the site to 502 is fixed via a flock-serialised `.setup-done` sentinel on a shared hostPath — see Risks. Rollouts are now clean (`maxSurge:1`, verified HTTP 200 throughout).
 
 ### Sprint 4 — Forms & i18n (Week 4) 🟡🟠
 - [ ] **PageForms:** finish remaining 8 forms + TemplateData JSON
@@ -325,7 +325,7 @@ $egMapsLeafletLayers = [ 'OpenStreetMap' ];
 
 ## 5. Risks & Notes
 
-- **SMW setupStore deadlock on rollout (CRITICAL):** `update.php` (run by the `db-migrate` init container) invokes SMW `setupStore`, which runs `ANALYZE/OPTIMIZE` on `smw_*` tables. With >1 pod rolling at once they deadlock on table locks and take the site to 502. **Mitigations to apply before the next rollout:** (a) set the Deployment strategy to `maxSurge: 1, maxUnavailable: 0` so pods replace one-at-a-time; (b) move SMW store setup out of per-pod startup into a one-shot `Job`; or (c) raise the readiness `timeoutSeconds`. Until fixed, restarts must be serialised (scale to 1) or done via scale-to-0 → scale-up.
+- **SMW setupStore deadlock on rollout (✅ RESOLVED):** `setupStore` used to run on every pod boot; concurrent runs deadlocked on the `smw_*` `OPTIMIZE` table locks → 502. '''Fixed''' — `setupStore` now runs once, gated by a flock-serialised `.setup-done` sentinel on a shared kenobi hostPath (all pods + the maintenance Job mount it). Routine restarts skip `setupStore` entirely; a single bootstrap `OPTIMIZE` is ~4s (under the probe). The web container no longer runs `setupStore` (just `supervisord`), and the maintenance Job was repointed from the stale `mysql-pxc-db-haproxy.pxc-clusters` endpoint to the live `mysql-ram-pxc.pxc-ram`. Verified: clean rolling update (`maxSurge:1`), HTTP 200 throughout.
 - **ConfigMap apply ≠ restart:** updating the ConfigMap does not restart pods; mounted config changes only take effect on the next pod restart. Safe to apply anytime; schedule the restart deliberately given the deadlock hazard above.
 
 - **MW 1.45 `Html` class:** ✅ Resolved — 1.45 removed the global `Html` alias (now `MediaWiki\Html\Html`). Mermaid/Maps/SRF still `use Html;`. A `class_alias` shim in `localsettings-configmap.yaml` restores it for all 18+ affected files.
