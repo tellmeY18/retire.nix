@@ -65,6 +65,8 @@ jobs:
       - uses: actions/checkout@v4
 
       - uses: DeterminateSystems/nix-installer-action@main
+        with:
+          flakehub: false
 
       - name: Run nix flake update
         run: nix flake update
@@ -126,6 +128,8 @@ jobs:
         with:
           ref: ${{ env.PR_BRANCH }}
       - uses: DeterminateSystems/nix-installer-action@main
+        with:
+          flakehub: false
       - uses: DeterminateSystems/magic-nix-cache-action@main
 
       - name: Evaluate flake checks
@@ -163,6 +167,8 @@ jobs:
         with:
           ref: ${{ env.PR_BRANCH }}
       - uses: DeterminateSystems/nix-installer-action@main
+        with:
+          flakehub: false
       - uses: DeterminateSystems/magic-nix-cache-action@main
 
       - name: Build NixOS (kenobi)
@@ -185,6 +191,8 @@ jobs:
           sudo rm -rf /usr/local/lib/node_modules 2>/dev/null || true
           df -h / | tail -1
       - uses: DeterminateSystems/nix-installer-action@main
+        with:
+          flakehub: false
       # magic-nix-cache skipped on macOS — dyld symbol incompatibility
 
       - name: Build macOS (darwin)
@@ -247,6 +255,8 @@ jobs:
           ref: ${{ env.PR_BRANCH }}
 
       - uses: DeterminateSystems/nix-installer-action@main
+        with:
+          flakehub: false
 
       - uses: DeterminateSystems/magic-nix-cache-action@main
         if: matrix.arch != 'aarch64-darwin'

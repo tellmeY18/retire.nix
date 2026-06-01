@@ -166,7 +166,7 @@ in
     # Use cached binary without any overrides
 
     #    # OR use override for policies/prefs (slight wrapper rebuild)
-    package = pkgs.firefox-beta.override {
+    package = pkgs.firefox-devedition.override {
       extraPolicies = policies;
       #      inherit extraPrefs;
     };
