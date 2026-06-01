@@ -104,6 +104,7 @@ let
           system = meta.system;
           modules = [
             (hostsDir + "/${dirName}/configuration.nix")
+            ../modules/binary-cache.nix
           ]
           ++ (extraModules.${dirName} or [ ]);
         })
@@ -128,6 +129,7 @@ let
           system = meta.system;
           modules = [
             (hostsDir + "/${dirName}/configuration.nix")
+            ../modules/binary-cache.nix
           ]
           ++ (extraModules.${dirName} or [ ]);
         })

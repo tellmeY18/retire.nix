@@ -11,3 +11,4 @@ resources:
   - deployment.yaml
   - tailscale-service.yaml
   - funnel.yaml
+  - hpa.yaml

@@ -1,0 +1,29 @@
+---
+# hpa.yaml — HorizontalPodAutoscaler for MediaWiki.
+# Scales 2→5 replicas based on CPU utilization.
+# MediaWiki uses ~80m per pod under normal load.
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: mediawiki
+  namespace: mediawiki
+  labels:
+    app.kubernetes.io/name: mediawiki
+    app.kubernetes.io/part-of: mediawiki
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: mediawiki
+  minReplicas: 2
+  maxReplicas: 5
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300

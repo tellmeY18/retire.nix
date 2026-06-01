@@ -48,7 +48,7 @@ spec:
               mountPath: /usr/share/opensearch/data
           resources:
             requests:
-              cpu: 200m
+              cpu: 50m
               memory: 768Mi
             limits:
               cpu: "2"
