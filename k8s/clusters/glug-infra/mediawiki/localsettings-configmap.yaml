@@ -334,6 +334,17 @@ data:
     wfLoadExtension( 'PageForms' );
     wfLoadExtension( 'PageSchemas' );
     wfLoadExtension( 'ExternalData' );
+    # Security allowlist: ExternalData may only fetch from these hosts, and
+    # caches responses for at least 1 hour so parses don't hammer remotes.
+    # NITC publishes no stable JSON/RSS feed yet, so a live news ticker is
+    # deferred; the capability is wired and ready for when a feed exists.
+    $wgExternalDataSources['*']['allowed urls'] = [
+        'https://nitc.ac.in',
+        'https://en.wikipedia.org',
+        'https://www.wikidata.org',
+        'https://api.github.com',
+    ];
+    $wgExternalDataSources['*']['min cache seconds'] = 3600;
     wfLoadExtension( 'Widgets' );
 
     ## Extensions — Translation & Internationalisation
