@@ -235,7 +235,9 @@ data:
     ## OpenGraph / Social Meta Tags
     # Citizen skin + PageImages handles og:image natively.
     # Description2 + TextExtracts provides <meta name="description">.
-    # This hook adds the remaining OG/Twitter tags using REAL page data.
+    # WikiSEO (loaded below) owns OpenGraph/Twitter/JSON-LD tags — see its
+    # config block. The previous hand-rolled BeforePageDisplay og: hook was
+    # removed to avoid emitting duplicate tags alongside WikiSEO.
     $wgEnableMetaDescriptionFunctions = true;
 
     # PageImages config — ensure it finds images for OG tags
@@ -246,44 +248,6 @@ data:
     $wgPageImagesLeadSectionOnly = false;  # Search entire page, not just lead
     $wgPageImagesOpenGraph = true;
     $wgPageImagesOpenGraphFallbackImage = 'https://wiki.fosscell.org/favicon.svg';
-
-    # OG + Twitter Card tags (reads description from Description2 output)
-    $wgHooks['BeforePageDisplay'][] = function( $out ) {
-        $title = $out->getTitle();
-        if ( !$title || $title->isSpecialPage() ) return;
-
-        $siteName = 'WIKI FOSSCELL NITC';
-        $pageTitle = $title->getPrefixedText();
-        $url = $title->getFullURL();
-
-        # Read description from meta tags already set by Description2
-        $description = '';
-        foreach ( $out->getMetaTags() as $tag ) {
-            if ( $tag[0] === 'description' ) {
-                $description = $tag[1];
-                break;
-            }
-        }
-        if ( !$description ) {
-            $description = 'The official wiki of FOSS Cell NITC — documenting events, projects, and community history since 1961.';
-        }
-        # Truncate for social cards (max ~200 chars)
-        if ( strlen( $description ) > 200 ) {
-            $description = substr( $description, 0, 197 ) . '...';
-        }
-
-        $out->addMeta( 'og:type', 'article' );
-        $out->addMeta( 'og:title', $pageTitle . ' — ' . $siteName );
-        $out->addMeta( 'og:description', $description );
-        $out->addMeta( 'og:url', $url );
-        $out->addMeta( 'og:site_name', $siteName );
-        # og:image handled by PageImages ($wgPageImagesOpenGraph) — don't set here
-
-        # Twitter Card (image inherits from og:image automatically)
-        $out->addMeta( 'twitter:card', 'summary_large_image' );
-        $out->addMeta( 'twitter:title', $pageTitle );
-        $out->addMeta( 'twitter:description', $description );
-    };
 
     ## Extensions — Bundled (already in base image)
     wfLoadExtension( 'AbuseFilter' );
@@ -364,6 +328,9 @@ data:
 
     ## Extensions — Translation & Internationalisation
     wfLoadExtension( 'UniversalLanguageSelector' );
+    $wgULSIMEEnabled = true;          # On-screen input methods (Malayalam typing)
+    $wgULSWebfontsEnabled = true;     # Serve webfonts for Indic scripts
+    $wgULSPosition = 'interlanguage'; # Language selector in the sidebar
     wfLoadExtension( 'Translate' );
     $wgTranslatePageTranslationULS = true;
     $wgGroupPermissions['sysop']['pagetranslation'] = true;
@@ -371,6 +338,19 @@ data:
 
     ## Extensions — SEO
     wfLoadExtension( 'WikiSEO' );
+    # WikiSEO owns all OpenGraph/Twitter/JSON-LD metadata (replaces the old
+    # hand-rolled BeforePageDisplay hook). Auto-generate a description from
+    # the page extract when {{#seo:}} doesn't set one explicitly.
+    $wgWikiSeoDefaultLanguage = 'en';
+    $wgWikiSeoEnableAutoDescription = true;   # description from TextExtracts
+    $wgWikiSeoEnableSocialImages = false;     # use PageImages og:image, not generated
+    $wgWikiSeoDefaultImage = 'https://wiki.fosscell.org/favicon.svg';
+    # Site-wide OpenGraph defaults so every page has social tags even
+    # without an explicit {{#seo:}} call.
+    $wgWikiSeoOverwriteMetadata = [
+        'og:site_name' => 'WIKI FOSSCELL NITC',
+        'twitter:card' => 'summary_large_image',
+    ];
 
     ## Extensions — Upload & Media Tools
     wfLoadExtension( 'UploadWizard' );
@@ -381,6 +361,11 @@ data:
 
     ## Extensions — Glossary
     wfLoadExtension( 'Lingo' );
+    # Glossary terms live on [[Terminology]]. Tooltip shows once per term
+    # per page (first occurrence) and only in mainspace to limit parse cost.
+    $wgexLingoPage = 'Terminology';
+    $wgexLingoDisplayOnce = true;
+    $wgexLingoUseNamespaces = [ NS_MAIN => true ];
 
     ## Semantic MediaWiki 7.0-dev + ecosystem
     wfLoadExtension( 'SemanticMediaWiki' );

@@ -4,11 +4,32 @@ Context and tracking for the FOSSCell NITC wiki — https://wiki.fosscell.org
 
 ## Infrastructure
 
-- **MediaWiki 1.45** on k8s (`k8s/clusters/glug-infra/mediawiki/`)
-- **Extensions:** Cargo, CirrusSearch, InputBox, AJAXPoll, EmbedVideo, VoteNY, BlogPage, RSS, SocialProfile, CategoryTree, TemplateStyles, HitCounters, ContributionScores, SemanticMediaWiki
+- **MediaWiki 1.45.3** on k8s (`k8s/clusters/glug-infra/mediawiki/`), image `ghcr.io/tellmey18/mediawiki`
 - **Search:** CirrusSearch + OpenSearch
 - **Storage:** RustFS S3 for uploads, Redis for caching
 - **Year namespaces:** 1961–currentYear+2 (auto-extending)
+
+### Extensions (grouped)
+
+- **Data & forms:** Cargo, SemanticMediaWiki, PageForms, PageSchemas, ExternalData, TemplateData
+- **Display & query:** SemanticResultFormats, Mermaid, Maps, Widgets
+- **Content quality:** Lingo (glossary), WikiSEO, SyntaxHighlight, ReplaceText, Disambiguator, DisplayTitle
+- **i18n:** Translate, UniversalLanguageSelector
+- **Media:** UploadWizard, EmbedVideo, PageImages
+- **Search & nav:** CirrusSearch, Elastica, AdvancedSearch, BreadCrumbs2, RelatedArticles, CategoryTree
+- **Social/engagement:** Comments, VoteNY, BlogPage, AJAXPoll, ContributionScores, WhosOnline, Echo, Thanks
+- **Editing:** VisualEditor, CodeMirror, Scribunto, ParserFunctions, TemplateStyles, Cite
+- **Skin:** Citizen (default), Vector, MinervaNeue
+- **Moderation:** AbuseFilter, SpamBlacklist, SmiteSpam, ConfirmEdit/QuestyCaptcha, CheckUser, Nuke, UserMerge
+
+> Full load list and config: `k8s/clusters/glug-infra/mediawiki/localsettings-configmap.yaml`
+
+### Planning docs
+
+- `ROADMAP.md` — spam/duplicate/category/template cleanup plan
+- `migration.md` — year-namespace migration plan
+- `pageforms-migration.md` — preload → PageForms forms migration
+- `plugin-utilization-plan.md` — how to fully use the newly added extensions (4 sprints)
 
 ## Hard Rules
 
@@ -43,10 +64,27 @@ Context and tracking for the FOSSCell NITC wiki — https://wiki.fosscell.org
 | `{{Infobox SAC Meeting}}` | — | SAC minutes |
 | `{{Infobox Home Team}}` | — | Ragam/Tathva home teams |
 | `{{Infobox Home Team Year}}` | — | Yearly edition |
+| `{{Infobox Centre}}` | — | Multidisciplinary & Thematic centres (33 pages) |
+| `{{Centre Year Report}}` | — | Centre yearly reports |
+| `{{CCD Year Report}}` | — | Placement/internship annual report |
+| `{{SEO}}` | — | WikiSEO metadata wrapper |
 | `{{Campaign}}` | — | Promotional banners |
 | `{{Nav Tiles}}` | — | Icon-tile grid navigation |
 | `{{FOSSMeet Tabs}}` | — | Subpage navigation |
 | `{{FOSSMeet Navbox}}` | — | All-editions bottom nav |
+
+### PageForms (Form: namespace)
+
+| Form | Template | Linked category |
+|------|----------|-----------------|
+| `Form:Centre` | `Infobox Centre` | Multidisciplinary / Thematic Centres |
+| `Form:Club` | `Infobox Club` | Clubs and Organizations |
+| `Form:Home Team` | `Infobox Home Team` | Home Teams |
+| `Form:Home Team Year` | `Infobox Home Team Year` | Home Teams |
+
+### Lingo glossary
+
+`Terminology` — FOSS/tech, NITC campus, centre acronyms, and event terms. Tooltips render automatically in mainspace.
 
 ### Scribunto / Lua Status
 
