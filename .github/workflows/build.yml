@@ -1,28 +1,17 @@
-# CI: Build Configurations — dual-mode evaluation and build pipeline.
+# CI: Build Configurations — validate that all hosts build cleanly.
 #
 # On pull_request → develop:
 #   Evaluate-only (--dry-run). Fast feedback on syntax errors, missing
-#   attributes, and type mismatches. No secrets needed, no cache push.
+#   attributes, and type mismatches. No secrets needed.
 #
 # On push → develop:
-#   Real builds. Closures are pushed to both Cachix and Attic so that
-#   `nix build` / `nh os switch` on local machines hits pre-built paths.
-#   This ensures EVERY commit to develop (not just flake-update PRs)
-#   has its full closure in cache before you run `nh os switch`.
+#   Real builds (no --dry-run). Verifies nothing is broken. Does NOT
+#   push to binary cache — that's the flake-update workflow's job.
 #
 # Covers EVERY host in flake.nix across all architectures:
 #   x86_64-linux   — chopper, c3po, vysakh@chopper (HM)
 #   aarch64-linux  — kenobi
 #   aarch64-darwin — Vysakhs-MacBook-Pro, mathewalex@MacBook (HM)
-#
-# Required GitHub secrets (push only):
-#   SOPS_AGE_KEY — decrypts secrets/ci/actions.yaml for Cachix + Attic tokens
-#
-# Tailscale connectivity (for Attic push) uses the Tailscale API directly
-# to generate an ephemeral auth key, then connects with the stock binary.
-# This avoids the tailscale/github-action which has issues:
-#   - v3: broken arg format with Tailscale 1.80+
-#   - v4: builds from source on macOS (fragile), query-param auth rejected
 name: Build Configurations
 
 on:
@@ -35,81 +24,13 @@ concurrency:
   group: build-${{ github.ref }}
   cancel-in-progress: true
 
-env:
-  CACHIX_CACHE: tellmey18
-  ATTIC_SERVER: http://attic.tail477f2f.ts.net:8080
-  ATTIC_CACHE: system
-  TAILSCALE_VERSION: "1.82.5"
-
 jobs:
-  # ---------------------------------------------------------------------------
-  # x86_64-linux — chopper, c3po, vysakh@chopper
-  # ---------------------------------------------------------------------------
   build-x86_64-linux:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - uses: DeterminateSystems/nix-installer-action@main
-
       - uses: DeterminateSystems/magic-nix-cache-action@main
-
-      - name: Decrypt CI secrets
-        if: github.event_name == 'push'
-        id: secrets
-        env:
-          SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
-        run: |
-          nix run nixpkgs#sops -- -d secrets/ci/actions.yaml > /tmp/ci-secrets.yaml
-          echo "attic_token=$(grep '^attic_token:' /tmp/ci-secrets.yaml | awk '{print $2}')" >> "$GITHUB_OUTPUT"
-          echo "cachix_auth_token=$(grep '^cachix_auth_token:' /tmp/ci-secrets.yaml | awk '{print $2}')" >> "$GITHUB_OUTPUT"
-          echo "ts_oauth_client_id=$(grep '^ts_oauth_client_id:' /tmp/ci-secrets.yaml | awk '{print $2}')" >> "$GITHUB_OUTPUT"
-          echo "ts_oauth_secret=$(grep '^ts_oauth_secret:' /tmp/ci-secrets.yaml | awk '{print $2}')" >> "$GITHUB_OUTPUT"
-          rm /tmp/ci-secrets.yaml
-
-      - name: Setup Cachix
-        if: github.event_name == 'push'
-        uses: cachix/cachix-action@v15
-        with:
-          name: ${{ env.CACHIX_CACHE }}
-          authToken: ${{ steps.secrets.outputs.cachix_auth_token }}
-
-      - name: Connect to Tailscale
-        if: github.event_name == 'push'
-        env:
-          TS_CLIENT_ID: ${{ steps.secrets.outputs.ts_oauth_client_id }}
-          TS_CLIENT_SECRET: ${{ steps.secrets.outputs.ts_oauth_secret }}
-        run: |
-          # Install Tailscale binary directly (no action needed)
-          curl -fsSL "https://pkgs.tailscale.com/stable/tailscale_${TAILSCALE_VERSION}_amd64.tgz" | sudo tar -xzf - -C /usr/local/bin --strip-components=1 "tailscale_${TAILSCALE_VERSION}_amd64/tailscale" "tailscale_${TAILSCALE_VERSION}_amd64/tailscaled"
-          sudo tailscaled --state=mem: &
-          sleep 2
-
-          # OAuth token exchange → ephemeral auth key (proper 2-step flow)
-          ACCESS_TOKEN=$(curl -fsSL \
-            -d "client_id=${TS_CLIENT_ID}" \
-            -d "client_secret=${TS_CLIENT_SECRET}" \
-            "https://api.tailscale.com/api/v2/oauth/token" | jq -r '.access_token')
-
-          AUTH_KEY=$(curl -fsSL \
-            -H "Authorization: Bearer ${ACCESS_TOKEN}" \
-            -H "Content-Type: application/json" \
-            -d '{"capabilities":{"devices":{"create":{"reusable":false,"ephemeral":true,"preauthorized":true,"tags":["tag:ci"]}}}}' \
-            "https://api.tailscale.com/api/v2/tailnet/-/keys" | jq -r '.key')
-
-          if [ -z "$AUTH_KEY" ] || [ "$AUTH_KEY" = "null" ]; then
-            echo "::error::Failed to generate Tailscale auth key"
-            exit 1
-          fi
-
-          sudo tailscale up --authkey="$AUTH_KEY" --hostname="gh-ci-$(hostname | cut -c1-20)"
-
-      - name: Configure Attic
-        if: github.event_name == 'push'
-        run: |
-          nix profile install nixpkgs#attic-client
-          attic login ci "$ATTIC_SERVER" "${{ steps.secrets.outputs.attic_token }}"
-          attic use "$ATTIC_CACHE"
 
       - name: Build NixOS (chopper)
         run: >
@@ -117,19 +38,11 @@ jobs:
           --print-build-logs
           ${{ github.event_name == 'pull_request' && '--dry-run' || '' }}
 
-      - name: Push chopper to Attic
-        if: github.event_name == 'push'
-        run: attic push "$ATTIC_CACHE" ./result
-
       - name: Build NixOS (c3po)
         run: >
           nix build .#nixosConfigurations.c3po.config.system.build.toplevel
           --print-build-logs
           ${{ github.event_name == 'pull_request' && '--dry-run' || '' }}
-
-      - name: Push c3po to Attic
-        if: github.event_name == 'push'
-        run: attic push "$ATTIC_CACHE" ./result
 
       - name: Build Home Manager (vysakh@chopper)
         run: >
@@ -137,76 +50,12 @@ jobs:
           --print-build-logs
           ${{ github.event_name == 'pull_request' && '--dry-run' || '' }}
 
-      - name: Push HM chopper to Attic
-        if: github.event_name == 'push'
-        run: attic push "$ATTIC_CACHE" ./result
-
-  # ---------------------------------------------------------------------------
-  # aarch64-linux — kenobi
-  # ---------------------------------------------------------------------------
   build-aarch64-linux:
     runs-on: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v4
-
       - uses: DeterminateSystems/nix-installer-action@main
-
       - uses: DeterminateSystems/magic-nix-cache-action@main
-
-      - name: Decrypt CI secrets
-        if: github.event_name == 'push'
-        id: secrets
-        env:
-          SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
-        run: |
-          nix run nixpkgs#sops -- -d secrets/ci/actions.yaml > /tmp/ci-secrets.yaml
-          echo "attic_token=$(grep '^attic_token:' /tmp/ci-secrets.yaml | awk '{print $2}')" >> "$GITHUB_OUTPUT"
-          echo "cachix_auth_token=$(grep '^cachix_auth_token:' /tmp/ci-secrets.yaml | awk '{print $2}')" >> "$GITHUB_OUTPUT"
-          echo "ts_oauth_client_id=$(grep '^ts_oauth_client_id:' /tmp/ci-secrets.yaml | awk '{print $2}')" >> "$GITHUB_OUTPUT"
-          echo "ts_oauth_secret=$(grep '^ts_oauth_secret:' /tmp/ci-secrets.yaml | awk '{print $2}')" >> "$GITHUB_OUTPUT"
-          rm /tmp/ci-secrets.yaml
-
-      - name: Setup Cachix
-        if: github.event_name == 'push'
-        uses: cachix/cachix-action@v15
-        with:
-          name: ${{ env.CACHIX_CACHE }}
-          authToken: ${{ steps.secrets.outputs.cachix_auth_token }}
-
-      - name: Connect to Tailscale
-        if: github.event_name == 'push'
-        env:
-          TS_CLIENT_ID: ${{ steps.secrets.outputs.ts_oauth_client_id }}
-          TS_CLIENT_SECRET: ${{ steps.secrets.outputs.ts_oauth_secret }}
-        run: |
-          curl -fsSL "https://pkgs.tailscale.com/stable/tailscale_${TAILSCALE_VERSION}_arm64.tgz" | sudo tar -xzf - -C /usr/local/bin --strip-components=1 "tailscale_${TAILSCALE_VERSION}_arm64/tailscale" "tailscale_${TAILSCALE_VERSION}_arm64/tailscaled"
-          sudo tailscaled --state=mem: &
-          sleep 2
-
-          ACCESS_TOKEN=$(curl -fsSL \
-            -d "client_id=${TS_CLIENT_ID}" \
-            -d "client_secret=${TS_CLIENT_SECRET}" \
-            "https://api.tailscale.com/api/v2/oauth/token" | jq -r '.access_token')
-
-          AUTH_KEY=$(curl -fsSL \
-            -H "Authorization: Bearer ${ACCESS_TOKEN}" \
-            -H "Content-Type: application/json" \
-            -d '{"capabilities":{"devices":{"create":{"reusable":false,"ephemeral":true,"preauthorized":true,"tags":["tag:ci"]}}}}' \
-            "https://api.tailscale.com/api/v2/tailnet/-/keys" | jq -r '.key')
-
-          if [ -z "$AUTH_KEY" ] || [ "$AUTH_KEY" = "null" ]; then
-            echo "::error::Failed to generate Tailscale auth key"
-            exit 1
-          fi
-
-          sudo tailscale up --authkey="$AUTH_KEY" --hostname="gh-ci-$(hostname | cut -c1-20)"
-
-      - name: Configure Attic
-        if: github.event_name == 'push'
-        run: |
-          nix profile install nixpkgs#attic-client
-          attic login ci "$ATTIC_SERVER" "${{ steps.secrets.outputs.attic_token }}"
-          attic use "$ATTIC_CACHE"
 
       - name: Build NixOS (kenobi)
         run: >
@@ -214,82 +63,12 @@ jobs:
           --print-build-logs
           ${{ github.event_name == 'pull_request' && '--dry-run' || '' }}
 
-      - name: Push kenobi to Attic
-        if: github.event_name == 'push'
-        run: attic push "$ATTIC_CACHE" ./result
-
-  # ---------------------------------------------------------------------------
-  # aarch64-darwin — Vysakhs-MacBook-Pro, mathewalex@MacBook (HM)
-  # ---------------------------------------------------------------------------
   build-aarch64-darwin:
     runs-on: macos-14
     steps:
       - uses: actions/checkout@v4
-
       - uses: DeterminateSystems/nix-installer-action@main
-
       # magic-nix-cache skipped on macOS — dyld symbol incompatibility
-      # with macos-14 runner's libc++.
-
-      - name: Decrypt CI secrets
-        if: github.event_name == 'push'
-        id: secrets
-        env:
-          SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
-        run: |
-          nix run nixpkgs#sops -- -d secrets/ci/actions.yaml > /tmp/ci-secrets.yaml
-          echo "attic_token=$(grep '^attic_token:' /tmp/ci-secrets.yaml | awk '{print $2}')" >> "$GITHUB_OUTPUT"
-          echo "cachix_auth_token=$(grep '^cachix_auth_token:' /tmp/ci-secrets.yaml | awk '{print $2}')" >> "$GITHUB_OUTPUT"
-          echo "ts_oauth_client_id=$(grep '^ts_oauth_client_id:' /tmp/ci-secrets.yaml | awk '{print $2}')" >> "$GITHUB_OUTPUT"
-          echo "ts_oauth_secret=$(grep '^ts_oauth_secret:' /tmp/ci-secrets.yaml | awk '{print $2}')" >> "$GITHUB_OUTPUT"
-          rm /tmp/ci-secrets.yaml
-
-      - name: Setup Cachix
-        if: github.event_name == 'push'
-        uses: cachix/cachix-action@v15
-        with:
-          name: ${{ env.CACHIX_CACHE }}
-          authToken: ${{ steps.secrets.outputs.cachix_auth_token }}
-
-      - name: Connect to Tailscale
-        if: github.event_name == 'push'
-        env:
-          TS_CLIENT_ID: ${{ steps.secrets.outputs.ts_oauth_client_id }}
-          TS_CLIENT_SECRET: ${{ steps.secrets.outputs.ts_oauth_secret }}
-        run: |
-          # Install Tailscale via Nix (no tarball for macOS, v4 action builds from source which is fragile)
-          TS_PATH=$(nix build nixpkgs#tailscale --no-link --print-out-paths)
-          sudo "$TS_PATH/bin/tailscaled" --state=mem: &
-          sleep 3
-
-          ACCESS_TOKEN=$(curl -fsSL \
-            -d "client_id=${TS_CLIENT_ID}" \
-            -d "client_secret=${TS_CLIENT_SECRET}" \
-            "https://api.tailscale.com/api/v2/oauth/token" | jq -r '.access_token')
-
-          AUTH_KEY=$(curl -fsSL \
-            -H "Authorization: Bearer ${ACCESS_TOKEN}" \
-            -H "Content-Type: application/json" \
-            -d '{"capabilities":{"devices":{"create":{"reusable":false,"ephemeral":true,"preauthorized":true,"tags":["tag:ci"]}}}}' \
-            "https://api.tailscale.com/api/v2/tailnet/-/keys" | jq -r '.key')
-
-          if [ -z "$AUTH_KEY" ] || [ "$AUTH_KEY" = "null" ]; then
-            echo "::error::Failed to generate Tailscale auth key"
-            exit 1
-          fi
-
-          sudo "$TS_PATH/bin/tailscale" up --authkey="$AUTH_KEY" --hostname="gh-ci-$(hostname | cut -c1-20)"
-
-          # macOS: MagicDNS doesn't auto-configure — set system DNS to Tailscale's resolver
-          sudo networksetup -setdnsservers "Ethernet" 100.100.100.100
-          sudo networksetup -setsearchdomains "Ethernet" tail477f2f.ts.net
-
-      - name: Configure Attic
-        if: github.event_name == 'push'
-        run: |
-          nix profile install nixpkgs#attic-client
-          attic login ci "$ATTIC_SERVER" "${{ steps.secrets.outputs.attic_token }}"
-          attic use "$ATTIC_CACHE"
 
       - name: Build macOS (darwin)
         run: >
@@ -297,16 +76,8 @@ jobs:
           --print-build-logs
           ${{ github.event_name == 'pull_request' && '--dry-run' || '' }}
 
-      - name: Push darwin to Attic
-        if: github.event_name == 'push'
-        run: attic push "$ATTIC_CACHE" ./result
-
       - name: Build Home Manager (darwin)
         run: >
           nix build .#homeConfigurations."mathewalex@Vysakhs-MacBook-Pro".activationPackage
           --print-build-logs
           ${{ github.event_name == 'pull_request' && '--dry-run' || '' }}
-
-      - name: Push HM darwin to Attic
-        if: github.event_name == 'push'
-        run: attic push "$ATTIC_CACHE" ./result
