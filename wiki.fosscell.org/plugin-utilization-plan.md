@@ -29,8 +29,8 @@ We just installed 17 extensions but most are **loaded but unused**. This plan fi
 |---|---|---|---|
 | PageForms | ✅ | Partial (3 forms) | 12+ forms missing; no Cargo autocomplete |
 | PageSchemas | ✅ | ❌ No | No schemas defined |
-| Lingo | ✅ | ❌ No | No `Terminology` page exists |
-| WikiSEO | ✅ | ❌ No | Generic OG hook only; no per-page `{{#seo:}}` |
+| Lingo | ✅ | ✅ Live | `Terminology` seeded; tooltips rendering in mainspace |
+| WikiSEO | ✅ | ✅ Live | `{{#seo:}}` in Centre infobox + `{{SEO}}` helper; custom OG hook retired |
 | Widgets | ✅ | ❌ No | `Widget:` namespace empty |
 | Maps | ✅ | ❌ No | 100+ location pages, zero maps; `GeoJson` ns empty |
 | Mermaid | ✅ | ❌ No | No diagrams anywhere |
@@ -263,11 +263,12 @@ We just installed 17 extensions but most are **loaded but unused**. This plan fi
 
 ## 3. Sequenced Roadmap
 
-### Sprint 1 — Quick Wins (Week 1) 🟢
-- [ ] **Lingo:** seed `Terminology` (80–100 terms) + LocalSettings config
-- [ ] **WikiSEO:** bake `{{#seo:}}` into FOSSMeet/Centre/Club infoboxes; retire custom OG hook
-- [ ] **UploadWizard:** nav link + license config
-- [ ] **SyntaxHighlight:** retrofit workshop pages + `Help:Code formatting`
+### Sprint 1 — Quick Wins (Week 1) 🟢 — ✅ DONE
+- [x] **Lingo:** seed `Terminology` (FOSS/NITC/centre/event terms) + LocalSettings config — *verified: 6 tooltips on FOSSCell*
+- [x] **WikiSEO:** bake `{{#seo:}}` into Centre infobox; retire custom OG hook — *verified: clean OG tags, no duplicates*
+- [x] **UploadWizard:** nav link (`$wgUploadNavigationUrl`) + license config
+- [x] **SyntaxHighlight:** `Help:Code formatting` page + `{{SEO}}` helper template
+- [ ] *Follow-up:* bake `{{#seo:}}` into remaining infoboxes (Club, FOSSMeet, Home Team); retrofit workshop pages with `<syntaxhighlight>`
 
 ### Sprint 2 — Visual & Structured (Week 2) 🟡
 - [ ] **Mermaid:** org chart, FOSSMeet timeline, FOSSCell structure, campus wayfinding
@@ -322,7 +323,7 @@ $egMapsLeafletLayers = [ 'OpenStreetMap' ];
 
 - **SMW vs Cargo overlap:** Both installed. Keep Cargo as primary data store; use SMW only where SRF needs it. Don't double-annotate everything — it doubles write load (relevant on the laptop cluster).
 - **ExternalData egress:** Pods fetch external URLs → ensure NetworkPolicy allows egress to nitc.ac.in + cache aggressively (don't hammer on every parse).
-- **WikiSEO duplicate tags:** Remove the hand-rolled OG hook in LocalSettings once WikiSEO is baked into templates, or you'll emit two `og:title` tags.
+- **WikiSEO duplicate tags:** ✅ Resolved — the hand-rolled OG hook was removed from `localsettings-configmap.yaml`; WikiSEO now owns all OG/Twitter tags with auto-description.
 - **Lingo performance:** With 100+ terms, `displayOnce` + mainspace-only keeps parse cost down. Monitor parser cache.
 - **Translate is sticky:** Once a page is marked `<translate>`, its edit workflow changes. Only mark stable, high-value pages.
 - **Maps coordinates:** The bottleneck is collecting accurate lat/long for 100+ locations — crowdsource via a `Task Board` entry.
