@@ -169,7 +169,8 @@ jobs:
       - uses: DeterminateSystems/nix-installer-action@main
         with:
           flakehub: false
-      - uses: DeterminateSystems/magic-nix-cache-action@main
+      # magic-nix-cache disabled on arm64 — causes rate-limit crashes
+      # that kill the nix daemon mid-build ("interrupted by user")
 
       - name: Build NixOS (kenobi)
         run: nix build .#nixosConfigurations.kenobi.config.system.build.toplevel --print-build-logs

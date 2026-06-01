@@ -82,7 +82,7 @@ jobs:
       - uses: DeterminateSystems/nix-installer-action@main
         with:
           flakehub: false
-      - uses: DeterminateSystems/magic-nix-cache-action@main
+      # magic-nix-cache disabled on arm64 — causes rate-limit crashes
 
       - name: Build NixOS (kenobi)
         run: >
