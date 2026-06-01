@@ -31,11 +31,11 @@ We just installed 17 extensions but most are **loaded but unused**. This plan fi
 | PageSchemas | ✅ | ❌ No | No schemas defined |
 | Lingo | ✅ | ✅ Live | `Terminology` seeded; tooltips rendering in mainspace |
 | WikiSEO | ✅ | ✅ Live | `{{#seo:}}` in Centre infobox + `{{SEO}}` helper; custom OG hook retired |
-| Widgets | ✅ | ❌ No | `Widget:` namespace empty |
-| Maps | ✅ | ❌ No | 100+ location pages, zero maps; `GeoJson` ns empty |
+| Widgets | ✅ | ⚠️ Blocked | `Widget:` namespace protected; needs `editwidgets` grant + rollout |
+| Maps | ✅ | 🟢 Live | [[NITC Campus Map]] (Leaflet/OSM) + infobox mini-maps; 10 OSM-geocoded locations in Cargo |
 | Mermaid | ✅ | 🟢 Live | Org chart (colour-coded) + FOSSCell structure + wayfinding; engine on mermaid.js 10.9.4, `neutral` theme |
 | SemanticResultFormats | ✅ | ⚠️ Partial | Cargo dynamic tables live (Centres, Clubs); SRF calendar pending Date-field schema |
-| ExternalData | ✅ | ❌ No | No external feeds; manual copy-paste from nitc.ac.in |
+| ExternalData | ✅ | ⚠️ Configured | Allowlist + 1h cache in ConfigMap (active next rollout); live feed deferred — NITC has no RSS/JSON |
 | Translate | ✅ | ❌ No | `Translations` ns exists, unused |
 | UniversalLanguageSelector | ✅ | ❌ No | No language/font config surfaced |
 | UploadWizard | ✅ | ⚠️ Configured | Not linked from nav; users use plain Special:Upload |
@@ -277,10 +277,12 @@ We just installed 17 extensions but most are **loaded but unused**. This plan fi
 - [x] **Cargo dynamic views:** `Multidisciplinary Centres`, `Thematic Centres`, and `Clubs` directories auto-generate from Cargo
 - [ ] *Follow-up:* FOSSMeet timeline (needs verified per-edition data); Cargo store on `CCD Year Report` + `Infobox FOSSMeet`; Events `format=calendar` needs a Date field on `Template:Event`
 
-### Sprint 3 — Maps & Live Data (Week 3) 🟡🟠
-- [ ] **Maps:** collect coordinates, build `NITC Campus Map`, infobox mini-maps
-- [ ] **ExternalData:** NITC news feed on Main Page (allowlist + cache)
-- [ ] **Widgets:** Instagram, GoogleCalendar, GoogleForm widgets
+### Sprint 3 — Maps & Live Data (Week 3) 🟡🟠 — 🟢 In progress
+- [x] **Maps:** built [[NITC Campus Map]] — Leaflet/OSM, auto-populating from Cargo `CampusLocations` table; 10 locations geocoded from OpenStreetMap (Overpass API); `Infobox Campus Location` now stores `coordinates` and shows an inline mini-map
+- [x] **ExternalData:** security allowlist configured (nitc.ac.in, en.wikipedia.org, wikidata, api.github.com) + 1h cache. ConfigMap applied (takes effect next rollout). '''Live news ticker deferred''' — NITC exposes no stable JSON/RSS feed (all endpoints return HTML); scraping would be fragile.
+- [ ] **Widgets:** deferred — the `Widget:` namespace is protected (`editwidgets` right); enabling needs a LocalSettings grant + rollout. `Widget:GoogleForm` drafted but not yet creatable.
+
+> ⚠️ **Rollout hazard (discovered this sprint):** the `db-migrate` init container runs `update.php` → SMW `setupStore`, which `OPTIMIZE`s the shared `smw_*` tables. During a rolling restart, multiple pods run this concurrently and '''deadlock on the table locks''', hanging every pod's `api.php` past the 10s readiness timeout → all pods unready → 502. Recovery: scale to 0 (kills the stuck `OPTIMIZE`, releases locks), then scale back up. '''Fix needed before next rollout''' — see Risks.
 
 ### Sprint 4 — Forms & i18n (Week 4) 🟡🟠
 - [ ] **PageForms:** finish remaining 8 forms + TemplateData JSON
@@ -322,6 +324,9 @@ $egMapsLeafletLayers = [ 'OpenStreetMap' ];
 ---
 
 ## 5. Risks & Notes
+
+- **SMW setupStore deadlock on rollout (CRITICAL):** `update.php` (run by the `db-migrate` init container) invokes SMW `setupStore`, which runs `ANALYZE/OPTIMIZE` on `smw_*` tables. With >1 pod rolling at once they deadlock on table locks and take the site to 502. **Mitigations to apply before the next rollout:** (a) set the Deployment strategy to `maxSurge: 1, maxUnavailable: 0` so pods replace one-at-a-time; (b) move SMW store setup out of per-pod startup into a one-shot `Job`; or (c) raise the readiness `timeoutSeconds`. Until fixed, restarts must be serialised (scale to 1) or done via scale-to-0 → scale-up.
+- **ConfigMap apply ≠ restart:** updating the ConfigMap does not restart pods; mounted config changes only take effect on the next pod restart. Safe to apply anytime; schedule the restart deliberately given the deadlock hazard above.
 
 - **MW 1.45 `Html` class:** ✅ Resolved — 1.45 removed the global `Html` alias (now `MediaWiki\Html\Html`). Mermaid/Maps/SRF still `use Html;`. A `class_alias` shim in `localsettings-configmap.yaml` restores it for all 18+ affected files.
 
