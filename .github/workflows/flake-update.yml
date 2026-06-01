@@ -46,9 +46,8 @@ permissions:
 
 env:
   CACHIX_CACHE: tellmey18
-  ATTIC_SERVER: http://attic.tail477f2f.ts.net:8080
+  ATTIC_SERVER: https://attic-push.tail477f2f.ts.net
   ATTIC_CACHE: system
-  TAILSCALE_VERSION: "1.82.5"
   PR_BRANCH: automation/flake-update
 
 jobs:
@@ -128,29 +127,17 @@ jobs:
       - name: Build Home Manager (vysakh@chopper)
         run: nix build .#homeConfigurations."vysakh@chopper".activationPackage --print-build-logs
 
-      # Push ALL x86_64 closures to Attic at end (after all builds pass)
-      - name: Connect to Tailscale + push to Attic
+      - name: Push to Attic
         if: ${{ !inputs.skip_cache }}
         continue-on-error: true
+        timeout-minutes: 10
         env:
           SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
         run: |
-          # Decrypt secrets
           nix run nixpkgs#sops -- -d secrets/ci/actions.yaml > /tmp/ci.yaml
           ATTIC_TOKEN=$(grep '^attic_token:' /tmp/ci.yaml | awk '{print $2}')
-          TS_CLIENT_ID=$(grep '^ts_oauth_client_id:' /tmp/ci.yaml | awk '{print $2}')
-          TS_CLIENT_SECRET=$(grep '^ts_oauth_secret:' /tmp/ci.yaml | awk '{print $2}')
           rm /tmp/ci.yaml
 
-          # Connect Tailscale
-          curl -fsSL "https://pkgs.tailscale.com/stable/tailscale_${TAILSCALE_VERSION}_amd64.tgz" | sudo tar -xzf - -C /usr/local/bin --strip-components=1 "tailscale_${TAILSCALE_VERSION}_amd64/tailscale" "tailscale_${TAILSCALE_VERSION}_amd64/tailscaled"
-          sudo tailscaled --state=mem: &
-          sleep 2
-          ACCESS_TOKEN=$(curl -fsSL -d "client_id=${TS_CLIENT_ID}" -d "client_secret=${TS_CLIENT_SECRET}" "https://api.tailscale.com/api/v2/oauth/token" | jq -r '.access_token')
-          AUTH_KEY=$(curl -fsSL -H "Authorization: Bearer ${ACCESS_TOKEN}" -H "Content-Type: application/json" -d '{"capabilities":{"devices":{"create":{"reusable":false,"ephemeral":true,"preauthorized":true,"tags":["tag:ci"]}}}}' "https://api.tailscale.com/api/v2/tailnet/-/keys" | jq -r '.key')
-          sudo tailscale up --authkey="$AUTH_KEY" --hostname="gh-ci-x86"
-
-          # Push to Attic
           nix profile install nixpkgs#attic-client
           attic login ci "$ATTIC_SERVER" "$ATTIC_TOKEN"
           attic use "$ATTIC_CACHE"
@@ -187,24 +174,16 @@ jobs:
       - name: Build NixOS (kenobi)
         run: nix build .#nixosConfigurations.kenobi.config.system.build.toplevel --print-build-logs
 
-      - name: Connect to Tailscale + push to Attic
+      - name: Push to Attic
         if: ${{ !inputs.skip_cache }}
         continue-on-error: true
+        timeout-minutes: 10
         env:
           SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
         run: |
           nix run nixpkgs#sops -- -d secrets/ci/actions.yaml > /tmp/ci.yaml
           ATTIC_TOKEN=$(grep '^attic_token:' /tmp/ci.yaml | awk '{print $2}')
-          TS_CLIENT_ID=$(grep '^ts_oauth_client_id:' /tmp/ci.yaml | awk '{print $2}')
-          TS_CLIENT_SECRET=$(grep '^ts_oauth_secret:' /tmp/ci.yaml | awk '{print $2}')
           rm /tmp/ci.yaml
-
-          curl -fsSL "https://pkgs.tailscale.com/stable/tailscale_${TAILSCALE_VERSION}_arm64.tgz" | sudo tar -xzf - -C /usr/local/bin --strip-components=1 "tailscale_${TAILSCALE_VERSION}_arm64/tailscale" "tailscale_${TAILSCALE_VERSION}_arm64/tailscaled"
-          sudo tailscaled --state=mem: &
-          sleep 2
-          ACCESS_TOKEN=$(curl -fsSL -d "client_id=${TS_CLIENT_ID}" -d "client_secret=${TS_CLIENT_SECRET}" "https://api.tailscale.com/api/v2/oauth/token" | jq -r '.access_token')
-          AUTH_KEY=$(curl -fsSL -H "Authorization: Bearer ${ACCESS_TOKEN}" -H "Content-Type: application/json" -d '{"capabilities":{"devices":{"create":{"reusable":false,"ephemeral":true,"preauthorized":true,"tags":["tag:ci"]}}}}' "https://api.tailscale.com/api/v2/tailnet/-/keys" | jq -r '.key')
-          sudo tailscale up --authkey="$AUTH_KEY" --hostname="gh-ci-arm"
 
           nix profile install nixpkgs#attic-client
           attic login ci "$ATTIC_SERVER" "$ATTIC_TOKEN"
@@ -239,26 +218,16 @@ jobs:
       - name: Build Home Manager (darwin)
         run: nix build .#homeConfigurations."mathewalex@Vysakhs-MacBook-Pro".activationPackage --print-build-logs
 
-      - name: Connect to Tailscale + push to Attic
+      - name: Push to Attic
         if: ${{ !inputs.skip_cache }}
         continue-on-error: true
+        timeout-minutes: 10
         env:
           SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
         run: |
           nix run nixpkgs#sops -- -d secrets/ci/actions.yaml > /tmp/ci.yaml
           ATTIC_TOKEN=$(grep '^attic_token:' /tmp/ci.yaml | awk '{print $2}')
-          TS_CLIENT_ID=$(grep '^ts_oauth_client_id:' /tmp/ci.yaml | awk '{print $2}')
-          TS_CLIENT_SECRET=$(grep '^ts_oauth_secret:' /tmp/ci.yaml | awk '{print $2}')
           rm /tmp/ci.yaml
-
-          TS_PATH=$(nix build nixpkgs#tailscale --no-link --print-out-paths)
-          sudo "$TS_PATH/bin/tailscaled" --state=mem: &
-          sleep 3
-          ACCESS_TOKEN=$(curl -fsSL -d "client_id=${TS_CLIENT_ID}" -d "client_secret=${TS_CLIENT_SECRET}" "https://api.tailscale.com/api/v2/oauth/token" | jq -r '.access_token')
-          AUTH_KEY=$(curl -fsSL -H "Authorization: Bearer ${ACCESS_TOKEN}" -H "Content-Type: application/json" -d '{"capabilities":{"devices":{"create":{"reusable":false,"ephemeral":true,"preauthorized":true,"tags":["tag:ci"]}}}}' "https://api.tailscale.com/api/v2/tailnet/-/keys" | jq -r '.key')
-          sudo "$TS_PATH/bin/tailscale" up --authkey="$AUTH_KEY" --hostname="gh-ci-darwin"
-          sudo networksetup -setdnsservers "Ethernet" 100.100.100.100
-          sudo networksetup -setsearchdomains "Ethernet" tail477f2f.ts.net
 
           nix profile install nixpkgs#attic-client
           attic login ci "$ATTIC_SERVER" "$ATTIC_TOKEN"
