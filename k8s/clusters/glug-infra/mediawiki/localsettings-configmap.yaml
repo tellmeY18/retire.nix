@@ -341,9 +341,11 @@ data:
 
     ## Extensions — Bundled (already in base image, just need loading)
     wfLoadExtension( 'SyntaxHighlight_GeSHi' );  # Code syntax highlighting
+    wfLoadExtension( 'TemplateData' );            # Describe template parameters for VE
+
+    ## Extensions — Previously bundled, now cloned in Dockerfile
     wfLoadExtension( 'Interwiki' );               # Manage interwiki links table
     wfLoadExtension( 'ReplaceText' );             # Bulk find-and-replace across pages
-    wfLoadExtension( 'TemplateData' );            # Describe template parameters for VE
 
     ## Extensions — Require DB schema (run maintenance/update.php after enabling)
     wfLoadExtension( 'Cargo' );
