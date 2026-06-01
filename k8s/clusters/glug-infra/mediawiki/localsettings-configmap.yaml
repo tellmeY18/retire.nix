@@ -344,7 +344,7 @@ data:
     wfLoadExtension( 'TemplateData' );            # Describe template parameters for VE
 
     ## Extensions — Previously bundled, now cloned in Dockerfile
-    wfLoadExtension( 'Interwiki' );               # Manage interwiki links table
+    # Note: Interwiki is now part of MW core (Special:Interwiki works without extension)
     wfLoadExtension( 'ReplaceText' );             # Bulk find-and-replace across pages
 
     ## Extensions — Require DB schema (run maintenance/update.php after enabling)
