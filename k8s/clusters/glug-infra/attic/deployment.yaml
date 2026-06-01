@@ -9,8 +9,9 @@ metadata:
     app.kubernetes.io/part-of: nix-infra
 spec:
   # Attic is stateless (state in PostgreSQL + S3). Multiple replicas
-  # improve availability during CI pushes and survive node disruptions.
-  replicas: 2
+  # improve availability during CI pushes and survive pod failures.
+  # All pods run on kenobi (compute powerhouse) — no topology spread needed.
+  replicas: 3
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -34,15 +35,10 @@ spec:
         fsGroup: 1000
         seccompProfile:
           type: RuntimeDefault
-      # Spread pods across nodes when possible (not hard requirement
-      # while we're on a single-node setup, but ready for multi-node).
-      topologySpreadConstraints:
-        - maxSkew: 1
-          topologyKey: kubernetes.io/hostname
-          whenUnsatisfiable: ScheduleAnyway
-          labelSelector:
-            matchLabels:
-              app.kubernetes.io/name: attic
+      # All Attic pods on kenobi — our beefiest machine (compute powerhouse).
+      # No topology spread needed; kenobi has the resources for it.
+      nodeSelector:
+        kubernetes.io/hostname: kenobi
       initContainers:
         - name: render-config
           image: ghcr.io/zhaofengli/attic:latest
@@ -99,14 +95,14 @@ spec:
               mountPath: /tmp
           resources:
             requests:
-              cpu: 100m
-              memory: 512Mi
+              cpu: 50m
+              memory: 768Mi
             limits:
               # CI pushes entire NixOS closures (hundreds of paths).
               # Attic buffers chunks in memory for dedup before writing
               # to S3. 512Mi OOMKills during bulk pushes.
-              cpu: "1"
-              memory: 1536Mi
+              cpu: "2"
+              memory: 2Gi
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true

@@ -2,11 +2,16 @@
 #
 # Every 3 days (or on manual trigger), this workflow:
 #   1. Runs `nix flake update` to pull the latest nixpkgs-unstable + inputs
-#   2. Evaluates flake checks (deploy-rs validation, formatter, devShells)
-#   3. Builds EVERY host configuration on native-arch runners (real builds)
-#   4. On success: pushes binaries to Cachix, auto-merges the PR
-#   5. On failure: comments + closes the PR — develop keeps the last working
-#      flake.lock. Next cron run does a FRESH `nix flake update`.
+#   2. Opens a PR with the updated flake.lock
+#   3. Builds EVERY host configuration on native-arch runners (matrix)
+#   4. On ALL builds green: pushes ALL closures to Attic in a dedicated job
+#   5. Auto-merges the PR
+#   6. On failure: closes the PR — develop keeps the last working lock
+#
+# Architecture:
+#   Build jobs are PURE builds — no cache push, no secrets beyond sops.
+#   Cache push is a SEPARATE job that runs only after all builds succeed.
+#   This ensures we never push partial/broken closures to the cache.
 #
 # Hosts built (must match flake.nix configurations):
 #   x86_64-linux   — chopper (NixOS), c3po (NixOS), vysakh@chopper (HM)
@@ -17,7 +22,7 @@
 # for every host. If an update breaks any config, the PR never merges.
 #
 # Required GitHub secrets:
-#   CACHIX_AUTH_TOKEN — push token for the tellmey18 Cachix cache
+#   SOPS_AGE_KEY — decrypts secrets/ci/actions.yaml
 name: Flake Update
 
 on:
@@ -27,7 +32,7 @@ on:
   workflow_dispatch:
     inputs:
       skip_cache:
-        description: "Skip pushing to Cachix (build-only)"
+        description: "Skip pushing to Cachix/Attic (build-only)"
         required: false
         type: boolean
         default: false
@@ -97,12 +102,12 @@ jobs:
             | aarch64-darwin | HM `mathewalex@Vysakhs-MacBook-Pro` | ⏳ building… |
 
             **Invariant:** this PR only merges when every config builds.
-            On failure it is closed — `develop` keeps the last working lock.
+            Cache push happens AFTER all builds pass.
           labels: flake-update
           delete-branch: true
 
   # ---------------------------------------------------------------------------
-  # 2. Build x86_64-linux — chopper, c3po, vysakh@chopper
+  # 2. Build all architectures (matrix) — pure builds, no cache push
   # ---------------------------------------------------------------------------
   build-x86_64-linux:
     needs: prepare
@@ -112,93 +117,21 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ env.PR_BRANCH }}
-
       - uses: DeterminateSystems/nix-installer-action@main
-
       - uses: DeterminateSystems/magic-nix-cache-action@main
-
-      - name: Decrypt CI secrets
-        id: secrets
-        env:
-          SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
-        run: |
-          nix run nixpkgs#sops -- -d secrets/ci/actions.yaml > /tmp/ci-secrets.yaml
-          echo "attic_token=$(grep '^attic_token:' /tmp/ci-secrets.yaml | awk '{print $2}')" >> "$GITHUB_OUTPUT"
-          echo "cachix_auth_token=$(grep '^cachix_auth_token:' /tmp/ci-secrets.yaml | awk '{print $2}')" >> "$GITHUB_OUTPUT"
-          echo "ts_oauth_client_id=$(grep '^ts_oauth_client_id:' /tmp/ci-secrets.yaml | awk '{print $2}')" >> "$GITHUB_OUTPUT"
-          echo "ts_oauth_secret=$(grep '^ts_oauth_secret:' /tmp/ci-secrets.yaml | awk '{print $2}')" >> "$GITHUB_OUTPUT"
-          rm /tmp/ci-secrets.yaml
-
-      - name: Setup Cachix
-        if: ${{ !inputs.skip_cache }}
-        uses: cachix/cachix-action@v15
-        with:
-          name: ${{ env.CACHIX_CACHE }}
-          authToken: ${{ steps.secrets.outputs.cachix_auth_token }}
-
-      - name: Connect to Tailscale
-        if: ${{ !inputs.skip_cache }}
-        env:
-          TS_CLIENT_ID: ${{ steps.secrets.outputs.ts_oauth_client_id }}
-          TS_CLIENT_SECRET: ${{ steps.secrets.outputs.ts_oauth_secret }}
-        run: |
-          curl -fsSL "https://pkgs.tailscale.com/stable/tailscale_${TAILSCALE_VERSION}_amd64.tgz" | sudo tar -xzf - -C /usr/local/bin --strip-components=1 "tailscale_${TAILSCALE_VERSION}_amd64/tailscale" "tailscale_${TAILSCALE_VERSION}_amd64/tailscaled"
-          sudo tailscaled --state=mem: &
-          sleep 2
-
-          # OAuth token exchange → ephemeral auth key (proper 2-step flow)
-          ACCESS_TOKEN=$(curl -fsSL \
-            -d "client_id=${TS_CLIENT_ID}" \
-            -d "client_secret=${TS_CLIENT_SECRET}" \
-            "https://api.tailscale.com/api/v2/oauth/token" | jq -r '.access_token')
-
-          AUTH_KEY=$(curl -fsSL \
-            -H "Authorization: Bearer ${ACCESS_TOKEN}" \
-            -H "Content-Type: application/json" \
-            -d '{"capabilities":{"devices":{"create":{"reusable":false,"ephemeral":true,"preauthorized":true,"tags":["tag:ci"]}}}}' \
-            "https://api.tailscale.com/api/v2/tailnet/-/keys" | jq -r '.key')
-
-          if [ -z "$AUTH_KEY" ] || [ "$AUTH_KEY" = "null" ]; then
-            echo "::error::Failed to generate Tailscale auth key"
-            exit 1
-          fi
-
-          sudo tailscale up --authkey="$AUTH_KEY" --hostname="gh-ci-$(hostname | cut -c1-20)"
-
-      - name: Configure Attic
-        if: ${{ !inputs.skip_cache }}
-        run: |
-          nix profile install nixpkgs#attic-client
-          attic login ci "$ATTIC_SERVER" "${{ steps.secrets.outputs.attic_token }}"
-          attic use "$ATTIC_CACHE"
 
       - name: Evaluate flake checks
         run: nix flake check --no-build
 
-      - name: Build NixOS system (chopper)
+      - name: Build NixOS (chopper)
         run: nix build .#nixosConfigurations.chopper.config.system.build.toplevel --print-build-logs
 
-      - name: Push chopper to Attic
-        if: ${{ !inputs.skip_cache }}
-        run: attic push "$ATTIC_CACHE" ./result
-
-      - name: Build NixOS system (c3po)
+      - name: Build NixOS (c3po)
         run: nix build .#nixosConfigurations.c3po.config.system.build.toplevel --print-build-logs
-
-      - name: Push c3po to Attic
-        if: ${{ !inputs.skip_cache }}
-        run: attic push "$ATTIC_CACHE" ./result
 
       - name: Build Home Manager (vysakh@chopper)
         run: nix build .#homeConfigurations."vysakh@chopper".activationPackage --print-build-logs
 
-      - name: Push HM chopper to Attic
-        if: ${{ !inputs.skip_cache }}
-        run: attic push "$ATTIC_CACHE" ./result
-
-  # ---------------------------------------------------------------------------
-  # 3. Build aarch64-linux — kenobi
-  # ---------------------------------------------------------------------------
   build-aarch64-linux:
     needs: prepare
     if: needs.prepare.outputs.has_changes == 'true'
@@ -207,75 +140,12 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ env.PR_BRANCH }}
-
       - uses: DeterminateSystems/nix-installer-action@main
-
       - uses: DeterminateSystems/magic-nix-cache-action@main
 
-      - name: Decrypt CI secrets
-        id: secrets
-        env:
-          SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
-        run: |
-          nix run nixpkgs#sops -- -d secrets/ci/actions.yaml > /tmp/ci-secrets.yaml
-          echo "attic_token=$(grep '^attic_token:' /tmp/ci-secrets.yaml | awk '{print $2}')" >> "$GITHUB_OUTPUT"
-          echo "cachix_auth_token=$(grep '^cachix_auth_token:' /tmp/ci-secrets.yaml | awk '{print $2}')" >> "$GITHUB_OUTPUT"
-          echo "ts_oauth_client_id=$(grep '^ts_oauth_client_id:' /tmp/ci-secrets.yaml | awk '{print $2}')" >> "$GITHUB_OUTPUT"
-          echo "ts_oauth_secret=$(grep '^ts_oauth_secret:' /tmp/ci-secrets.yaml | awk '{print $2}')" >> "$GITHUB_OUTPUT"
-          rm /tmp/ci-secrets.yaml
-
-      - name: Setup Cachix
-        if: ${{ !inputs.skip_cache }}
-        uses: cachix/cachix-action@v15
-        with:
-          name: ${{ env.CACHIX_CACHE }}
-          authToken: ${{ steps.secrets.outputs.cachix_auth_token }}
-
-      - name: Connect to Tailscale
-        if: ${{ !inputs.skip_cache }}
-        env:
-          TS_CLIENT_ID: ${{ steps.secrets.outputs.ts_oauth_client_id }}
-          TS_CLIENT_SECRET: ${{ steps.secrets.outputs.ts_oauth_secret }}
-        run: |
-          curl -fsSL "https://pkgs.tailscale.com/stable/tailscale_${TAILSCALE_VERSION}_arm64.tgz" | sudo tar -xzf - -C /usr/local/bin --strip-components=1 "tailscale_${TAILSCALE_VERSION}_arm64/tailscale" "tailscale_${TAILSCALE_VERSION}_arm64/tailscaled"
-          sudo tailscaled --state=mem: &
-          sleep 2
-
-          ACCESS_TOKEN=$(curl -fsSL \
-            -d "client_id=${TS_CLIENT_ID}" \
-            -d "client_secret=${TS_CLIENT_SECRET}" \
-            "https://api.tailscale.com/api/v2/oauth/token" | jq -r '.access_token')
-
-          AUTH_KEY=$(curl -fsSL \
-            -H "Authorization: Bearer ${ACCESS_TOKEN}" \
-            -H "Content-Type: application/json" \
-            -d '{"capabilities":{"devices":{"create":{"reusable":false,"ephemeral":true,"preauthorized":true,"tags":["tag:ci"]}}}}' \
-            "https://api.tailscale.com/api/v2/tailnet/-/keys" | jq -r '.key')
-
-          if [ -z "$AUTH_KEY" ] || [ "$AUTH_KEY" = "null" ]; then
-            echo "::error::Failed to generate Tailscale auth key"
-            exit 1
-          fi
-
-          sudo tailscale up --authkey="$AUTH_KEY" --hostname="gh-ci-$(hostname | cut -c1-20)"
-
-      - name: Configure Attic
-        if: ${{ !inputs.skip_cache }}
-        run: |
-          nix profile install nixpkgs#attic-client
-          attic login ci "$ATTIC_SERVER" "${{ steps.secrets.outputs.attic_token }}"
-          attic use "$ATTIC_CACHE"
-
-      - name: Build NixOS system (kenobi)
+      - name: Build NixOS (kenobi)
         run: nix build .#nixosConfigurations.kenobi.config.system.build.toplevel --print-build-logs
 
-      - name: Push kenobi to Attic
-        if: ${{ !inputs.skip_cache }}
-        run: attic push "$ATTIC_CACHE" ./result
-
-  # ---------------------------------------------------------------------------
-  # 4. Build aarch64-darwin — MacBook darwin + Home Manager
-  # ---------------------------------------------------------------------------
   build-aarch64-darwin:
     needs: prepare
     if: needs.prepare.outputs.has_changes == 'true'
@@ -284,11 +154,51 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ env.PR_BRANCH }}
+      - uses: DeterminateSystems/nix-installer-action@main
+      # magic-nix-cache skipped on macOS — dyld symbol incompatibility
+
+      - name: Build macOS (darwin)
+        run: nix build .#darwinConfigurations."Vysakhs-MacBook-Pro".system --print-build-logs
+
+      - name: Build Home Manager (darwin)
+        run: nix build .#homeConfigurations."mathewalex@Vysakhs-MacBook-Pro".activationPackage --print-build-logs
+
+  # ---------------------------------------------------------------------------
+  # 3. Push to binary cache — runs ONLY after ALL builds pass
+  # ---------------------------------------------------------------------------
+  push-cache:
+    needs:
+      [prepare, build-x86_64-linux, build-aarch64-linux, build-aarch64-darwin]
+    if: needs.prepare.outputs.has_changes == 'true' && !inputs.skip_cache
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64-linux
+            runner: ubuntu-latest
+            targets: |
+              .#nixosConfigurations.chopper.config.system.build.toplevel
+              .#nixosConfigurations.c3po.config.system.build.toplevel
+              .#homeConfigurations."vysakh@chopper".activationPackage
+          - arch: aarch64-linux
+            runner: ubuntu-24.04-arm
+            targets: |
+              .#nixosConfigurations.kenobi.config.system.build.toplevel
+          - arch: aarch64-darwin
+            runner: macos-14
+            targets: |
+              .#darwinConfigurations."Vysakhs-MacBook-Pro".system
+              .#homeConfigurations."mathewalex@Vysakhs-MacBook-Pro".activationPackage
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.PR_BRANCH }}
 
       - uses: DeterminateSystems/nix-installer-action@main
 
-      # magic-nix-cache skipped on macOS — dyld symbol incompatibility
-      # with macos-14 runner's libc++. Cachix handles caching instead.
+      - uses: DeterminateSystems/magic-nix-cache-action@main
+        if: matrix.arch != 'aarch64-darwin'
 
       - name: Decrypt CI secrets
         id: secrets
@@ -303,22 +213,26 @@ jobs:
           rm /tmp/ci-secrets.yaml
 
       - name: Setup Cachix
-        if: ${{ !inputs.skip_cache }}
         uses: cachix/cachix-action@v15
         with:
           name: ${{ env.CACHIX_CACHE }}
           authToken: ${{ steps.secrets.outputs.cachix_auth_token }}
 
       - name: Connect to Tailscale
-        if: ${{ !inputs.skip_cache }}
         env:
           TS_CLIENT_ID: ${{ steps.secrets.outputs.ts_oauth_client_id }}
           TS_CLIENT_SECRET: ${{ steps.secrets.outputs.ts_oauth_secret }}
         run: |
-          # Install Tailscale via Nix (no tarball for macOS, v4 action builds from source which is fragile)
-          TS_PATH=$(nix build nixpkgs#tailscale --no-link --print-out-paths)
-          sudo "$TS_PATH/bin/tailscaled" --state=mem: &
-          sleep 3
+          if [[ "${{ runner.os }}" == "macOS" ]]; then
+            TS_PATH=$(nix build nixpkgs#tailscale --no-link --print-out-paths)
+            sudo "$TS_PATH/bin/tailscaled" --state=mem: &
+            sleep 3
+          else
+            ARCH=$([[ "$(uname -m)" == "aarch64" ]] && echo "arm64" || echo "amd64")
+            curl -fsSL "https://pkgs.tailscale.com/stable/tailscale_${TAILSCALE_VERSION}_${ARCH}.tgz" | sudo tar -xzf - -C /usr/local/bin --strip-components=1 "tailscale_${TAILSCALE_VERSION}_${ARCH}/tailscale" "tailscale_${TAILSCALE_VERSION}_${ARCH}/tailscaled"
+            sudo tailscaled --state=mem: &
+            sleep 2
+          fi
 
           ACCESS_TOKEN=$(curl -fsSL \
             -d "client_id=${TS_CLIENT_ID}" \
@@ -336,39 +250,44 @@ jobs:
             exit 1
           fi
 
-          sudo "$TS_PATH/bin/tailscale" up --authkey="$AUTH_KEY" --hostname="gh-ci-$(hostname | cut -c1-20)"
-
-          # macOS: MagicDNS doesn't auto-configure — set system DNS to Tailscale's resolver
-          sudo networksetup -setdnsservers "Ethernet" 100.100.100.100
-          sudo networksetup -setsearchdomains "Ethernet" tail477f2f.ts.net
+          if [[ "${{ runner.os }}" == "macOS" ]]; then
+            sudo "$TS_PATH/bin/tailscale" up --authkey="$AUTH_KEY" --hostname="gh-ci-$(hostname | cut -c1-20)"
+            sudo networksetup -setdnsservers "Ethernet" 100.100.100.100
+            sudo networksetup -setsearchdomains "Ethernet" tail477f2f.ts.net
+          else
+            sudo tailscale up --authkey="$AUTH_KEY" --hostname="gh-ci-$(hostname | cut -c1-20)"
+          fi
 
       - name: Configure Attic
-        if: ${{ !inputs.skip_cache }}
         run: |
           nix profile install nixpkgs#attic-client
           attic login ci "$ATTIC_SERVER" "${{ steps.secrets.outputs.attic_token }}"
           attic use "$ATTIC_CACHE"
 
-      - name: Build macOS system (darwin)
-        run: nix build .#darwinConfigurations."Vysakhs-MacBook-Pro".system --print-build-logs
-
-      - name: Push darwin to Attic
-        if: ${{ !inputs.skip_cache }}
-        run: attic push "$ATTIC_CACHE" ./result
-
-      - name: Build Home Manager (darwin)
-        run: nix build .#homeConfigurations."mathewalex@Vysakhs-MacBook-Pro".activationPackage --print-build-logs
-
-      - name: Push HM darwin to Attic
-        if: ${{ !inputs.skip_cache }}
-        run: attic push "$ATTIC_CACHE" ./result
+      - name: Build and push to Attic
+        run: |
+          echo "${{ matrix.targets }}" | while IFS= read -r target; do
+            [ -z "$target" ] && continue
+            echo "::group::Building $target"
+            nix build "$target" --print-build-logs
+            echo "::endgroup::"
+            echo "::group::Pushing $target to Attic"
+            attic push "$ATTIC_CACHE" ./result
+            echo "::endgroup::"
+          done
 
   # ---------------------------------------------------------------------------
-  # 5. Finalize — auto-merge on all-green, close + discard on any failure
+  # 4. Finalize — auto-merge on all-green, close + discard on any failure
   # ---------------------------------------------------------------------------
   finalize:
     needs:
-      [prepare, build-x86_64-linux, build-aarch64-linux, build-aarch64-darwin]
+      [
+        prepare,
+        build-x86_64-linux,
+        build-aarch64-linux,
+        build-aarch64-darwin,
+        push-cache,
+      ]
     if: always() && needs.prepare.outputs.has_changes == 'true'
     runs-on: ubuntu-latest
     env:
@@ -380,10 +299,12 @@ jobs:
           R_X86: ${{ needs.build-x86_64-linux.result }}
           R_ARM: ${{ needs.build-aarch64-linux.result }}
           R_DAR: ${{ needs.build-aarch64-darwin.result }}
+          R_CACHE: ${{ needs.push-cache.result }}
         run: |
-          echo "x86_64-linux:  $R_X86"
-          echo "aarch64-linux: $R_ARM"
+          echo "x86_64-linux:   $R_X86"
+          echo "aarch64-linux:  $R_ARM"
           echo "aarch64-darwin: $R_DAR"
+          echo "push-cache:     $R_CACHE"
           if [[ "$R_X86" == "success" && "$R_ARM" == "success" && "$R_DAR" == "success" ]]; then
             echo "outcome=success" >> "$GITHUB_OUTPUT"
           else
@@ -396,19 +317,29 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          CACHE_STATUS="${{ needs.push-cache.result }}"
+          if [[ "$CACHE_STATUS" == "success" ]]; then
+            CACHE_MSG="✅ Binaries pushed to Attic + Cachix"
+          elif [[ "$CACHE_STATUS" == "skipped" ]]; then
+            CACHE_MSG="⏭️ Cache push skipped (skip_cache=true)"
+          else
+            CACHE_MSG="⚠️ Cache push had issues (non-blocking)"
+          fi
+
           gh pr comment "$PR_NUMBER" --repo "${{ github.repository }}" --body "## ✅ All builds passed
 
           | Arch | Config | Status |
           |---|---|---|
-          | x86_64-linux | NixOS \`chopper\` | ✅ built + cached |
-          | x86_64-linux | NixOS \`c3po\` | ✅ built + cached |
-          | x86_64-linux | HM \`vysakh@chopper\` | ✅ built + cached |
-          | aarch64-linux | NixOS \`kenobi\` | ✅ built + cached |
-          | aarch64-darwin | darwin \`Vysakhs-MacBook-Pro\` | ✅ built + cached |
-          | aarch64-darwin | HM \`mathewalex@Vysakhs-MacBook-Pro\` | ✅ built + cached |
+          | x86_64-linux | NixOS \`chopper\` | ✅ built |
+          | x86_64-linux | NixOS \`c3po\` | ✅ built |
+          | x86_64-linux | HM \`vysakh@chopper\` | ✅ built |
+          | aarch64-linux | NixOS \`kenobi\` | ✅ built |
+          | aarch64-darwin | darwin \`Vysakhs-MacBook-Pro\` | ✅ built |
+          | aarch64-darwin | HM \`mathewalex@Vysakhs-MacBook-Pro\` | ✅ built |
 
-          Binaries pushed to [\`tellmey18.cachix.org\`](https://app.cachix.org/cache/tellmey18).
-          Auto-merging — \`develop\` gets the new lock. Run \`nix flake update\` locally to upgrade."
+          **Cache:** $CACHE_MSG
+
+          Auto-merging — \`develop\` gets the new lock."
 
           gh pr merge "$PR_NUMBER" --repo "${{ github.repository }}" \
             --squash --auto --delete-branch
