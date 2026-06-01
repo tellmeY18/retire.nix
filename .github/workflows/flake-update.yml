@@ -123,10 +123,10 @@ jobs:
           SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
         run: |
           nix run nixpkgs#sops -- -d secrets/ci/actions.yaml > /tmp/ci-secrets.yaml
-          echo "attic_token=$(grep '^attic_token:' /tmp/ci-secrets.yaml | cut -d'"' -f2)" >> "$GITHUB_OUTPUT"
-          echo "cachix_auth_token=$(grep '^cachix_auth_token:' /tmp/ci-secrets.yaml | cut -d'"' -f2)" >> "$GITHUB_OUTPUT"
-          echo "ts_oauth_client_id=$(grep '^ts_oauth_client_id:' /tmp/ci-secrets.yaml | cut -d'"' -f2)" >> "$GITHUB_OUTPUT"
-          echo "ts_oauth_secret=$(grep '^ts_oauth_secret:' /tmp/ci-secrets.yaml | cut -d'"' -f2)" >> "$GITHUB_OUTPUT"
+          echo "attic_token=$(grep '^attic_token:' /tmp/ci-secrets.yaml | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+          echo "cachix_auth_token=$(grep '^cachix_auth_token:' /tmp/ci-secrets.yaml | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+          echo "ts_oauth_client_id=$(grep '^ts_oauth_client_id:' /tmp/ci-secrets.yaml | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+          echo "ts_oauth_secret=$(grep '^ts_oauth_secret:' /tmp/ci-secrets.yaml | awk '{print $2}')" >> "$GITHUB_OUTPUT"
           rm /tmp/ci-secrets.yaml
 
       - name: Setup Cachix
@@ -218,10 +218,10 @@ jobs:
           SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
         run: |
           nix run nixpkgs#sops -- -d secrets/ci/actions.yaml > /tmp/ci-secrets.yaml
-          echo "attic_token=$(grep '^attic_token:' /tmp/ci-secrets.yaml | cut -d'"' -f2)" >> "$GITHUB_OUTPUT"
-          echo "cachix_auth_token=$(grep '^cachix_auth_token:' /tmp/ci-secrets.yaml | cut -d'"' -f2)" >> "$GITHUB_OUTPUT"
-          echo "ts_oauth_client_id=$(grep '^ts_oauth_client_id:' /tmp/ci-secrets.yaml | cut -d'"' -f2)" >> "$GITHUB_OUTPUT"
-          echo "ts_oauth_secret=$(grep '^ts_oauth_secret:' /tmp/ci-secrets.yaml | cut -d'"' -f2)" >> "$GITHUB_OUTPUT"
+          echo "attic_token=$(grep '^attic_token:' /tmp/ci-secrets.yaml | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+          echo "cachix_auth_token=$(grep '^cachix_auth_token:' /tmp/ci-secrets.yaml | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+          echo "ts_oauth_client_id=$(grep '^ts_oauth_client_id:' /tmp/ci-secrets.yaml | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+          echo "ts_oauth_secret=$(grep '^ts_oauth_secret:' /tmp/ci-secrets.yaml | awk '{print $2}')" >> "$GITHUB_OUTPUT"
           rm /tmp/ci-secrets.yaml
 
       - name: Setup Cachix
@@ -296,10 +296,10 @@ jobs:
           SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
         run: |
           nix run nixpkgs#sops -- -d secrets/ci/actions.yaml > /tmp/ci-secrets.yaml
-          echo "attic_token=$(grep '^attic_token:' /tmp/ci-secrets.yaml | cut -d'"' -f2)" >> "$GITHUB_OUTPUT"
-          echo "cachix_auth_token=$(grep '^cachix_auth_token:' /tmp/ci-secrets.yaml | cut -d'"' -f2)" >> "$GITHUB_OUTPUT"
-          echo "ts_oauth_client_id=$(grep '^ts_oauth_client_id:' /tmp/ci-secrets.yaml | cut -d'"' -f2)" >> "$GITHUB_OUTPUT"
-          echo "ts_oauth_secret=$(grep '^ts_oauth_secret:' /tmp/ci-secrets.yaml | cut -d'"' -f2)" >> "$GITHUB_OUTPUT"
+          echo "attic_token=$(grep '^attic_token:' /tmp/ci-secrets.yaml | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+          echo "cachix_auth_token=$(grep '^cachix_auth_token:' /tmp/ci-secrets.yaml | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+          echo "ts_oauth_client_id=$(grep '^ts_oauth_client_id:' /tmp/ci-secrets.yaml | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+          echo "ts_oauth_secret=$(grep '^ts_oauth_secret:' /tmp/ci-secrets.yaml | awk '{print $2}')" >> "$GITHUB_OUTPUT"
           rm /tmp/ci-secrets.yaml
 
       - name: Setup Cachix
