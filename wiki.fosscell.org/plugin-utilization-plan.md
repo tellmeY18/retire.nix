@@ -27,7 +27,7 @@ We just installed 17 extensions but most are **loaded but unused**. This plan fi
 
 | Extension | Loaded | Currently Used? | Gap |
 |---|---|---|---|
-| PageForms | ✅ | Partial (3 forms) | 12+ forms missing; no Cargo autocomplete |
+| PageForms | ✅ | 🟢 Live | 13 forms, all category-linked with `{{#default_form}}`; Edit-with-form tab verified |
 | PageSchemas | ✅ | ❌ No | No schemas defined |
 | Lingo | ✅ | ✅ Live | `Terminology` seeded; tooltips rendering in mainspace |
 | WikiSEO | ✅ | ✅ Live | `{{#seo:}}` in Centre infobox + `{{SEO}}` helper; custom OG hook retired |
@@ -284,9 +284,9 @@ We just installed 17 extensions but most are **loaded but unused**. This plan fi
 
 > ⚠️ **Rollout hazard (✅ RESOLVED this sprint):** the per-pod `setupStore` `OPTIMIZE` deadlock that took the site to 502 is fixed via a flock-serialised `.setup-done` sentinel on a shared hostPath — see Risks. Rollouts are now clean (`maxSurge:1`, verified HTTP 200 throughout).
 
-### Sprint 4 — Forms & i18n (Week 4) 🟡🟠
-- [ ] **PageForms:** finish remaining 8 forms + TemplateData JSON
-- [ ] **PageSchemas:** schema on top 3 categories
+### Sprint 4 — Forms & i18n (Week 4) 🟡🟠 — 🟢 In progress
+- [x] **PageForms:** all 13 core forms live + category-linked (Centre, Club, Home Team, Home Team Year, Campus Location, Centre Year Report, CCD Year Report, Hostel, Course, Person, Faculty, Event, SAC Meeting). "Edit with form" tab verified on existing pages.
+- [ ] TemplateData JSON on infoboxes (VE param editors); FOSSMeet form; PageSchemas on top categories; Cargo autocomplete in forms
 - [ ] **Translate + ULS:** Malayalam for Main Page + 5 public pages
 
 ---
