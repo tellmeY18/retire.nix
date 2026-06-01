@@ -11,8 +11,8 @@
 #   InputBox, Interwiki, Linter, LoginNotify, Math, MultimediaViewer,
 #   Nuke, OATHAuth, PageImages, ParserFunctions, PdfHandler, Poem,
 #   Renameuser, ReplaceText, Scribunto, SecureLinkFixer, SpamBlacklist,
-#   SyntaxHighlight, TemplateData, TemplateStyles, TextExtracts, Thanks,
-#   TitleBlacklist, VisualEditor, WikiEditor
+#   SyntaxHighlight_GeSHi, TemplateData, TemplateStyles, TextExtracts,
+#   Thanks, TitleBlacklist, VisualEditor, WikiEditor
 #
 # NOT bundled (must clone): CodeMirror, AdvancedSearch, and all custom ones
 #
@@ -99,6 +99,39 @@ RUN cd /var/www/html/extensions && \
     # PageViewInfo — show page view statistics
     git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/PageViewInfo
 
+# ─── Extensions: Forms, Schemas & Data ───────────────────────────────────────
+RUN cd /var/www/html/extensions && \
+    # PageForms — create and edit pages via forms (works with Cargo & SMW)
+    git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/PageForms && \
+    # PageSchemas — define page structure schemas for use with PageForms
+    git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/PageSchemas && \
+    # ExternalData — retrieve and display data from external sources
+    git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/ExternalData && \
+    # Widgets — embed third-party widgets via Smarty templates
+    git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/Widgets
+
+# ─── Extensions: Translation & Internationalisation ──────────────────────────
+RUN cd /var/www/html/extensions && \
+    # UniversalLanguageSelector — language detection and font support
+    git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/UniversalLanguageSelector && \
+    # Translate — translate wiki pages into multiple languages
+    git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/Translate
+
+# ─── Extensions: SEO & Metadata ──────────────────────────────────────────────
+RUN cd /var/www/html/extensions && \
+    # WikiSEO — advanced SEO meta tags (OpenGraph, Twitter, JSON-LD, etc.)
+    git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/WikiSEO
+
+# ─── Extensions: Upload & Media Tools ────────────────────────────────────────
+RUN cd /var/www/html/extensions && \
+    # UploadWizard — step-by-step file upload interface
+    git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/UploadWizard
+
+# ─── Extensions: Glossary ────────────────────────────────────────────────────
+RUN cd /var/www/html/extensions && \
+    # Lingo — automatic glossary/terminology tooltips
+    git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/Lingo
+
 # ─── Extensions: S3 Storage ──────────────────────────────────────────
 RUN cd /var/www/html/extensions && \
     # AWS — S3-compatible storage backend for file uploads
@@ -121,7 +154,9 @@ RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local
     cd /var/www/html/extensions/AWS && composer install --no-dev --no-interaction && \
     cd /var/www/html/extensions/Cargo && composer install --no-dev --no-interaction && \
     cd /var/www/html/extensions/Elastica && composer install --no-dev --no-interaction && \
-    cd /var/www/html/extensions/CirrusSearch && composer install --no-dev --no-interaction
+    cd /var/www/html/extensions/CirrusSearch && composer install --no-dev --no-interaction && \
+    cd /var/www/html/extensions/Widgets && composer install --no-dev --no-interaction && \
+    cd /var/www/html/extensions/Translate && composer install --no-dev --no-interaction
 
 # ─── Semantic MediaWiki (7.0-dev, supports MW 1.45) ──────────────────
 # Standard approach: add to composer.local.json then run update.
@@ -134,7 +169,10 @@ RUN cd /var/www/html && \
     # Install SMW using --update-with-dependencies: only touches SMW's deps,
     # leaves all other MW core packages untouched (safer than `composer update`).
     COMPOSER_ALLOW_SUPERUSER=1 composer require --no-interaction --update-with-dependencies \
-      mediawiki/semantic-media-wiki:"~7.0@dev" && \
+      mediawiki/semantic-media-wiki:"~7.0@dev" \
+      mediawiki/semantic-result-formats:"~5.0@dev" \
+      mediawiki/mermaid:"~4.0@dev" \
+      mediawiki/maps:"~11.0@dev" && \
     # Fix: SMW's dep resolution drops wikimedia/equivset which AbuseFilter needs
     COMPOSER_ALLOW_SUPERUSER=1 composer require --no-interaction wikimedia/equivset && \
     # Ensure composer.lock is consistent (prevents update.php from refusing to run)

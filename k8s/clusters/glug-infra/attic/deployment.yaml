@@ -11,7 +11,8 @@ spec:
   # Attic is stateless (state in PostgreSQL + S3). Multiple replicas
   # improve availability during CI pushes and survive pod failures.
   # All pods run on kenobi (compute powerhouse) — no topology spread needed.
-  replicas: 3
+  # HPA manages scaling: min 2, max 4 based on CPU.
+  replicas: 2
   strategy:
     type: RollingUpdate
     rollingUpdate:

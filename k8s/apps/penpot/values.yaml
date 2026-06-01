@@ -104,7 +104,7 @@ backend:
     node-role.glug.infra/compute: "true"
   resources:
     requests:
-      cpu: 200m
+      cpu: 50m
       memory: 512Mi
     limits:
       cpu: "2"
@@ -141,7 +141,7 @@ exporter:
     node-role.glug.infra/compute: "true"
   resources:
     requests:
-      cpu: 200m
+      cpu: 10m
       memory: 512Mi
     limits:
       cpu: "2"

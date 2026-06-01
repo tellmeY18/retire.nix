@@ -339,6 +339,12 @@ data:
     # require_once "$IP/extensions/SocialProfile/SocialProfile.php";
     wfLoadExtension( 'BlogPage' );
 
+    ## Extensions — Bundled (already in base image, just need loading)
+    wfLoadExtension( 'SyntaxHighlight_GeSHi' );  # Code syntax highlighting
+    wfLoadExtension( 'Interwiki' );               # Manage interwiki links table
+    wfLoadExtension( 'ReplaceText' );             # Bulk find-and-replace across pages
+    wfLoadExtension( 'TemplateData' );            # Describe template parameters for VE
+
     ## Extensions — Require DB schema (run maintenance/update.php after enabling)
     wfLoadExtension( 'Cargo' );
     wfLoadExtension( 'Disambiguator' );
@@ -348,12 +354,48 @@ data:
     wfLoadExtension( 'AJAXPoll' );
     wfLoadExtension( 'PageViewInfo' );
 
-    ## Semantic MediaWiki 7.0-dev
+    ## Extensions — Forms, Schemas & Data
+    wfLoadExtension( 'PageForms' );
+    wfLoadExtension( 'PageSchemas' );
+    wfLoadExtension( 'ExternalData' );
+    wfLoadExtension( 'Widgets' );
+
+    ## Extensions — Translation & Internationalisation
+    wfLoadExtension( 'UniversalLanguageSelector' );
+    wfLoadExtension( 'Translate' );
+    $wgTranslatePageTranslationULS = true;
+    $wgGroupPermissions['sysop']['pagetranslation'] = true;
+    $wgGroupPermissions['sysop']['translate-manage'] = true;
+
+    ## Extensions — SEO
+    wfLoadExtension( 'WikiSEO' );
+
+    ## Extensions — Upload & Media Tools
+    wfLoadExtension( 'UploadWizard' );
+    $wgUploadNavigationUrl = '/Special:UploadWizard';
+    $wgUploadWizardConfig = [
+        'autoAdd' => [ 'categories' => [ 'Uploaded_with_UploadWizard' ] ],
+    ];
+
+    ## Extensions — Glossary
+    wfLoadExtension( 'Lingo' );
+
+    ## Semantic MediaWiki 7.0-dev + ecosystem
     wfLoadExtension( 'SemanticMediaWiki' );
     # Grant SMW admin rights to sysops
     $wgGroupPermissions['sysop']['smw-admin'] = true;
     $wgGroupPermissions['sysop']['smw-patternedit'] = true;
     $wgGroupPermissions['sysop']['smw-schemaedit'] = true;
+
+    # Semantic Result Formats — additional query result formats (calendar, timeline, etc.)
+    wfLoadExtension( 'SemanticResultFormats' );
+
+    # Mermaid — render Mermaid diagrams via SMW
+    wfLoadExtension( 'Mermaid' );
+
+    # Maps — interactive maps with SMW integration (Google Maps, Leaflet, etc.)
+    wfLoadExtension( 'Maps' );
+    $egMapsDefaultService = 'leaflet';  # Use Leaflet (no API key required)
 
     ## Extensions — Search (CirrusSearch + OpenSearch)
     wfLoadExtension( 'Elastica' );
