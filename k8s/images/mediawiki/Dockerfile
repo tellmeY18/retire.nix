@@ -10,11 +10,11 @@
 #   CodeEditor, ConfirmEdit, DiscussionTools, Echo, Gadgets, ImageMap,
 #   InputBox, Linter, LoginNotify, Math, MultimediaViewer,
 #   Nuke, OATHAuth, PageImages, ParserFunctions, PdfHandler, Poem,
-#   Renameuser, Scribunto, SecureLinkFixer, SpamBlacklist,
+#   Renameuser, ReplaceText, Scribunto, SecureLinkFixer, SpamBlacklist,
 #   SyntaxHighlight_GeSHi, TemplateData, TemplateStyles, TextExtracts,
 #   Thanks, TitleBlacklist, VisualEditor, WikiEditor
 #
-# UNBUNDLED since MW 1.42 (must clone): Interwiki, ReplaceText
+# UNBUNDLED since MW 1.42 (must clone): Interwiki
 #
 # NOT bundled (must clone): CodeMirror, AdvancedSearch, and all custom ones
 #
@@ -112,9 +112,7 @@ RUN cd /var/www/html/extensions && \
     # Widgets — embed third-party widgets via Smarty templates
     git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/Widgets && \
     # Interwiki — manage interwiki link table (unbundled since MW 1.42)
-    git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/Interwiki && \
-    # ReplaceText — bulk find-and-replace across wiki pages (unbundled since MW 1.42)
-    git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/ReplaceText
+    git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/Interwiki
 
 # ─── Extensions: Translation & Internationalisation ──────────────────────────
 RUN cd /var/www/html/extensions && \
