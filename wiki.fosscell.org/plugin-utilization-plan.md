@@ -33,8 +33,8 @@ We just installed 17 extensions but most are **loaded but unused**. This plan fi
 | WikiSEO | ✅ | ✅ Live | `{{#seo:}}` in Centre infobox + `{{SEO}}` helper; custom OG hook retired |
 | Widgets | ✅ | ❌ No | `Widget:` namespace empty |
 | Maps | ✅ | ❌ No | 100+ location pages, zero maps; `GeoJson` ns empty |
-| Mermaid | ✅ | 🟢 Live | Org chart + FOSSCell structure; `Html` shim applied for MW 1.45 |
-| SemanticResultFormats | ✅ | ⚠️ Partial | Cargo dynamic tables live; SRF calendar pending Date-field schema |
+| Mermaid | ✅ | 🟢 Live | Org chart (colour-coded) + FOSSCell structure + wayfinding; engine on mermaid.js 10.9.4, `neutral` theme |
+| SemanticResultFormats | ✅ | ⚠️ Partial | Cargo dynamic tables live (Centres, Clubs); SRF calendar pending Date-field schema |
 | ExternalData | ✅ | ❌ No | No external feeds; manual copy-paste from nitc.ac.in |
 | Translate | ✅ | ❌ No | `Translations` ns exists, unused |
 | UniversalLanguageSelector | ✅ | ❌ No | No language/font config surfaced |
@@ -270,13 +270,12 @@ We just installed 17 extensions but most are **loaded but unused**. This plan fi
 - [x] **SyntaxHighlight:** `Help:Code formatting` page + `{{SEO}}` helper template
 - [ ] *Follow-up:* bake `{{#seo:}}` into remaining infoboxes (Club, FOSSMeet, Home Team); retrofit workshop pages with `<syntaxhighlight>`
 
-### Sprint 2 — Visual & Structured (Week 2) 🟡 — 🟢 In progress
-- [x] **Mermaid:** org chart on `NITC Administration`, FOSSCell team structure — *fixed MW 1.45 `Html` class incompat via `class_alias` shim*
-- [x] **Cargo `#cargo_store`:** added to `Infobox Centre` (Centres table, 34 pages populated)
-- [x] **Cargo dynamic views:** `Multidisciplinary Centres` and `Thematic Centres` lists now auto-generate from the Centres table (no more manual upkeep)
-- [ ] FOSSMeet timeline diagram + campus wayfinding diagram
-- [ ] Cargo store on `Infobox Club`, `CCD Year Report`, `Infobox FOSSMeet`
-- [ ] *Follow-up:* Events `format=calendar` needs a Date field added to `Template:Event` (currently separate year/month/day integers)
+### Sprint 2 — Visual & Structured (Week 2) 🟡 — ✅ DONE
+- [x] **Mermaid:** org chart on `NITC Administration` (classDef colour-coding + legend), FOSSCell team structure, campus wayfinding on `Centre Circle`
+- [x] **Mermaid engine:** upgraded extension ~4.0 → ~6.0 (mermaid.js 8.14.0 → 10.9.4); theme set to `neutral` for Citizen light/dark compatibility
+- [x] **Cargo `#cargo_store`:** added to `Infobox Centre` (Centres, 34 pages) and `Infobox Club` (Clubs, 24 pages)
+- [x] **Cargo dynamic views:** `Multidisciplinary Centres`, `Thematic Centres`, and `Clubs` directories auto-generate from Cargo
+- [ ] *Follow-up:* FOSSMeet timeline (needs verified per-edition data); Cargo store on `CCD Year Report` + `Infobox FOSSMeet`; Events `format=calendar` needs a Date field on `Template:Event`
 
 ### Sprint 3 — Maps & Live Data (Week 3) 🟡🟠
 - [ ] **Maps:** collect coordinates, build `NITC Campus Map`, infobox mini-maps
