@@ -9,6 +9,16 @@ data:
     <?php
     if ( !defined( 'MEDIAWIKI' ) ) { exit; }
 
+    ## MW 1.45 compatibility shim
+    # MediaWiki 1.45 removed the global `Html` class alias (the class moved to
+    # MediaWiki\Html\Html). Several extensions (Mermaid, Maps,
+    # SemanticResultFormats) still do `use Html;` and fatal with
+    # "Class Html not found". Restore the alias so they load. Safe: it only
+    # points the legacy name at the namespaced class.
+    if ( !class_exists( 'Html' ) ) {
+        class_alias( 'MediaWiki\Html\Html', 'Html' );
+    }
+
     ## Core settings
     $wgSitename = "WIKI FOSSCELL NITC";
     $wgMetaNamespace = "WIKI_FOSSCELL_NITC";
