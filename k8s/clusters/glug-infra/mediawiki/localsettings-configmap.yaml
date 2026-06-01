@@ -389,6 +389,9 @@ data:
 
     # Mermaid — render Mermaid diagrams via SMW
     wfLoadExtension( 'Mermaid' );
+    # "neutral" (grayscale) is the most legible single theme for Citizen's
+    # light/dark auto-switching skin — "forest"/"default" wash out in dark mode.
+    $wgmermaidgDefaultTheme = 'neutral';
 
     # Maps — interactive maps with SMW integration (Google Maps, Leaflet, etc.)
     wfLoadExtension( 'Maps' );
