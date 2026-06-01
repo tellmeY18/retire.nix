@@ -107,7 +107,7 @@ jobs:
             /usr/share/swift /usr/local/share/powershell \
             /usr/local/share/chromium /usr/local/lib/node_modules \
             /opt/hostedtoolcache 2>/dev/null || true
-          sudo docker image prune -af 2>/dev/null || true
+          timeout 30 sudo docker image prune -af 2>/dev/null || true
       - uses: actions/checkout@v4
         with:
           ref: ${{ env.PR_BRANCH }}
@@ -122,21 +122,8 @@ jobs:
       - name: Build NixOS (chopper)
         run: nix build .#nixosConfigurations.chopper.config.system.build.toplevel --print-build-logs
 
-      - name: Push chopper to Attic
-        if: ${{ !inputs.skip_cache }}
-        continue-on-error: true
-        run: nix run nixpkgs#attic-client -- push "$ATTIC_CACHE" ./result
-        env:
-          ATTIC_SERVER_TOKEN: placeholder
-
-      - name: GC between builds
-        run: nix-collect-garbage >/dev/null 2>&1
-
       - name: Build NixOS (c3po)
         run: nix build .#nixosConfigurations.c3po.config.system.build.toplevel --print-build-logs
-
-      - name: GC between builds
-        run: nix-collect-garbage >/dev/null 2>&1
 
       - name: Build Home Manager (vysakh@chopper)
         run: nix build .#homeConfigurations."vysakh@chopper".activationPackage --print-build-logs
@@ -188,7 +175,7 @@ jobs:
             /usr/share/swift /usr/local/share/powershell \
             /usr/local/share/chromium /usr/local/lib/node_modules \
             /opt/hostedtoolcache 2>/dev/null || true
-          sudo docker image prune -af 2>/dev/null || true
+          timeout 30 sudo docker image prune -af 2>/dev/null || true
       - uses: actions/checkout@v4
         with:
           ref: ${{ env.PR_BRANCH }}
@@ -248,9 +235,6 @@ jobs:
 
       - name: Build macOS (darwin)
         run: nix build .#darwinConfigurations."Vysakhs-MacBook-Pro".system --print-build-logs
-
-      - name: GC between builds
-        run: nix-collect-garbage >/dev/null 2>&1
 
       - name: Build Home Manager (darwin)
         run: nix build .#homeConfigurations."mathewalex@Vysakhs-MacBook-Pro".activationPackage --print-build-logs
