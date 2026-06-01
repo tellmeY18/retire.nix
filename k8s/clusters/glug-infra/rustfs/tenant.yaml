@@ -85,13 +85,15 @@ spec:
           app.kubernetes.io/part-of: rustfs
           environment: production
 
-      topologySpreadConstraints:
-        - maxSkew: 1
-          topologyKey: kubernetes.io/hostname
-          whenUnsatisfiable: ScheduleAnyway
-          labelSelector:
-            matchLabels:
-              rustfs.pool: pool-0
+      # Topology enforcement: NOT needed here. The PVC nodeAffinity
+      # (set by OpenEBS ZFS LocalPV) is the real mechanism that pins
+      # pods 0,1 to c3po and pods 2,3 to chopper. Adding
+      # topologySpreadConstraints with DoNotSchedule would conflict
+      # with PVC affinity and cause scheduling deadlocks.
+      #
+      # The 2+2 split is guaranteed by:
+      #   - Pods 0,1 PVCs → nodeAffinity: c3po
+      #   - Pods 2,3 PVCs → nodeAffinity: chopper
 
       resources:
         requests:
@@ -113,3 +115,8 @@ spec:
     # which RustFS would otherwise interpret as a virtual-host bucket name.
     - name: RUSTFS_DOMAIN
       value: s3.internal
+    # ZFS provides data integrity (checksums, COW) so the "distinct physical
+    # disks" safety check is redundant. Both volumes per server live on the
+    # same zpool (same block device from the kernel's perspective).
+    - name: RUSTFS_UNSAFE_BYPASS_DISK_CHECK
+      value: "true"

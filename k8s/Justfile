@@ -106,6 +106,7 @@ apply:
     kubectl apply -k clusters/glug-infra/kube-system
     kubectl apply -k clusters/glug-infra/pxc
     kubectl apply -k clusters/glug-infra/rustfs
+    kubectl apply -k clusters/glug-infra/attic
     kubectl apply -k clusters/glug-infra/changala
     kubectl apply -k clusters/glug-infra/penpot
     kubectl apply -f clusters/glug-infra/monitoring/namespace.yaml
@@ -113,6 +114,8 @@ apply:
     @echo "Applying RustFS credentials (sops-decrypt)..."
     sops --decrypt clusters/glug-infra/rustfs/credentials-secret.enc.yaml | kubectl apply -f -
     kubectl apply -f clusters/glug-infra/rustfs/tenant.yaml
+    @echo "Applying Attic credentials (sops-decrypt)..."
+    sops --decrypt clusters/glug-infra/attic/credentials-secret.enc.yaml | kubectl apply -f -
     @echo "Applying Changala Ring credentials (sops-decrypt)..."
     sops --decrypt clusters/glug-infra/changala/ring-credentials-secret.enc.yaml | kubectl apply -f -
     @echo "Applying Changala Aggregator credentials (sops-decrypt)..."
