@@ -166,7 +166,10 @@ in
     # Use cached binary without any overrides
 
     #    # OR use override for policies/prefs (slight wrapper rebuild)
-    package = pkgs.firefox-devedition.override {
+    # firefox-beta and firefox-devedition have a nixpkgs packaging bug
+    # on macOS: the app bundle name contains a space ("Developer Edition.app")
+    # which breaks the wrapper's `touch` command. Use stable firefox instead.
+    package = pkgs.firefox.override {
       extraPolicies = policies;
       #      inherit extraPrefs;
     };
