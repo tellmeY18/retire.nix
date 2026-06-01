@@ -173,7 +173,7 @@ RUN cd /var/www/html && \
     COMPOSER_ALLOW_SUPERUSER=1 composer require --no-interaction --update-with-dependencies \
       mediawiki/semantic-media-wiki:"~7.0@dev" \
       mediawiki/semantic-result-formats:"~5.0@dev" \
-      mediawiki/mermaid:"~4.0@dev" \
+      mediawiki/mermaid:"~6.0" \
       mediawiki/maps:"~11.0@dev" && \
     # Fix: SMW's dep resolution drops wikimedia/equivset which AbuseFilter needs
     COMPOSER_ALLOW_SUPERUSER=1 composer require --no-interaction wikimedia/equivset && \
