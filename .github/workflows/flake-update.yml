@@ -38,7 +38,7 @@ on:
 
 concurrency:
   group: flake-update
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 permissions:
   contents: write
