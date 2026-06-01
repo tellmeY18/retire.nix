@@ -1,12 +1,30 @@
-# CI: Nix Flake Check — lint, dead-code, and format validation
-# Runs on every push/PR to develop. Lightweight (no builds).
+# CI: Nix Flake Check — lint, dead-code, and format validation.
+# Only runs when Nix-related files change. Lightweight (no builds).
 name: Nix Flake Check
 
 on:
   push:
     branches: [develop]
+    paths:
+      - "**.nix"
+      - "flake.lock"
+      - "overlays/**"
+      - "modules/**"
+      - "hosts/**"
+      - "home/**"
+      - "lib/**"
+      - "packages/**"
   pull_request:
     branches: [develop]
+    paths:
+      - "**.nix"
+      - "flake.lock"
+      - "overlays/**"
+      - "modules/**"
+      - "hosts/**"
+      - "home/**"
+      - "lib/**"
+      - "packages/**"
 
 concurrency:
   group: check-${{ github.ref }}
