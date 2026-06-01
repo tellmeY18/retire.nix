@@ -27,26 +27,41 @@ spec:
         app.kubernetes.io/part-of: mediawiki
     spec:
       restartPolicy: Never
+      # Must run on kenobi so it shares the same hostPath .smw.json with the
+      # web pods (all hard-pinned to kenobi). Without this the Job's setup
+      # marker would land on a different node and the pods wouldn't see it.
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: In
+                    values:
+                      - kenobi
       containers:
         - name: update
-          image: ghcr.io/tellmey18/mediawiki:build-48
+          image: ghcr.io/tellmey18/mediawiki:build-55
           command:
             - sh
             - -c
             - |
               echo "=== MediaWiki update.php (direct to primary DB) ==="
               echo "DB Host: $MW_DB_HOST"
-              # Create a custom LocalSettings that includes the base + enables SMW
-              cp /var/www/html/LocalSettings.php /tmp/LocalSettings.php
-              echo 'wfLoadExtension("SemanticMediaWiki");' >> /tmp/LocalSettings.php
-              php /var/www/html/maintenance/run.php update --quick --conf /tmp/LocalSettings.php
-              echo "=== SMW setupStore ==="
-              php /var/www/html/extensions/SemanticMediaWiki/maintenance/setupStore.php --conf /tmp/LocalSettings.php
+              # SemanticMediaWiki is already enabled in the base LocalSettings,
+              # so no extra wfLoadExtension is needed (re-loading would fatal).
+              php /var/www/html/maintenance/run.php update --quick
+              echo "=== SMW setupStore (sets up store in the shared DB) ==="
+              php /var/www/html/extensions/SemanticMediaWiki/maintenance/setupStore.php
+              # Write the shared sentinel so the deployment's init containers
+              # skip their own setupStore on the next rollout (no OPTIMIZE).
+              mkdir -p /smw-config && touch /smw-config/.setup-done
+              chmod -R a+rwX /smw-config 2>/dev/null || true
               echo "=== Done (exit: $?) ==="
           env:
             # Connect DIRECTLY to primary MySQL — bypass ProxySQL entirely.
             - name: MW_DB_HOST
-              value: "mysql-pxc-db-haproxy.pxc-clusters.svc.cluster.local"
+              value: "mysql-ram-pxc.pxc-ram.svc.cluster.local"
             - name: MW_DB_PASSWORD
               valueFrom:
                 secretKeyRef:
@@ -71,10 +86,16 @@ spec:
             - name: localsettings
               mountPath: /var/www/html/LocalSettings.php
               subPath: LocalSettings.php
+            - name: smw-config
+              mountPath: /smw-config
       volumes:
         - name: localsettings
           configMap:
             name: mediawiki-localsettings
+        - name: smw-config
+          hostPath:
+            path: /var/lib/mediawiki/smw-config
+            type: DirectoryOrCreate
 ---
 # ConfigMap that overrides DB settings for maintenance jobs.
 # This is loaded via MaintenanceSettings.php which is auto-loaded
@@ -89,7 +110,7 @@ data:
     <?php
     # Override DB host to connect directly to primary (bypass ProxySQL).
     # This file is only loaded by maintenance scripts, not web requests.
-    $wgDBserver = getenv('MW_DB_HOST') ?: 'mysql-pxc-db-haproxy.pxc-clusters.svc.cluster.local';
+    $wgDBserver = getenv('MW_DB_HOST') ?: 'mysql-ram-pxc.pxc-ram.svc.cluster.local';
     $wgDBservers = [
         [
             'host' => $wgDBserver,

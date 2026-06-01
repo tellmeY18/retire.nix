@@ -51,6 +51,28 @@ spec:
               echo "=== Running MediaWiki update.php ==="
               timeout 60 php -d memory_limit=512M /var/www/html/maintenance/run.php update --quick 2>&1 | tail -10 || true
               echo "=== Migrations complete ==="
+              # One-time SMW store bootstrap. SMW 7.0 keeps its real setup
+              # marker in the DATABASE (shared by all pods), so we gate on our
+              # own sentinel file on the shared hostPath. setupStore runs ONLY
+              # when the sentinel is absent; flock serialises concurrent inits
+              # (HPA scale-ups, scale-from-zero) so exactly one pod ever runs
+              # the locking OPTIMIZE at a time. Once the sentinel exists,
+              # routine restarts skip setupStore entirely — no OPTIMIZE, no
+              # smw_* table lock, no 502 cascade.
+              mkdir -p /smw-config
+              chmod 0777 /smw-config 2>/dev/null || true
+              (
+                flock 9
+                if [ ! -f /smw-config/.setup-done ]; then
+                  echo "=== SMW cold bootstrap: running setupStore (one-time) ==="
+                  if php -d memory_limit=512M /var/www/html/extensions/SemanticMediaWiki/maintenance/setupStore.php 2>&1 | tail -15; then
+                    touch /smw-config/.setup-done
+                    echo "=== setupStore complete; sentinel written ==="
+                  fi
+                else
+                  echo "=== SMW already set up (sentinel present) — skipping setupStore ==="
+                fi
+              ) 9>/smw-config/.setup.lock
           env:
             - name: MW_DB_HOST
               value: "mysql-ram-pxc.pxc-ram.svc.cluster.local"
@@ -61,6 +83,8 @@ spec:
             - name: localsettings
               mountPath: /var/www/html/LocalSettings.php
               subPath: LocalSettings.php
+            - name: smw-config
+              mountPath: /smw-config
           resources:
             requests:
               memory: "256Mi"
@@ -75,13 +99,10 @@ spec:
             - sh
             - -c
             - |
-              # Run SMW setup — retry until DB is reachable (handles pod starting before DB)
-              echo "Running SemanticMediaWiki setupStore..."
-              for i in $(seq 1 5); do
-                php -d memory_limit=512M /var/www/html/extensions/SemanticMediaWiki/maintenance/setupStore.php 2>&1 && break
-                echo "Attempt $i failed, retrying in 5s..."
-                sleep 5
-              done
+              # SMW store setup is handled once by the db-migrate init
+              # container (guarded by the shared .smw.json marker), NOT here.
+              # Running setupStore on every pod boot is what caused the
+              # OPTIMIZE-TABLE lock cascade. The web container just serves.
               exec supervisord -c /etc/supervisord.conf
           ports:
             - name: http
@@ -97,6 +118,8 @@ spec:
             - name: localsettings
               mountPath: /var/www/html/LocalSettings.php
               subPath: LocalSettings.php
+            - name: smw-config
+              mountPath: /smw-config
           resources:
             requests:
               cpu: 100m
@@ -152,6 +175,8 @@ spec:
             - name: localsettings
               mountPath: /var/www/html/LocalSettings.php
               subPath: LocalSettings.php
+            - name: smw-config
+              mountPath: /smw-config
           resources:
             requests:
               cpu: 50m
@@ -164,6 +189,14 @@ spec:
         - name: localsettings
           configMap:
             name: mediawiki-localsettings
+        # Shared SMW config/marker directory. hostPath is safe here because
+        # every MediaWiki pod is hard-pinned to kenobi via nodeAffinity, so
+        # all pods + the maintenance Job (also pinned to kenobi) see the same
+        # .smw.json. This makes SMW setupStore a run-once operation.
+        - name: smw-config
+          hostPath:
+            path: /var/lib/mediawiki/smw-config
+            type: DirectoryOrCreate
 ---
 apiVersion: v1
 kind: Service
