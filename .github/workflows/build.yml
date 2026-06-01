@@ -15,8 +15,26 @@ name: Build Configurations
 on:
   push:
     branches: [develop]
+    paths:
+      - "**.nix"
+      - "flake.lock"
+      - "overlays/**"
+      - "modules/**"
+      - "hosts/**"
+      - "home/**"
+      - "lib/**"
+      - "packages/**"
   pull_request:
     branches: [develop]
+    paths:
+      - "**.nix"
+      - "flake.lock"
+      - "overlays/**"
+      - "modules/**"
+      - "hosts/**"
+      - "home/**"
+      - "lib/**"
+      - "packages/**"
 
 concurrency:
   group: build-${{ github.ref }}
