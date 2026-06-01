@@ -338,6 +338,10 @@ jobs:
 
           sudo "$TS_PATH/bin/tailscale" up --authkey="$AUTH_KEY" --hostname="gh-ci-$(hostname | cut -c1-20)"
 
+          # macOS: MagicDNS doesn't auto-configure — set system DNS to Tailscale's resolver
+          sudo networksetup -setdnsservers "Ethernet" 100.100.100.100
+          sudo networksetup -setsearchdomains "Ethernet" tail477f2f.ts.net
+
       - name: Configure Attic
         if: ${{ !inputs.skip_cache }}
         run: |

@@ -3,7 +3,10 @@ kind: Kustomization
 resources:
   - namespace.yaml
   - config.yaml
-  - credentials-secret.enc.yaml
-  - db-init-job.yaml
+  # credentials-secret.enc.yaml is sops-encrypted — applied separately:
+  #   sops --decrypt credentials-secret.enc.yaml | kubectl apply -f -
+  # db-init-job.yaml is a one-time setup job (already completed).
+  # Re-running it fails because it expects a cross-namespace secret.
+  # Only apply manually if re-initializing the database.
   - deployment.yaml
   - tailscale-service.yaml
