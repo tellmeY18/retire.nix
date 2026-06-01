@@ -27,7 +27,7 @@ We just installed 17 extensions but most are **loaded but unused**. This plan fi
 
 | Extension | Loaded | Currently Used? | Gap |
 |---|---|---|---|
-| PageForms | ✅ | 🟢 Live | 13 forms, all category-linked with `{{#default_form}}`; Edit-with-form tab verified |
+| PageForms | ✅ | 🟢 Live | 14 forms, all category-linked; Edit-with-form tab verified |
 | PageSchemas | ✅ | ❌ No | No schemas defined |
 | Lingo | ✅ | ✅ Live | `Terminology` seeded; tooltips rendering in mainspace |
 | WikiSEO | ✅ | ✅ Live | `{{#seo:}}` in Centre infobox + `{{SEO}}` helper; custom OG hook retired |
@@ -36,12 +36,12 @@ We just installed 17 extensions but most are **loaded but unused**. This plan fi
 | Mermaid | ✅ | 🟢 Live | Org chart (colour-coded) + FOSSCell structure + wayfinding; engine on mermaid.js 10.9.4, `neutral` theme |
 | SemanticResultFormats | ✅ | ⚠️ Partial | Cargo dynamic tables live (Centres, Clubs); SRF calendar pending Date-field schema |
 | ExternalData | ✅ | ⚠️ Configured | Allowlist + 1h cache in ConfigMap (active next rollout); live feed deferred — NITC has no RSS/JSON |
-| Translate | ✅ | ❌ No | `Translations` ns exists, unused |
-| UniversalLanguageSelector | ✅ | ❌ No | No language/font config surfaced |
+| Translate | ✅ | ⚠️ Prepared | `Welcome` page translation-ready; awaits admin mark-for-translation |
+| UniversalLanguageSelector | ✅ | 🟢 Live | Malayalam input + webfonts + interlanguage selector; `Help:Languages` |
 | UploadWizard | ✅ | ⚠️ Configured | Not linked from nav; users use plain Special:Upload |
 | SyntaxHighlight | ✅ | ⚠️ Rare | Few code blocks; tech wiki should use heavily |
 | ReplaceText | ✅ | Admin tool | Use for category/naming migrations |
-| TemplateData | ✅ | ❌ No | No template has TemplateData JSON (hurts VE) |
+| TemplateData | ✅ | 🟢 Live | JSON param docs on 5 key infoboxes (VE + forms) |
 | SemanticMediaWiki | ✅ | ❌ No | Installed but Cargo is the data layer — decide role |
 | Cargo | ✅ | ✅ Yes | 8 tables; underused for queries/SRF |
 
@@ -284,10 +284,12 @@ We just installed 17 extensions but most are **loaded but unused**. This plan fi
 
 > ⚠️ **Rollout hazard (✅ RESOLVED this sprint):** the per-pod `setupStore` `OPTIMIZE` deadlock that took the site to 502 is fixed via a flock-serialised `.setup-done` sentinel on a shared hostPath — see Risks. Rollouts are now clean (`maxSurge:1`, verified HTTP 200 throughout).
 
-### Sprint 4 — Forms & i18n (Week 4) 🟡🟠 — 🟢 In progress
-- [x] **PageForms:** all 13 core forms live + category-linked (Centre, Club, Home Team, Home Team Year, Campus Location, Centre Year Report, CCD Year Report, Hostel, Course, Person, Faculty, Event, SAC Meeting). "Edit with form" tab verified on existing pages.
-- [ ] TemplateData JSON on infoboxes (VE param editors); FOSSMeet form; PageSchemas on top categories; Cargo autocomplete in forms
-- [ ] **Translate + ULS:** Malayalam for Main Page + 5 public pages
+### Sprint 4 — Forms & i18n (Week 4) 🟡🟠 — ✅ DONE
+- [x] **PageForms:** all 14 core forms live + category-linked (Centre, Club, Home Team, Home Team Year, Campus Location, Centre Year Report, CCD Year Report, Hostel, Course, Person, Faculty, Event, SAC Meeting, FOSSMeet). "Edit with form" tab verified.
+- [x] **TemplateData:** JSON parameter docs on 5 key infoboxes (Centre, Club, Campus Location, Hostel, Faculty) — improves VisualEditor param editors + form metadata.
+- [x] **ULS:** Universal Language Selector live (Malayalam input methods + webfonts + interlanguage selector). `Help:Languages` documents the workflow.
+- [x] **Translate:** translation-ready `Welcome` page prepared with `<languages/>` + `<translate>` units; '''awaits an admin to "Mark for translation" via Special:PageTranslation''' (the edit API cannot perform that step).
+- [ ] *Follow-up:* PageSchemas on top categories; Cargo autocomplete in forms; translate more public pages once the workflow is exercised.
 
 ---
 
