@@ -1,8 +1,15 @@
 # PageForms Migration Plan — wiki.fosscell.org
 
-> **Status:** Planning
+> **Status:** ✅ Forms complete — all 13 core forms live and category-linked (2026-06-01)
 > **Depends on:** Phase 4 (Templates) from ROADMAP.md — templates already exist
-> **Extensions required:** PageForms ✅, PageSchemas ✅, Cargo ✅ (all loaded in build-53)
+> **Extensions required:** PageForms ✅, PageSchemas ✅, Cargo ✅ (all loaded, build-55)
+>
+> **Live forms:** Centre, Club, Home Team, Home Team Year, Campus Location,
+> Centre Year Report, CCD Year Report, Hostel, Course, Person, Faculty,
+> Event, SAC Meeting. Each is linked to its category via `{{#default_form:}}`
+> so existing pages show an "Edit with form" tab — verified rendering with
+> mandatory fields + dropdowns. Remaining: FOSSMeet form, TemplateData JSON,
+> PageSchemas, Cargo autocomplete.
 
 ---
 
