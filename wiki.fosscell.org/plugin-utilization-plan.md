@@ -33,8 +33,8 @@ We just installed 17 extensions but most are **loaded but unused**. This plan fi
 | WikiSEO | ✅ | ✅ Live | `{{#seo:}}` in Centre infobox + `{{SEO}}` helper; custom OG hook retired |
 | Widgets | ✅ | ❌ No | `Widget:` namespace empty |
 | Maps | ✅ | ❌ No | 100+ location pages, zero maps; `GeoJson` ns empty |
-| Mermaid | ✅ | ❌ No | No diagrams anywhere |
-| SemanticResultFormats | ✅ | ❌ No | SMW installed but no `#ask` result formats |
+| Mermaid | ✅ | 🟢 Live | Org chart + FOSSCell structure; `Html` shim applied for MW 1.45 |
+| SemanticResultFormats | ✅ | ⚠️ Partial | Cargo dynamic tables live; SRF calendar pending Date-field schema |
 | ExternalData | ✅ | ❌ No | No external feeds; manual copy-paste from nitc.ac.in |
 | Translate | ✅ | ❌ No | `Translations` ns exists, unused |
 | UniversalLanguageSelector | ✅ | ❌ No | No language/font config surfaced |
@@ -270,10 +270,13 @@ We just installed 17 extensions but most are **loaded but unused**. This plan fi
 - [x] **SyntaxHighlight:** `Help:Code formatting` page + `{{SEO}}` helper template
 - [ ] *Follow-up:* bake `{{#seo:}}` into remaining infoboxes (Club, FOSSMeet, Home Team); retrofit workshop pages with `<syntaxhighlight>`
 
-### Sprint 2 — Visual & Structured (Week 2) 🟡
-- [ ] **Mermaid:** org chart, FOSSMeet timeline, FOSSCell structure, campus wayfinding
-- [ ] **Cargo `#cargo_store`:** add to Centre, Club, CCD, FOSSMeet templates
-- [ ] **SemanticResultFormats/Cargo:** Events calendar, FOSSMeet timeline, placement chart
+### Sprint 2 — Visual & Structured (Week 2) 🟡 — 🟢 In progress
+- [x] **Mermaid:** org chart on `NITC Administration`, FOSSCell team structure — *fixed MW 1.45 `Html` class incompat via `class_alias` shim*
+- [x] **Cargo `#cargo_store`:** added to `Infobox Centre` (Centres table, 34 pages populated)
+- [x] **Cargo dynamic views:** `Multidisciplinary Centres` and `Thematic Centres` lists now auto-generate from the Centres table (no more manual upkeep)
+- [ ] FOSSMeet timeline diagram + campus wayfinding diagram
+- [ ] Cargo store on `Infobox Club`, `CCD Year Report`, `Infobox FOSSMeet`
+- [ ] *Follow-up:* Events `format=calendar` needs a Date field added to `Template:Event` (currently separate year/month/day integers)
 
 ### Sprint 3 — Maps & Live Data (Week 3) 🟡🟠
 - [ ] **Maps:** collect coordinates, build `NITC Campus Map`, infobox mini-maps
@@ -320,6 +323,8 @@ $egMapsLeafletLayers = [ 'OpenStreetMap' ];
 ---
 
 ## 5. Risks & Notes
+
+- **MW 1.45 `Html` class:** ✅ Resolved — 1.45 removed the global `Html` alias (now `MediaWiki\Html\Html`). Mermaid/Maps/SRF still `use Html;`. A `class_alias` shim in `localsettings-configmap.yaml` restores it for all 18+ affected files.
 
 - **SMW vs Cargo overlap:** Both installed. Keep Cargo as primary data store; use SMW only where SRF needs it. Don't double-annotate everything — it doubles write load (relevant on the laptop cluster).
 - **ExternalData egress:** Pods fetch external URLs → ensure NetworkPolicy allows egress to nitc.ac.in + cache aggressively (don't hammer on every parse).
