@@ -10,7 +10,6 @@
 #
 # Note: Most packages are substituted from cache.nixos.org. Only custom
 # packages (overlays, nixvim config, etc.) are actually compiled here.
-# GC between builds prevents disk exhaustion on runners.
 name: Build Configurations
 
 on:
@@ -33,7 +32,7 @@ jobs:
             /usr/share/swift /usr/local/share/powershell \
             /usr/local/share/chromium /usr/local/lib/node_modules \
             /opt/hostedtoolcache 2>/dev/null || true
-          sudo docker image prune -af 2>/dev/null || true
+          timeout 30 sudo docker image prune -af 2>/dev/null || true
           df -h / | tail -1
       - uses: actions/checkout@v4
       - uses: DeterminateSystems/nix-installer-action@main
@@ -47,19 +46,11 @@ jobs:
           --print-build-logs
           ${{ github.event_name == 'pull_request' && '--dry-run' || '' }}
 
-      - name: GC between builds
-        if: github.event_name == 'push'
-        run: nix-collect-garbage >/dev/null 2>&1
-
       - name: Build NixOS (c3po)
         run: >
           nix build .#nixosConfigurations.c3po.config.system.build.toplevel
           --print-build-logs
           ${{ github.event_name == 'pull_request' && '--dry-run' || '' }}
-
-      - name: GC between builds
-        if: github.event_name == 'push'
-        run: nix-collect-garbage >/dev/null 2>&1
 
       - name: Build Home Manager (vysakh@chopper)
         run: >
@@ -76,7 +67,7 @@ jobs:
             /usr/share/swift /usr/local/share/powershell \
             /usr/local/share/chromium /usr/local/lib/node_modules \
             /opt/hostedtoolcache 2>/dev/null || true
-          sudo docker image prune -af 2>/dev/null || true
+          timeout 30 sudo docker image prune -af 2>/dev/null || true
           df -h / | tail -1
       - uses: actions/checkout@v4
       - uses: DeterminateSystems/nix-installer-action@main
@@ -113,10 +104,6 @@ jobs:
           nix build .#darwinConfigurations."Vysakhs-MacBook-Pro".system
           --print-build-logs
           ${{ github.event_name == 'pull_request' && '--dry-run' || '' }}
-
-      - name: GC between builds
-        if: github.event_name == 'push'
-        run: nix-collect-garbage >/dev/null 2>&1
 
       - name: Build Home Manager (darwin)
         run: >
