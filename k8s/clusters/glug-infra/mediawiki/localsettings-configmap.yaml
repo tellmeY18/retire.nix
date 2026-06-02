@@ -90,6 +90,23 @@ data:
         }
     };
 
+    # Auto-purge the magazine when a submission is saved.
+    # Cargo does NOT re-render pages that *query* a table when a new row is
+    # added, so 2026:Magazine would otherwise show stale results until its
+    # own cache expired. Whenever a User:*/Magazine/* page is saved, purge
+    # the magazine page so the new entry appears immediately.
+    $wgHooks['PageSaveComplete'][] = function ( $wikiPage, $userIdentity, $summary, $flags, $revisionRecord, $editResult ) {
+        $title = $wikiPage->getTitle();
+        if ( $title->getNamespace() === NS_USER && strpos( $title->getText(), '/Magazine/' ) !== false ) {
+            $services = \MediaWiki\MediaWikiServices::getInstance();
+            $magTitle = $services->getTitleFactory()->newFromText( '2026:Magazine' );
+            if ( $magTitle && $magTitle->exists() ) {
+                $services->getWikiPageFactory()->newFromTitle( $magTitle )->doPurge();
+            }
+        }
+        return true;
+    };
+
     # File cache DISABLED — causes stale content for anonymous users.
     # Redis parser cache + buffer pool provide sufficient performance.
     # $wgUseFileCache = true;
