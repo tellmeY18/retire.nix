@@ -60,6 +60,16 @@
     wants = [ "network-online.target" ];
     wantedBy = [ "multi-user.target" ];
     before = [ "k3s.service" ];
+    # coreutils (timeout/sleep), bash (sh), iproute2 (ip), gnugrep (grep) must
+    # be on PATH — the ExecStart shells out to all of them. Without this the
+    # unit exits 127 ("sh: No such file or directory"), which fails activation
+    # and triggers a deploy-rs rollback.
+    path = [
+      pkgs.coreutils
+      pkgs.bash
+      pkgs.iproute2
+      pkgs.gnugrep
+    ];
     serviceConfig = {
       Type = "oneshot";
       RemainAfterExit = true;
