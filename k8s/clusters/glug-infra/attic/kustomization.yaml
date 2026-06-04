@@ -10,5 +10,5 @@ resources:
   # Only apply manually if re-initializing the database.
   - deployment.yaml
   - tailscale-service.yaml
-  - funnel.yaml
+  - ingress-traefik.yaml
   - hpa.yaml
