@@ -46,14 +46,23 @@ present:
 #   kenobi    aarch64-linux  k3s agent (compute node, OCI ARM VM)
 
 # Deploy to a specific NixOS host.
+#
+# --magic-rollback false is REQUIRED for the k3s nodes (chopper/c3po/kenobi):
+# their networking blips during activation, so the magic-rollback confirmation
+# round-trip fails and triggers a rollback that churns k3s/etcd. See the
+# deploy-k3s-nodes skill.
 [doc('Deploy NixOS config to a host (e.g. just deploy chopper)')]
 deploy host:
-    nix run .#deploy-rs -- .#{{ host }} --skip-checks
+    nix run .#deploy-rs -- .#{{ host }} --skip-checks --magic-rollback false
 
 # Deploy to ALL configured NixOS hosts.
-[doc('Deploy NixOS config to all hosts')]
+#
+# DANGER for the k3s cluster: this bounces all three control-plane/etcd nodes
+# in one run, which risks quorum. Prefer `just deploy <host>` ONE AT A TIME,
+# verifying each node rejoins (see the deploy-k3s-nodes skill) before the next.
+[doc('Deploy NixOS config to all hosts (avoid for the k3s nodes — see skill)')]
 deploy-all:
-    nix run .#deploy-rs -- --skip-checks
+    nix run .#deploy-rs -- --skip-checks --magic-rollback false
 
 # Dry-run: build + dry-activate without switching.
 [doc('Dry-run deploy (build only, no switch)')]
