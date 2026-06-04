@@ -104,7 +104,6 @@ fetch-kubeconfig:
 apply:
     kubectl apply -k clusters/glug-infra
     kubectl apply -k clusters/glug-infra/kube-system
-    kubectl apply -k clusters/glug-infra/pxc
     kubectl apply -k clusters/glug-infra/rustfs
     kubectl apply -k clusters/glug-infra/attic
     kubectl apply -k clusters/glug-infra/changala
@@ -120,16 +119,24 @@ apply:
     sops --decrypt clusters/glug-infra/changala/ring-credentials-secret.enc.yaml | kubectl apply -f -
     @echo "Applying Changala Aggregator credentials (sops-decrypt)..."
     sops --decrypt clusters/glug-infra/changala/aggregator-credentials-secret.enc.yaml | kubectl apply -f -
+    @echo "Applying Ghost MGR DB secrets (sops-decrypt), then the cluster..."
+    sops --decrypt clusters/glug-infra/mysql-ghost/credentials-secret.enc.yaml | kubectl apply -f -
+    sops --decrypt clusters/glug-infra/mysql-ghost/proxysql-ghost-config-secret.enc.yaml | kubectl apply -f -
+    kubectl apply -k clusters/glug-infra/mysql-ghost
+    @echo "Applying MediaWiki standalone MySQL secrets (sops-decrypt), then the cluster..."
+    sops --decrypt clusters/glug-infra/mysql-mediawiki/credentials-secret.enc.yaml | kubectl apply -f -
+    kubectl apply -k clusters/glug-infra/mysql-mediawiki
     kubectl apply -k clusters/glug-infra/monitoring
 
 # Preview k8s changes without applying.
 [doc('Preview kustomize + helmfile changes (no apply)')]
 diff:
     kubectl diff -k clusters/glug-infra || true
-    kubectl diff -k clusters/glug-infra/pxc || true
     kubectl diff -k clusters/glug-infra/rustfs || true
     kubectl diff -f clusters/glug-infra/rustfs/tenant.yaml 2>/dev/null || true
     kubectl diff -k clusters/glug-infra/changala || true
+    kubectl diff -k clusters/glug-infra/mysql-ghost || true
+    kubectl diff -k clusters/glug-infra/mysql-mediawiki || true
     kubectl diff -k clusters/glug-infra/penpot || true
     kubectl diff -k clusters/glug-infra/monitoring || true
     helmfile diff
@@ -294,56 +301,22 @@ cnpg-backup-list:
       -o custom-columns=NAME:.metadata.name,PHASE:.status.phase,STARTED:.status.startedAt,STOPPED:.status.stoppedAt
 
 # ---------------------------------------------------------------------------
-# PXC (Percona XtraDB Cluster) day-2 helpers
+# mysql-ghost (MySQL Group Replication) day-2 helpers
 # ---------------------------------------------------------------------------
 
-# Show PXC cluster status.
-[doc('Show Percona XtraDB Cluster status')]
-pxc-status:
-    kubectl get pxc mysql -n pxc-clusters -o wide
+# Show MGR group membership (primary + secondaries).
+[doc('Show mysql-ghost MGR group members')]
+mgr-status:
+    kubectl exec -n mysql-ghost mysql-ghost-a-0 -c mysql -- sh -c \
+      'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" -e "SELECT member_host,member_state,member_role FROM performance_schema.replication_group_members;"' 2>/dev/null \
+      || kubectl exec -n mysql-ghost mysql-ghost-b-0 -c mysql -- sh -c 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" -e "SELECT member_host,member_state,member_role FROM performance_schema.replication_group_members;"'
 
-# Show detailed PXC cluster info.
-[doc('Show detailed PXC cluster description')]
-pxc-describe:
-    kubectl describe pxc mysql -n pxc-clusters
-
-# Tail logs from the PXC operator.
-[doc('Tail PXC operator logs')]
-pxc-operator-logs:
-    kubectl logs -n pxc-system -l app.kubernetes.io/name=pxc-operator -f --tail=200
-
-# Tail logs from the PXC primary (writer) node.
-[doc('Tail PXC primary node logs')]
-pxc-primary-logs:
-    kubectl logs -n pxc-clusters mysql-pxc-0 -c pxc -f --tail=200
-
-# Tail HAProxy logs.
-[doc('Tail PXC HAProxy logs')]
-pxc-haproxy-logs:
-    kubectl logs -n pxc-clusters -l app.kubernetes.io/component=haproxy,app.kubernetes.io/instance=mysql -f --tail=200
-
-# Show all PXC pods and their status.
-[doc('List all PXC pods')]
-pxc-pods:
-    kubectl -n pxc-clusters get pods -l app.kubernetes.io/instance=mysql -o wide
-
-# List PXC backup objects.
-[doc('List PXC backup objects')]
-pxc-backup-list:
-    kubectl get pxc-backup -n pxc-clusters \
-      -o custom-columns=NAME:.metadata.name,STATE:.status.state,COMPLETED:.status.completed
-
-# Trigger an on-demand PXC backup.
-[doc('Trigger an on-demand PXC backup')]
-pxc-backup-now:
-    @echo "Creating on-demand PXC backup..."
-    kubectl apply -n pxc-clusters -f - <<< '{"apiVersion":"pxc.percona.com/v1","kind":"PerconaXtraDBClusterBackup","metadata":{"generateName":"on-demand-","namespace":"pxc-clusters"},"spec":{"pxcCluster":"mysql","storageName":"s3-backup"}}'
-
-# Connect to MySQL via the HAProxy service (requires mysql client).
-[doc('Open a MySQL shell via HAProxy')]
-pxc-shell:
-    @echo "Connecting to MySQL via HAProxy..."
-    kubectl exec -n pxc-clusters -it mysql-haproxy-0 -- mysql -h 127.0.0.1 -u root -p
+# Show ProxySQL backend routing (writer HG10 / reader HG20).
+[doc('Show proxysql-ghost backend routing')]
+mgr-routing:
+    kubectl exec -n mysql-ghost deploy/proxysql-ghost -- \
+      mysql -uradmin -p"$(kubectl get secret -n mysql-ghost mysql-ghost-gr -o jsonpath='{.data.radmin_password}' | base64 -d)" \
+      -h127.0.0.1 -P6032 -e "SELECT hostgroup_id,hostname,status FROM runtime_mysql_servers ORDER BY hostgroup_id;"
 
 # ---------------------------------------------------------------------------
 # RustFS (S3-compatible object storage) day-2 helpers

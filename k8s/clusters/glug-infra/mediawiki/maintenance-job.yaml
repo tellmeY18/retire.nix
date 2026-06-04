@@ -61,7 +61,7 @@ spec:
           env:
             # Connect DIRECTLY to primary MySQL — bypass ProxySQL entirely.
             - name: MW_DB_HOST
-              value: "mysql-ram-pxc.pxc-ram.svc.cluster.local"
+              value: "mysql-mediawiki-db.mysql-mediawiki.svc.cluster.local"
             - name: MW_DB_PASSWORD
               valueFrom:
                 secretKeyRef:
@@ -110,7 +110,7 @@ data:
     <?php
     # Override DB host to connect directly to primary (bypass ProxySQL).
     # This file is only loaded by maintenance scripts, not web requests.
-    $wgDBserver = getenv('MW_DB_HOST') ?: 'mysql-ram-pxc.pxc-ram.svc.cluster.local';
+    $wgDBserver = getenv('MW_DB_HOST') ?: 'mysql-mediawiki-db.mysql-mediawiki.svc.cluster.local';
     $wgDBservers = [
         [
             'host' => $wgDBserver,

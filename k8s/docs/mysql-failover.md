@@ -1,186 +1,108 @@
-# MySQL Failover: PXC → RAM Replica Auto-Promotion
+# MySQL Failover: `mysql-ghost` MGR Auto-Promotion
 
-> **Status:** TODO — blocked on password policy unification (see Prerequisites)
+> **Status:** Live. The old PXC + RAM-replica + standalone-ProxySQL failover
+> design described here previously is gone (PXC decommissioned). Ghost now runs
+> on a 3-member MySQL Group Replication cluster that fails over on its own.
 
 ## Goal
 
-If the primary PXC cluster (chopper) goes offline, the RAM replica (kenobi)
-should automatically become the sole MySQL backend for all traffic (reads AND
-writes). When PXC returns, the RAM replica demotes itself back to read-only.
+If the current MGR primary (`mysql-ghost-a` on chopper) or its node goes
+offline, the group should automatically elect a new primary from the surviving
+members, and `proxysql-ghost` should re-route writes to it with no manual
+intervention. When the original member returns it rejoins as a secondary.
 
-## Current Architecture
+This is genuinely HA: it survived a real chopper node failure with automatic
+failover during deployment.
+
+## Architecture
 
 ```
-MediaWiki / Ghost
+Ghost / ActivityPub
        │
-   ProxySQL
-       ├── hostgroup 10 (WRITER) → mysql-pxc-db-haproxy.pxc-clusters.svc (chopper)
-       └── hostgroup 20 (READER) → mysql-ram-pxc.pxc-ram.svc (kenobi)
-```
-
-- RAM replica: `read-only=ON`, `super-read-only=ON`, async replication from PXC
-- ProxySQL monitor: **DISABLED** (`mysql-monitor_enabled=false`)
-- Failover: **none** — if PXC dies, writes fail silently (timeout → 503)
-
-## Target Architecture
-
-```
-MediaWiki / Ghost
+   proxysql-ghost (kenobi, namespace mysql-ghost)
+       ├── hostgroup 10 (WRITER) → current MGR primary
+       └── hostgroup 20 (READER) → secondaries (auto-discovered)
        │
-   ProxySQL (monitor ENABLED)
-       ├── hostgroup 10 (WRITER) → PXC HAProxy  ← primary
-       ├── hostgroup 10 (WRITER) → RAM replica   ← backup (only when PXC is DOWN)
-       └── hostgroup 20 (READER) → RAM replica   ← always
-       │
-   failover-sidecar (watches ProxySQL stats)
-       └── promotes/demotes RAM replica based on PXC health
+   MGR (single-primary, group_replication)
+       ├── mysql-ghost-a  chopper, ZFS   weight 50  (preferred primary)
+       ├── mysql-ghost-b  c3po, ZFS      weight 40  (secondary)
+       └── mysql-ghost-c  kenobi, hostPath weight 10 (quorum-only, never primary)
 ```
 
-## Prerequisites (blockers)
+- 3 members tolerate **one** failure (majority = 2/3). Losing one storage node
+  keeps the group writable; the primary fails over to the survivor.
+- `proxysql-ghost`'s MGR monitor reads `sys.gr_member_routing_candidate_status`
+  on each member to discover which one is the writable primary, and keeps that
+  member in writer hostgroup 10.
+- Member weights bias the election: `a` is preferred, then `b`; `c` (the kenobi
+  quorum vote) only ever becomes primary if it is the last survivor.
 
-- [ ] **Unify password policies** — the RAM replica has different user passwords
-  than PXC. ProxySQL monitor needs consistent credentials to health-check both
-  backends. Fix: sync the `monitor` user + app user passwords across both MySQL
-  instances.
-- [ ] **Re-enable ProxySQL monitor** — currently disabled because monitor user
-  credentials don't match. After password unification, set
-  `mysql-monitor_enabled=true` in the ProxySQL config.
-- [ ] **Test replication consistency** — verify GTID positions are in sync and
-  the RAM replica can cleanly accept writes after `STOP REPLICA`.
+## How automatic failover works
 
-## Implementation Plan
+1. The primary pod or its node dies.
+2. MGR detects the loss and, with a surviving majority, elects a new primary
+   (highest-weight ONLINE member). `group_replication_consistency=BEFORE_ON_PRIMARY_FAILOVER`
+   narrows the window of in-flight transactions.
+3. `proxysql-ghost`'s monitor sees the new primary report
+   `viable_candidate=YES, read_only=NO` via the routing view and moves it into
+   hostgroup 10; the demoted/old member is dropped from HG10.
+4. Ghost's connection pool reconnects; clients see at most a brief drop.
+5. When the failed member returns, `group_replication_start_on_boot=ON` rejoins
+   it as a secondary (cloning from the group if it fell too far behind).
 
-### Step 1: Password Unification
+No failover sidecar, no manual promotion, no async-replica toggling — MGR owns
+the election and ProxySQL owns the routing.
 
-Create a consistent set of MySQL users across PXC and RAM:
+## Quorum caveat
 
-```sql
--- On PXC primary (via HAProxy):
-CREATE USER IF NOT EXISTS 'monitor'@'%' IDENTIFIED BY '<unified-password>';
-GRANT REPLICATION CLIENT ON *.* TO 'monitor'@'%';
+Because `mysql-ghost-c` counts toward the write majority, the last few committed
+transactions may live only on `primary + c`; if both die simultaneously the
+surviving storage node is in the minority and the group goes **read-only** until
+quorum returns. This is accepted for a low-write blog. If the group is stuck in
+the minority, recover with the runbook in
+[`../../docs/mysql-ghost-mgr.md`](../../docs/mysql-ghost-mgr.md) (§7 Day-2).
 
--- On RAM replica (after STOP REPLICA for writes):
--- Already replicated via async replication, but verify.
-```
+## MediaWiki is not in this path
 
-Update ProxySQL config:
-```
-mysql-monitor_username="monitor"
-mysql-monitor_password="<unified-password>"
-mysql-monitor_enabled=true
-```
+MediaWiki runs on the **standalone single-node** `mysql-mediawiki` (kenobi,
+hostPath) — deliberately kept off MGR because its schema has 52
+primary-key-less tables (MediaWiki core + SemanticMediaWiki `smw_*` + Cargo
+`cargo_*`) and Group Replication requires a primary key on every table. There is
+**no automatic failover** for MediaWiki: while kenobi is down, MediaWiki's MySQL
+is simply down. Protection is the hourly logical backup to S3 — recover by
+restoring the latest dump.
 
-### Step 2: ProxySQL Replication Hostgroups
+## Monitoring & alerts
 
-Replace static hostgroup routing with replication-aware routing:
+VictoriaMetrics rules (`monitoring/mysql-ghost-vmrules.yaml`) alert on:
 
-```sql
--- ProxySQL admin:
-INSERT INTO mysql_replication_hostgroups (writer_hostgroup, reader_hostgroup, check_type)
-VALUES (10, 20, 'read_only');
-LOAD MYSQL SERVERS TO RUNTIME;
-SAVE MYSQL SERVERS TO DISK;
-```
+- `MGRMemberOffline` — a member is not `ONLINE` in
+  `performance_schema.replication_group_members`.
+- `MGRNoPrimary` — the group has no member in the `PRIMARY` role.
+- `MGRReadOnly` — the group lost quorum and went read-only.
+- `MGRReplicationLagHigh` — a secondary's apply queue is growing.
 
-This tells ProxySQL: check each server's `read_only` variable. Servers with
-`read_only=OFF` → hostgroup 10 (writer). Servers with `read_only=ON` →
-hostgroup 20 (reader).
-
-### Step 3: Failover Sidecar
-
-A lightweight container in the ProxySQL pod that:
-
-1. Every 10s: queries ProxySQL admin for hostgroup 10 server status
-2. If hostgroup 10 has 0 ONLINE servers for >30s (confirmed outage):
-   - Connects to RAM replica
-   - `STOP REPLICA; SET GLOBAL read_only=OFF; SET GLOBAL super_read_only=OFF;`
-   - ProxySQL monitor detects `read_only=OFF` → moves RAM to hostgroup 10
-   - Log: "FAILOVER: RAM replica promoted to writer"
-3. If PXC comes back (hostgroup 10 original server becomes reachable):
-   - Waits 60s for stability
-   - Connects to RAM replica
-   - `SET GLOBAL read_only=ON; SET GLOBAL super_read_only=ON; START REPLICA;`
-   - ProxySQL monitor detects `read_only=ON` → moves RAM back to hostgroup 20
-   - Log: "RECOVERY: RAM replica demoted, PXC resumed as writer"
-
-### Step 4: Split-Brain Prevention
-
-- The failover sidecar holds a lease (ConfigMap lock or simple file flag)
-- Only ONE promotion can happen at a time
-- Before promoting RAM: verify PXC is truly unreachable (not just slow)
-  - Ping PXC 3 times with 5s intervals
-  - Check ProxySQL `ConnFree` + `ConnUsed` counters (0 = truly dead)
-- Before demoting RAM: verify PXC has caught up (GTID comparison)
-  - If RAM accepted writes while PXC was down, PXC must replicate those
-    back before resuming as primary (or accept data divergence)
-
-## Risks & Caveats
-
-| Risk | Mitigation |
-|------|-----------|
-| Split-brain (both accept writes) | Failover sidecar holds exclusive lease; 30s grace period |
-| Data loss on failover (async replication lag) | Accept: async replication has inherent RPO > 0. Log GTID position at promotion time for manual reconciliation if needed. |
-| RAM replica runs out of memory under write load | RAM node has 4Gi limit with 2Gi buffer pool — sufficient for MediaWiki/Ghost write patterns. Monitor with alerts. |
-| PXC comes back with stale data | After recovery, PXC must re-sync from RAM (reverse replication) or accept divergence. Document the manual reconciliation procedure. |
-| ProxySQL monitor false positive | Use `connect_timeout_server_ms=3000` and `monitor_ping_interval=2000` — require 3 consecutive failures before marking DOWN. |
-
-## Monitoring & Alerts
-
-Add to VictoriaMetrics rules:
-
-- `ProxySQLWriterDown` (critical): hostgroup 10 has 0 ONLINE servers for >30s
-- `MySQLRAMPromoted` (warning): RAM replica has `read_only=OFF` (failover active)
-- `ReplicationLagHigh` (warning): `Seconds_Behind_Source > 10` on RAM replica
-- `FailoverSidecarUnhealthy` (critical): sidecar container not running
-
-## Files to Create/Modify
-
-| File | Change |
-|------|--------|
-| `proxysql/proxysql-config-secret.enc.yaml` | Enable monitor, add replication hostgroups, add RAM as backup in HG10 |
-| `proxysql/deployment.yaml` | Add failover-sidecar container |
-| `pxc-ram/mysql-ram-config.yaml` | Document that `read-only` will be toggled by the sidecar |
-| `monitoring/proxysql-failover-vmrules.yaml` | Alerting rules |
-| Users/passwords | Unify across PXC + RAM + ProxySQL |
-
-## Manual Failover (emergency, before automation is ready)
-
-If PXC dies and you need to promote RAM manually RIGHT NOW:
+## Manual operations
 
 ```sh
-# 1. Stop replication and enable writes on RAM
-kubectl exec -n pxc-ram mysql-ram-0 -c mysql -- mysql -uroot -e "
-  STOP REPLICA;
-  SET GLOBAL read_only=OFF;
-  SET GLOBAL super_read_only=OFF;
-"
+ROOT=$(kubectl get secret -n mysql-ghost mysql-ghost-root -o jsonpath='{.data.password}' | base64 -d)
 
-# 2. Point ProxySQL hostgroup 10 to RAM
-kubectl exec -n proxysql deployment/proxysql -- mysql -h127.0.0.1 -P6032 -uradmin -p'admin' -e "
-  UPDATE mysql_servers SET status='SHUNNED' WHERE hostgroup_id=10 AND hostname LIKE '%pxc%';
-  INSERT INTO mysql_servers (hostgroup_id, hostname, port) VALUES (10, 'mysql-ram-pxc.pxc-ram.svc.cluster.local', 3306);
-  LOAD MYSQL SERVERS TO RUNTIME;
-"
+# Current membership / which member is PRIMARY:
+kubectl exec -n mysql-ghost mysql-ghost-a-0 -c mysql -- \
+  mysql -uroot -p"$ROOT" -e \
+  "SELECT member_host, member_state, member_role \
+   FROM performance_schema.replication_group_members;"
 
-# 3. Verify
-kubectl exec -n proxysql deployment/proxysql -- mysql -h127.0.0.1 -P6032 -uradmin -p'admin' -e "
-  SELECT hostgroup, srv_host, status FROM stats_mysql_connection_pool WHERE hostgroup=10;
-"
+# ProxySQL routing view (admin on :6032):
+kubectl exec -n mysql-ghost deploy/proxysql-ghost -- \
+  mysql -uradmin -p... -h127.0.0.1 -P6032 -e \
+  "SELECT hostgroup_id,hostname,status FROM runtime_mysql_servers;"
+
+# Kick a member that landed in ERROR state back into the group:
+kubectl exec -n mysql-ghost mysql-ghost-c-0 -c mysql -- \
+  mysql -uroot -p"$ROOT" -e "STOP GROUP_REPLICATION; START GROUP_REPLICATION;"
 ```
 
-To demote after PXC returns:
-```sh
-# 1. Remove RAM from writer hostgroup
-kubectl exec -n proxysql deployment/proxysql -- mysql -h127.0.0.1 -P6032 -uradmin -p'admin' -e "
-  DELETE FROM mysql_servers WHERE hostgroup_id=10 AND hostname LIKE '%ram%';
-  UPDATE mysql_servers SET status='ONLINE' WHERE hostgroup_id=10 AND hostname LIKE '%pxc%';
-  LOAD MYSQL SERVERS TO RUNTIME;
-"
-
-# 2. Re-enable read-only and restart replication on RAM
-kubectl exec -n pxc-ram mysql-ram-0 -c mysql -- mysql -uroot -e "
-  SET GLOBAL read_only=ON;
-  SET GLOBAL super_read_only=ON;
-  START REPLICA;
-"
-```
+For the full bootstrap, ProxySQL routing-view setup, clone-based rejoin, and
+restore-from-S3 procedures, see
+[`../../docs/mysql-ghost-mgr.md`](../../docs/mysql-ghost-mgr.md).

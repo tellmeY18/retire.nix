@@ -529,49 +529,65 @@ The Tailscale Service then targets the `Pooler` Service instead of
 
 ---
 
-## 8. Percona XtraDB Cluster (PXC) — MySQL on k3s
+## 8. MySQL on k3s — `mysql-ghost` (MGR) + `mysql-mediawiki` (standalone)
 
-This section captures the design for running **Percona XtraDB Cluster (PXC)**
-on the same `glug-infra` k3s cluster, alongside the existing CNPG PostgreSQL
-deployment. PXC provides **synchronous multi-master MySQL replication** via
-Galera, managed by the Percona Operator for MySQL.
+The Percona XtraDB Cluster (PXC) operator has been **fully decommissioned**
+(operator, the `mysql` workload, HAProxy, its backups, helmfile releases, and
+all `pxc-*` manifests/monitoring are gone). MySQL is now served by two
+independent deployments on the `glug-infra` cluster:
 
-### 8.1 Goals & constraints
+- **`mysql-ghost`** — a 3-member **MySQL Group Replication (MGR)** cluster
+  (single-primary) for the write-sensitive `ghost` (Ghost CMS) and
+  `activitypub` (Ghost ActivityPub/fediverse) databases. Genuinely HA.
+- **`mysql-mediawiki`** — a **standalone single-node Percona Server 8.0**
+  for MediaWiki only. Not HA (single node + hourly S3 backups).
 
-- **Same cluster** as CNPG — shared k3s, shared ZFS pool, shared Tailscale
-  operator. No second cluster.
-- **Workload:** MySQL 8.0 via Percona XtraDB Cluster (Galera-based
-  synchronous replication).
-- **Consumers:** webservices in the cloud, connected over the tailnet at
-  `mysql-rw.<tailnet>.ts.net:3306`.
-- **HA semantics:** identical to CNPG — phase 1 (single node) = no HA;
-  phase 2+ = pods spread across nodes.
+Full architecture + bootstrap runbook lives in `docs/mysql-ghost-mgr.md`;
+this section is the summary.
 
-### 8.2 Topology decisions
+### 8.1 `mysql-ghost` — Group Replication for Ghost + ActivityPub
 
-| Decision | Choice | Rationale |
-|---|---|---|
-| Operator | **Percona Operator for MySQL (PXC)** 1.19.x | Kubernetes-native, Helm-deployable, manages Galera lifecycle, HAProxy, backups. |
-| MySQL flavour | **Percona XtraDB Cluster 8.0** | Galera-based synchronous replication, battle-tested. |
-| Proxy | **HAProxy** (operator-managed) | Simpler than ProxySQL; routes writes to the current Galera writer node. |
-| Storage | **OpenEBS ZFS LocalPV** with `recordsize=16k` | Matches InnoDB's 16KB page size (vs 8k for PostgreSQL). |
-| Backup | **Percona XtraBackup → S3** | Scheduled daily at 03:00 UTC, 14-day retention. |
-| Tailscale endpoint | `mysql-rw.<tailnet>.ts.net:3306` | Same pattern as `pg-rw` — LoadBalancer Service with `loadBalancerClass: tailscale`. |
-| Namespace | `pxc-clusters` (kustomize) / `pxc-system` (helmfile) | Mirrors the `cnpg-clusters` / `cnpg-system` split. |
+Three MGR members, single-primary, fronted by a dedicated MGR-aware
+**`proxysql-ghost`** that auto-routes writes to the current primary by
+reading `sys.gr_member_routing_candidate_status` (writer HG10 / reader HG20).
+
+| Member | Node | Storage | Role |
+|---|---|---|---|
+| `mysql-ghost-a` | chopper | ZFS (`zfs-localpv-16k`) | preferred PRIMARY (weight 50) |
+| `mysql-ghost-b` | c3po | ZFS (`zfs-localpv-16k`) | secondary (weight 40) |
+| `mysql-ghost-c` | kenobi | hostPath (`/var/lib/mysql-ghost`) | quorum-only, never primary (weight 10) |
+
+- **HA:** 3 members tolerate one failure (majority = 2/3). This survived a
+  real chopper node failure with automatic failover during deployment.
+  `mysql-ghost-c` is a full data node (MGR has no lightweight arbiter)
+  whose only job is the third vote; it serves no application traffic.
+- **Storage:** the two storage members use the `zfs-localpv-16k`
+  StorageClass (16k recordsize matches InnoDB's 16KB page) bootstrapped in
+  `modules/services/k3s.nix`; the kenobi quorum member uses a hostPath.
+- **Backups:** hourly logical dump via a CronJob to `s3://mysql-backups/ghost/`.
+- **Consumers:** Ghost pods connect to `proxysql-ghost.mysql-ghost.svc:3306`.
+
+### 8.2 `mysql-mediawiki` — standalone Percona Server for MediaWiki
+
+MediaWiki is deliberately kept **off** the MGR cluster: its schema has 52
+primary-key-less tables (MediaWiki core + SemanticMediaWiki `smw_*` + Cargo
+`cargo_*`), and Group Replication requires a primary key on every table. So
+MediaWiki stays on a plain **standalone single-node Percona Server 8.0** on
+**kenobi** (hostPath), serving only MediaWiki. MediaWiki connects directly to
+its MySQL — there is no ProxySQL in front. Not HA; protected by hourly S3
+backups.
+
+> The old standalone `proxysql` (namespace `proxysql`) that fronted PXC
+> (HG10 = PXC writer, HG20 = mysql-ram reader) has also been removed — it is
+> vestigial. This is distinct from `proxysql-ghost`, which stays.
 
 ### 8.3 ZFS optimisation for InnoDB
 
 The default `zfs-localpv` StorageClass (8k recordsize) is tuned for
-PostgreSQL. MySQL/InnoDB uses **16KB pages**, so a second StorageClass
-`zfs-localpv-16k` is bootstrapped in `modules/services/k3s.nix`:
-
-- `recordsize=16k` — 1:1 mapping between InnoDB pages and ZFS records;
-  eliminates read/write amplification.
-- `compression=zstd` — same as the 8k class.
-- Same pool (`rpool/openebs`) — OpenEBS applies the SC's recordsize to
-  each child dataset it creates.
-
-InnoDB configuration (in the PXC CR via `pxc.configuration`):
+PostgreSQL. MySQL/InnoDB uses **16KB pages**, so the `zfs-localpv-16k`
+StorageClass (`recordsize=16k`, `compression=zstd`, same `rpool/openebs`
+pool) is bootstrapped in `modules/services/k3s.nix` and used by the
+`mysql-ghost` storage members. InnoDB tuning applied to every MySQL pod:
 
 - `innodb_doublewrite=0` — ZFS is copy-on-write; the doublewrite buffer
   is redundant and wastes IOPS.
@@ -582,82 +598,35 @@ InnoDB configuration (in the PXC CR via `pxc.configuration`):
 - `innodb_io_capacity=2000` / `innodb_io_capacity_max=4000` — NVMe can
   handle more IOPS than spinning rust defaults.
 
-### 8.4 NixOS integration points
+### 8.4 Stable MySQL URL — how `mysql-ghost` survives node loss
 
-- **New bootstrap StorageClass** in `modules/services/k3s.nix`:
-  `zfs-localpv-16k` (NOT the default, must be explicitly requested).
-- No additional sops secrets needed — the PXC operator generates its own
-  internal secrets (root password, replication creds). S3 backup creds
-  are handled via `helm-secrets` (same as CNPG).
+1. Ghost connects to `proxysql-ghost.mysql-ghost.svc:3306`.
+2. ProxySQL's MGR monitor tracks the current primary via
+   `sys.gr_member_routing_candidate_status` and keeps it in writer HG10.
+3. If the primary pod / its node dies:
+   - MGR elects a new primary from the surviving members (weights bias
+     election to `a` then `b`; `c` is never primary unless last survivor).
+   - ProxySQL re-points HG10 at the new primary within seconds.
+4. Caveat: if storage drops below majority (e.g. both storage nodes gone),
+   the group goes read-only until quorum returns. `mysql-mediawiki` is a
+   single node, so it is simply down while kenobi is down.
 
-### 8.5 Repository layout additions
+### 8.5 Day-2 operations
 
-```
-k8s/
-├── apps/
-│   ├── pxc-operator/
-│   │   ├── values.yaml          # PXC operator Helm values
-│   │   └── secrets.yaml         # sops-encrypted (empty by default)
-│   └── mysql/
-│       ├── values.yaml          # PXC cluster + HAProxy + backups
-│       └── secrets.yaml         # sops-encrypted S3 creds
-├── clusters/
-│   └── glug-infra/
-│       ├── pxc/
-│       │   ├── kustomization.yaml
-│       │   ├── namespace.yaml           # pxc-clusters + PSA restricted
-│       │   ├── networkpolicy.yaml       # default-deny + HAProxy + PXC rules
-│       │   └── tailscale-mysql-service.yaml  # Tailscale LB: mysql-rw
-│       └── monitoring/
-│           ├── pxc-cluster-servicemonitor.yaml
-│           ├── pxc-haproxy-servicemonitor.yaml
-│           └── pxc-prometheusrules.yaml
-modules/services/k3s.nix         # + zfs-localpv-16k StorageClass
-```
-
-### 8.6 Stable MySQL URL — how it survives node loss
-
-1. Webservice connects to `mysql-rw.<tailnet>.ts.net:3306`.
-2. That hostname is owned by a Tailscale operator-managed device.
-3. The ts-proxy forwards to the in-cluster `mysql-haproxy` Service.
-4. HAProxy routes to the current Galera writer node.
-5. If the writer pod / its node dies:
-   - Galera promotes another node to writer (automatic, RPO = 0 for
-     committed transactions thanks to synchronous replication).
-   - HAProxy detects the failure and re-routes within seconds.
-6. Same single-node caveat as CNPG: if chopper is the only node, the
-   cluster is down until chopper returns.
-
-### 8.7 Monitoring
-
-- **mysqld_exporter** sidecar on each PXC pod (port 9104) → scraped by
-  a standalone ServiceMonitor in kustomize.
-- **HAProxy stats** (port 33062) → scraped by a separate ServiceMonitor.
-- **PrometheusRules** for Galera health (wsrep_ready, cluster size,
-  flow control), slow queries, and PVC capacity.
-
-### 8.8 Helmfile releases
-
-| # | Release | Chart | Version | Namespace |
-|---|---|---|---|---|
-| 4 | `pxc-operator` | `percona/pxc-operator` | `1.19.1` | `pxc-system` |
-| 5 | `mysql` | `percona/pxc-db` | `1.19.2` | `pxc-clusters` |
-
-Both depend on `monitoring/kube-prometheus-stack` (for CRDs). `mysql`
-also depends on `pxc-system/pxc-operator`.
-
-### 8.9 Day-2 operations
+See `docs/mysql-ghost-mgr.md` for the bootstrap, ProxySQL routing-view
+setup, failover, and restore runbooks. Quick status:
 
 ```sh
-just k8s::pxc-status          # show PerconaXtraDBCluster status
-just k8s::pxc-describe        # detailed cluster description
-just k8s::pxc-operator-logs   # tail operator logs
-just k8s::pxc-primary-logs    # tail writer node logs
-just k8s::pxc-haproxy-logs    # tail HAProxy logs
-just k8s::pxc-pods            # list all PXC pods
-just k8s::pxc-backup-list     # list backup objects
-just k8s::pxc-backup-now      # trigger on-demand backup
-just k8s::pxc-shell           # MySQL CLI via HAProxy
+# MGR membership / current primary
+kubectl exec -n mysql-ghost mysql-ghost-a-0 -c mysql -- \
+  mysql -uroot -p"$ROOT" -e \
+  "SELECT member_host, member_state, member_role \
+   FROM performance_schema.replication_group_members;"
+
+# ProxySQL routing (admin on :6032)
+kubectl exec -n mysql-ghost deploy/proxysql-ghost -- \
+  mysql -uradmin -p... -h127.0.0.1 -P6032 -e \
+  "SELECT hostgroup_id,hostname,status FROM runtime_mysql_servers;"
 ```
 
 ---
@@ -683,14 +652,14 @@ to monitoring configuration:
 | **Battery Grafana dashboard** | Template variable `$instance` from `label_values(node_power_supply_online, instance)` — only battery-equipped nodes appear. |
 | **PVC storage alerts** | Cluster-wide — `kubelet_volume_stats_*` has no namespace filter. ANY PVC in ANY namespace is monitored. |
 | **CNPG PrometheusRules** | PromQL uses generic `cnpg_*` metrics — fires on any CNPG pod regardless of node. |
-| **PXC Galera PrometheusRules** | PromQL uses generic `mysql_global_status_wsrep_*` — fires on any PXC pod regardless of node. |
+| **MGR PrometheusRules** | PromQL uses generic mysqld_exporter metrics + `performance_schema.replication_group_members` scrapes — fires on any `mysql-ghost` member regardless of node. |
 | **Prometheus itself** | `*SelectorNilUsesHelmValues: false` + `*NamespaceSelector: {}` — discovers monitors in ALL namespaces. |
 
 **What IS per-deployment (not per-node):** PodMonitors and ServiceMonitors
 reference specific Helm release names / CR names (`postgres-cluster`,
 `mysql`). These are per-deployment, not per-node — they don't need
 changing when nodes are added. They only need updating if you deploy a
-*second instance* of CNPG or PXC with a different name.
+*second instance* of CNPG or MySQL with a different name.
 
 ### 9.2 Laptop battery monitoring
 
@@ -744,7 +713,7 @@ just k8s::battery-energy      # remaining Wh per node
 ### 9.3 PVC storage monitoring (cluster-wide)
 
 PVC storage alerts were refactored from per-namespace rules (hardcoded
-`namespace="cnpg-clusters"` / `namespace="pxc-clusters"`) into a single
+`namespace="cnpg-clusters"` / `namespace="mysql-ghost"`) into a single
 `pvc-storage-prometheusrules.yaml` that monitors **all PVCs in all
 namespaces** without any namespace filter.
 
@@ -766,8 +735,8 @@ because ZFS volumes may not report inode statistics.
 | `monitoring/zfs-prometheusrules.yaml` | ZFS pool health + ARC alerts | ✅ |
 | `monitoring/zfs-grafana-dashboard.yaml` | ZFS metrics dashboard | ✅ |
 | `monitoring/cnpg-prometheusrules.yaml` | CNPG replication/health alerts | ✅ |
-| `monitoring/pxc-prometheusrules.yaml` | Galera health alerts | ✅ |
+| `monitoring/mysql-ghost-prometheusrules.yaml` | MGR replication/health alerts | ✅ |
 | `monitoring/cnpg-cluster-podmonitor.yaml` | Scrapes CNPG pods | per-deployment |
 | `monitoring/cnpg-pooler-podmonitor.yaml` | Scrapes PgBouncer pods | per-deployment |
-| `monitoring/pxc-cluster-servicemonitor.yaml` | Scrapes mysqld_exporter | per-deployment |
-| `monitoring/pxc-haproxy-servicemonitor.yaml` | Scrapes HAProxy stats | per-deployment |
+| `monitoring/mysql-ghost-servicemonitor.yaml` | Scrapes mysqld_exporter on MGR members | per-deployment |
+| `monitoring/proxysql-ghost-servicemonitor.yaml` | Scrapes ProxySQL stats | per-deployment |

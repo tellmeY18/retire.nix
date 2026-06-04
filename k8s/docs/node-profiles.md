@@ -90,10 +90,10 @@ reschedule/restart).
 | Workload | Runs on storage? | Runs on compute? | Why |
 |----------|:---:|:---:|-----|
 | CNPG Postgres instances | ✅ | ❌ | Needs PVC (ZFS) |
-| PXC MySQL instances | ✅ | ❌ | Needs PVC (ZFS) |
+| mysql-ghost MGR members (a/b) | ✅ | ❌ | Need PVC (ZFS); member-c runs on compute via hostPath (quorum-only) |
 | VMSingle (metrics TSDB) | ✅ | ❌ | Needs PVC (ZFS) |
 | PgBouncer pooler | ✅ | ✅ | Stateless |
-| HAProxy (PXC) | ✅ | ✅ | Stateless |
+| ProxySQL (proxysql-ghost) | ✅ | ✅ | Stateless (runs on kenobi) |
 | VMAgent (scraper) | ✅ | ✅ | Stateless |
 | VMAlert (rule eval) | ✅ | ✅ | Stateless |
 | Grafana | ✅ | ✅ | Stateless (no persistence) |
@@ -118,14 +118,17 @@ in the database stack is stateless and can run on compute nodes:
 | **CNPG operator** | Control-plane: watches Cluster CRs, triggers failovers, manages backups. Doesn't touch data files. | ❌ | ✅ |
 | **PgBouncer** (Pooler) | TCP connection multiplexer. Holds no data — just forwards SQL packets between clients and the primary. | ❌ | ✅ |
 
-### PXC (MySQL) components
+### mysql-ghost (MySQL Group Replication) components
 
 | Component | What it does | Needs PVC? | Runs on compute? |
 |---|---|:---:|:---:|
-| `mysql-pxc-db-pxc-0` | The actual MySQL/Galera process. Reads/writes InnoDB files. | ✅ | ❌ Never |
-| **PXC operator** | Control-plane: watches PerconaXtraDBCluster CRs, manages rolling updates, orchestrates backups. | ❌ | ✅ |
-| **HAProxy** | TCP router. Health-checks PXC nodes and forwards connections to the current Galera writer. | ❌ | ✅ |
-| **mysqld-exporter** sidecar | Scrapes MySQL metrics. Runs as a sidecar inside the PXC pod (so it goes wherever the PXC pod goes). | ❌ (shares PXC pod) | ❌ (tied to PXC pod) |
+| `mysql-ghost-a/b` | MGR data members. Read/write InnoDB files. | ✅ | ❌ (storage nodes) |
+| `mysql-ghost-c` | Quorum-only MGR member on kenobi via hostPath (never primary, no app traffic). | hostPath | ✅ (compute) |
+| **proxysql-ghost** | MGR-aware TCP router. Tracks the elected primary via `sys.gr_member_routing_candidate_status` and forwards writes to it. Holds no data. | ❌ | ✅ |
+| **mysqld-exporter** sidecar | Scrapes MySQL metrics; rides inside each member pod. | ❌ (shares pod) | ❌ (tied to pod) |
+
+> MediaWiki's database is the separate single-node `mysql-mediawiki` (kenobi
+> hostPath) — kept off MGR because its schema has PK-less tables.
 
 ### VictoriaMetrics (monitoring) components
 
@@ -215,8 +218,8 @@ No ZFS, no storage setup needed. Just tailscale + k3s token.
 | 3 storage + N compute | ✅ | Full HA | ✅ |
 
 When you reach 3 storage nodes:
-- Bump `pxc.size: 3` and `haproxy.size: 2` in `apps/mysql/values.yaml`
-- Remove `unsafeFlags` from PXC config
+- mysql-ghost already runs 3 MGR members (a/b on storage, c quorum-only on
+  compute); ensure a/b land on distinct storage nodes via their nodeSelectors
 - CNPG can set `instances: 3` with `requiredDuringScheduling` anti-affinity
 - Etcd quorum survives any single node failure
 

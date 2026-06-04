@@ -17,15 +17,13 @@
 #                                       VictoriaMetrics Operator + CRDs).
 #   2. cnpg/cloudnative-pg → the operator (CRDs + controller + webhooks).
 #   3. cnpg/cluster        → one release per Postgres cluster.
-#   4. percona/pxc-operator → PXC operator.
-#   5. percona/pxc-db       → MySQL cluster.
 #
 # Adding a second Postgres cluster (e.g. for analytics):
 #   - Create k8s/apps/analytics/{values,secrets}.yaml.
 #   - Add another release block below with `name: analytics`.
 #   - `just k8s::apply`.
 #
-#   6. rustfs/rustfs-operator → RustFS operator (Tenant CRD + controller).
+#   4. rustfs/rustfs-operator → RustFS operator (Tenant CRD + controller).
 #
 # Version policy:
 #   - Always pin chart versions explicitly. Never use "*" or floating tags.
@@ -36,8 +34,6 @@ repositories:
     url: https://victoriametrics.github.io/helm-charts
   - name: cnpg
     url: https://cloudnative-pg.github.io/charts
-  - name: percona
-    url: https://percona.github.io/percona-helm-charts
   - name: traefik
     url: https://traefik.github.io/charts
   - name: penpot
@@ -117,39 +113,7 @@ releases:
       - apps/postgres/secrets.yaml
 
   # ---------------------------------------------------------------------------
-  # 4. PXC operator (CRDs + controller).
-  # ---------------------------------------------------------------------------
-  # Chart 1.19.1 ships PXC operator 1.19.1.
-  - name: pxc-operator
-    namespace: pxc-system
-    createNamespace: true
-    chart: percona/pxc-operator
-    version: "1.19.1"
-    needs:
-      - monitoring/victoria-metrics-k8s-stack
-    values:
-      - apps/pxc-operator/values.yaml
-    secrets:
-      - apps/pxc-operator/secrets.yaml
-
-  # ---------------------------------------------------------------------------
-  # 5. MySQL cluster — PerconaXtraDBCluster + HAProxy + Backups.
-  # ---------------------------------------------------------------------------
-  - name: mysql
-    namespace: pxc-clusters
-    createNamespace: false
-    chart: percona/pxc-db
-    version: "1.19.2"
-    needs:
-      - pxc-system/pxc-operator
-      - monitoring/victoria-metrics-k8s-stack
-    values:
-      - apps/mysql/values.yaml
-    secrets:
-      - apps/mysql/secrets.yaml
-
-  # ---------------------------------------------------------------------------
-  # 6. RustFS operator (CRDs + controller).
+  # 4. RustFS operator (CRDs + controller).
   # ---------------------------------------------------------------------------
   # Manages Tenant CRs that provision erasure-coded S3-compatible object
   # storage clusters via StatefulSets. The operator watches all namespaces

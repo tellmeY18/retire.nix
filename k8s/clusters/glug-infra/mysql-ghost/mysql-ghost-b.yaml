@@ -1,0 +1,137 @@
+---
+# mysql-ghost-b.yaml — MGR member B (c3po, ZFS PVC, secondary).
+#
+# Pinned to the c3po storage node; tolerates the storage taint. Datadir is a
+# zfs-localpv-16k volume. Weight 40 → eligible primary on failover, but
+# chopper (50) is preferred.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: mysql-ghost-b
+  namespace: mysql-ghost
+  labels:
+    app: mysql-ghost
+    member: b
+    app.kubernetes.io/name: percona-server
+    app.kubernetes.io/component: database
+    app.kubernetes.io/part-of: ghost
+spec:
+  serviceName: mysql-ghost-b
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mysql-ghost
+      member: b
+  template:
+    metadata:
+      labels:
+        app: mysql-ghost
+        member: b
+        app.kubernetes.io/name: percona-server
+        app.kubernetes.io/component: database
+        app.kubernetes.io/instance: mysql-ghost
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: c3po
+      tolerations:
+        - key: node-role.glug.infra/storage
+          operator: Equal
+          value: "true"
+          effect: NoSchedule
+        - key: node-role.glug.infra/storage-only
+          operator: Exists
+          effect: PreferNoSchedule
+      securityContext:
+        fsGroup: 1001
+      containers:
+        - name: mysql
+          image: percona/percona-server:8.0.45
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: mysql
+              containerPort: 3306
+            - name: gr-xcom
+              containerPort: 33061
+          env:
+            - name: MYSQL_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-ghost-root
+                  key: password
+            - name: MYSQL_DATABASE
+              value: "ghost"
+            - name: MYSQL_USER
+              value: "ghost"
+            - name: MYSQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-ghost-app
+                  key: password
+          volumeMounts:
+            - name: datadir
+              mountPath: /var/lib/mysql
+            - name: config
+              mountPath: /etc/my.cnf.d/common.cnf
+              subPath: common.cnf
+            - name: config
+              mountPath: /etc/my.cnf.d/member.cnf
+              subPath: member-b.cnf
+          resources:
+            requests:
+              memory: "1.5Gi"
+              cpu: "200m"
+            limits:
+              memory: "2Gi"
+              cpu: "2000m"
+          livenessProbe:
+            tcpSocket:
+              port: 3306
+            initialDelaySeconds: 60
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 5
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - mysqladmin ping -h 127.0.0.1 -uroot -p"${MYSQL_ROOT_PASSWORD}" --silent
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+      volumes:
+        - name: config
+          configMap:
+            name: mysql-ghost-mgr-config
+  volumeClaimTemplates:
+    - metadata:
+        name: datadir
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: zfs-localpv-16k
+        resources:
+          requests:
+            storage: 10Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql-ghost-b
+  namespace: mysql-ghost
+  labels:
+    app: mysql-ghost
+    member: b
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: true
+  selector:
+    app: mysql-ghost
+    member: b
+  ports:
+    - name: mysql
+      port: 3306
+      targetPort: 3306
+    - name: gr-xcom
+      port: 33061
+      targetPort: 33061

@@ -1,0 +1,63 @@
+---
+# mgr-config.yaml — Static MySQL config for Ghost's GR members.
+#
+# IMPORTANT: this file deliberately contains ONLY settings that are safe
+# during the percona image's first-run `--initialize` (system-table
+# creation). The Group Replication plugin load, group_replication_* vars,
+# and start_on_boot are NOT here — if present during --initialize they make
+# the server try to start GR before mysql.user exists and abort the whole
+# bootstrap. Those are applied at runtime via INSTALL PLUGIN + SET PERSIST
+# during group bootstrap (see docs/mysql-ghost-mgr.md), which also persists
+# them across restarts (mysqld-auto.cnf) for self-healing.
+#
+# common.cnf is identical on every member; member-<x>.cnf sets only the
+# per-member server_id + report_host.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mysql-ghost-mgr-config
+  namespace: mysql-ghost
+  labels:
+    app: mysql-ghost
+data:
+  common.cnf: |
+    [mysqld]
+    # --- GTID + binary logging (GR prerequisites; safe during --initialize) ---
+    gtid_mode=ON
+    enforce_gtid_consistency=ON
+    binlog_format=ROW
+    binlog_checksum=NONE
+    log_bin=binlog
+    log_replica_updates=ON
+    relay_log_recovery=ON
+    default_authentication_plugin=mysql_native_password
+
+    # --- InnoDB ---
+    innodb_flush_method=O_DIRECT
+    innodb_flush_neighbors=0
+    innodb_buffer_pool_size=1G
+    innodb_redo_log_capacity=536870912
+
+    # --- Connections / charset ---
+    max_connections=300
+    character_set_server=utf8mb4
+    collation_server=utf8mb4_unicode_ci
+
+    # --- Buffer pool prewarm ---
+    innodb_buffer_pool_dump_at_shutdown=ON
+    innodb_buffer_pool_load_at_startup=ON
+
+  member-a.cnf: |
+    [mysqld]
+    server_id=1
+    report_host=mysql-ghost-a-0.mysql-ghost-a.mysql-ghost.svc.cluster.local
+
+  member-b.cnf: |
+    [mysqld]
+    server_id=2
+    report_host=mysql-ghost-b-0.mysql-ghost-b.mysql-ghost.svc.cluster.local
+
+  member-c.cnf: |
+    [mysqld]
+    server_id=3
+    report_host=mysql-ghost-c-0.mysql-ghost-c.mysql-ghost.svc.cluster.local

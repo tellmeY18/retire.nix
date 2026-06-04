@@ -1,0 +1,29 @@
+---
+# kustomization.yaml — MediaWiki's standalone MySQL (renamed from pxc-ram).
+#
+# `kubectl apply -k k8s/clusters/glug-infra/mysql-mediawiki`
+#
+# Single-node Percona Server 8.0 on kenobi (hostPath /var/lib/mysql-mediawiki),
+# sole backend for MediaWiki. Kept off the mysql-ghost MGR cluster because
+# MediaWiki's 52 PK-less tables are incompatible with Group Replication.
+#
+# Secrets are applied out-of-band (sops):
+#   - mysql-mediawiki-root        key: password
+#   - mysql-mediawiki-backup-s3   keys: S3_ACCESS_KEY, S3_SECRET_KEY
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: mysql-mediawiki
+
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: mediawiki
+      app.kubernetes.io/managed-by: kustomize
+    includeSelectors: false
+
+resources:
+  - namespace.yaml
+  - networkpolicy.yaml
+  - mysql-mediawiki-config.yaml
+  - mysql-mediawiki.yaml
+  - mysql-mediawiki-backup-cronjob.yaml
