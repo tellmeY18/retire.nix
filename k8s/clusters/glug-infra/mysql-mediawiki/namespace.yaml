@@ -1,0 +1,23 @@
+---
+# namespace.yaml — Namespace for MediaWiki's standalone MySQL.
+#
+# Renamed from the old `pxc-ram` namespace (the "PXC RAM replica" that became
+# MediaWiki's sole backend). It is NOT part of any cluster — a single plain
+# Percona Server on kenobi (hostPath), kept off the mysql-ghost MGR cluster
+# because MediaWiki's schema has 52 primary-key-less tables (core + SMW +
+# Cargo) that Group Replication rejects. Protected by hourly S3 backups.
+#
+# PSA privileged — the percona/percona-server image starts as root then drops
+# to mysql via gosu.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: mysql-mediawiki
+  labels:
+    kubernetes.io/metadata.name: mysql-mediawiki
+    app.kubernetes.io/name: mysql-mediawiki
+    app.kubernetes.io/part-of: mediawiki
+    app.kubernetes.io/managed-by: kustomize
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/audit: baseline
+    pod-security.kubernetes.io/warn: baseline

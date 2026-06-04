@@ -1,0 +1,93 @@
+---
+# proxysql-ghost.yaml — Dedicated ProxySQL for Ghost's MGR cluster.
+#
+# Separate from the existing `proxysql` (MediaWiki) so the two blogs share
+# no failure domain. Uses ProxySQL's native Group Replication support
+# (mysql_group_replication_hostgroups): it watches each member's
+# sys.gr_member_routing_candidate_status and always routes writes to the
+# current primary, promoting a new one automatically on failover.
+#
+# Only the two data-serving members (a/b) are listed as backends — the
+# kenobi quorum member (c) participates in MGR voting at the MySQL layer
+# but never receives application traffic.
+#
+# The config (with monitor/app/admin passwords) lives in the Secret
+# `proxysql-ghost-config` (sops-encrypted; applied out-of-band like the
+# existing proxysql). Ghost connects to proxysql-ghost.mysql-ghost.svc:3306.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: proxysql-ghost
+  namespace: mysql-ghost
+  labels:
+    app: proxysql-ghost
+    app.kubernetes.io/part-of: ghost
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: proxysql-ghost
+  template:
+    metadata:
+      labels:
+        app: proxysql-ghost
+    spec:
+      # kenobi (compute) — the stable, untainted node. Keeps the app's DB
+      # entry point off the storage nodes that hold the data.
+      nodeSelector:
+        kubernetes.io/hostname: kenobi
+      containers:
+        - name: proxysql
+          image: proxysql/proxysql:3.0.8
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: mysql
+              containerPort: 3306
+            - name: admin
+              containerPort: 6032
+          volumeMounts:
+            - name: config
+              mountPath: /etc/proxysql.cnf
+              subPath: proxysql.cnf
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "10m"
+            limits:
+              memory: "512Mi"
+              cpu: "1000m"
+          livenessProbe:
+            tcpSocket:
+              port: 3306
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          readinessProbe:
+            tcpSocket:
+              port: 3306
+            initialDelaySeconds: 5
+            periodSeconds: 5
+      volumes:
+        - name: config
+          secret:
+            secretName: proxysql-ghost-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: proxysql-ghost
+  namespace: mysql-ghost
+  labels:
+    app: proxysql-ghost
+spec:
+  type: ClusterIP
+  selector:
+    app: proxysql-ghost
+  ports:
+    - name: mysql
+      protocol: TCP
+      port: 3306
+      targetPort: 3306
+    - name: admin
+      protocol: TCP
+      port: 6032
+      targetPort: 6032

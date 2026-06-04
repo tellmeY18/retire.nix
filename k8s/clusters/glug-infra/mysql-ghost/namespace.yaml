@@ -1,0 +1,23 @@
+---
+# namespace.yaml — Namespace for Ghost's dedicated MySQL instance.
+#
+# A plain single-node Percona Server 8.0 on kenobi backed by a ZFS
+# (zfs-localpv) volume. Replaces the decommissioned PXC operator cluster
+# as Ghost's database. Deliberately separate from pxc-ram (MediaWiki's
+# MySQL) so the two blogs never share a failure domain.
+#
+# PSA: privileged — the upstream percona/percona-server image starts as
+# root and drops to the mysql user via gosu, which the restricted profile
+# forbids. Matches the proven pxc-ram namespace. Can be tightened later.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: mysql-ghost
+  labels:
+    kubernetes.io/metadata.name: mysql-ghost
+    app.kubernetes.io/name: mysql-ghost
+    app.kubernetes.io/part-of: ghost
+    app.kubernetes.io/managed-by: kustomize
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/audit: baseline
+    pod-security.kubernetes.io/warn: baseline

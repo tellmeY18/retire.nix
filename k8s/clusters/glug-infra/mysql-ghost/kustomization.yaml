@@ -1,0 +1,41 @@
+---
+# kustomization.yaml — kustomize entry point for Ghost's MySQL.
+#
+# `kubectl apply -k k8s/clusters/glug-infra/mysql-ghost`
+#
+# A 3-member MySQL Group Replication cluster (single-primary) for Ghost:
+#   member-a  chopper  ZFS PVC    preferred primary
+#   member-b  c3po     ZFS PVC    secondary
+#   member-c  kenobi   hostPath   quorum-only (never primary)
+# fronted by a dedicated ProxySQL. Separate from pxc-ram (MediaWiki's MySQL)
+# and replacing the decommissioned PXC operator cluster in pxc-clusters.
+#
+# Secrets are NOT managed here (same convention as pxc-ram). Create them
+# out-of-band before the first apply:
+#   - mysql-ghost-root        key: password   (root password, all members)
+#   - mysql-ghost-app         key: password   (the `ghost` DB-user password;
+#                                              must equal ghost-credentials'
+#                                              database__connection__password)
+#   - mysql-ghost-backup-s3   keys: S3_ACCESS_KEY, S3_SECRET_KEY
+#   - proxysql-ghost-config   key: proxysql.cnf (MGR hostgroups + users)
+# Group bootstrap is a one-time ordered procedure — see docs/mysql-ghost-mgr.md.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: mysql-ghost
+
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: ghost
+      app.kubernetes.io/managed-by: kustomize
+    includeSelectors: false
+
+resources:
+  - namespace.yaml
+  - networkpolicy.yaml
+  - mgr-config.yaml
+  - mysql-ghost-a.yaml
+  - mysql-ghost-b.yaml
+  - mysql-ghost-c.yaml
+  - proxysql-ghost.yaml
+  - mysql-ghost-backup-cronjob.yaml

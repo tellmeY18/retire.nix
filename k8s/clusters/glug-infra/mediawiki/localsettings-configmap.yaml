@@ -33,7 +33,7 @@ data:
 
     ## Database
     $wgDBtype = "mysql";
-    $wgDBserver = getenv('MW_DB_HOST') ?: "proxysql.proxysql.svc.cluster.local";
+    $wgDBserver = getenv('MW_DB_HOST') ?: "mysql-mediawiki-db.mysql-mediawiki.svc.cluster.local";
     $wgDBname = "mediawiki";
     $wgDBuser = "mediawiki";
     $wgDBpassword = getenv('MW_DB_PASSWORD');
@@ -45,7 +45,7 @@ data:
     # enough for the worst case while still failing fast if MySQL is down.
     $wgDBservers = [
         [
-            'host' => getenv('MW_DB_HOST') ?: 'proxysql.proxysql.svc.cluster.local',
+            'host' => getenv('MW_DB_HOST') ?: 'mysql-mediawiki-db.mysql-mediawiki.svc.cluster.local',
             'dbname' => 'mediawiki',
             'user' => 'mediawiki',
             'password' => getenv('MW_DB_PASSWORD'),

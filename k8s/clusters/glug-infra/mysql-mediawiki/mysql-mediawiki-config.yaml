@@ -1,0 +1,53 @@
+---
+# mysql-mediawiki-config.yaml — MySQL config for MediaWiki's standalone DB.
+#
+# Standalone read-WRITE (the old replica.cnf set read-only=ON for its replica
+# days; MediaWiki writes here, so it must NOT be read-only). No replication
+# settings — this is the sole, primary instance. InnoDB tuned for the
+# ZFS-backed kenobi hostPath (/var/lib/mysql-mediawiki on rpool/nixos/var).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mysql-mediawiki-config
+  namespace: mysql-mediawiki
+  labels:
+    app: mysql-mediawiki
+data:
+  my.cnf: |
+    [mysqld]
+    # --- Server identity (standalone, read-write) ---
+    server-id=200
+    report-host=mysql-mediawiki-0
+    read-only=OFF
+    super-read-only=OFF
+
+    # --- GTID + binlog (kept for consistent backups / PITR option) ---
+    gtid-mode=ON
+    enforce-gtid-consistency=ON
+    log-bin=mysql-mediawiki-bin
+    binlog-format=ROW
+    binlog-expire-logs-seconds=86400
+    default-authentication-plugin=mysql_native_password
+
+    # --- InnoDB tuned for reads on a ZFS-backed datadir ---
+    innodb-buffer-pool-size=2G
+    innodb-log-file-size=256M
+    innodb-flush-method=O_DIRECT
+    innodb-flush-neighbors=0
+    innodb-doublewrite=0
+    innodb-io-capacity=2000
+    innodb-io-capacity-max=4000
+
+    # --- Connections / charset ---
+    max-connections=500
+    character-set-server=utf8mb4
+    collation-server=utf8mb4_unicode_ci
+
+    # --- Logging ---
+    slow-query-log=ON
+    long-query-time=1
+
+    # --- Buffer pool prewarm (auto-save/restore on restart) ---
+    innodb-buffer-pool-dump-at-shutdown=ON
+    innodb-buffer-pool-load-at-startup=ON
+    innodb-buffer-pool-dump-pct=100

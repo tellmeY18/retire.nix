@@ -50,11 +50,11 @@ spec:
             - name: server__trustProxy
               value: "true"
 
-            # Database (PXC MySQL via ProxySQL)
+            # Database (Ghost MGR cluster via dedicated ProxySQL)
             - name: database__client
               value: "mysql"
             - name: database__connection__host
-              value: "mysql-pxc-db-haproxy.pxc-clusters.svc.cluster.local"
+              value: "proxysql-ghost.mysql-ghost.svc.cluster.local"
             - name: database__connection__port
               value: "3306"
             - name: database__connection__database

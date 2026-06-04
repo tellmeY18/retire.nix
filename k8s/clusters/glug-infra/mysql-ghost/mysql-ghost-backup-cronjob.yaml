@@ -1,24 +1,24 @@
 ---
-# mysql-ram-backup-cronjob.yaml — Hourly mysqldump of the RAM MySQL to RustFS S3.
+# mysql-ghost-backup-cronjob.yaml — Hourly mysqldump of Ghost's DB to RustFS S3.
 #
-# Since the RAM replica is now the sole MySQL backend (promoted to read-write),
-# we need regular backups. This CronJob:
-#   1. Runs mysqldump --all-databases --single-transaction
-#   2. Compresses with gzip
-#   3. Uploads to s3://mysql-backups/<date>/<timestamp>.sql.gz
-#   4. Prunes backups older than 7 days
+# Mirrors the pxc-ram backup job. Dumps the `ghost` database, gzips it, and
+# uploads to s3://mysql-backups/ghost/<date>/<timestamp>.sql.gz.
+# ZFS snapshots cover local rollback; this covers off-node / off-site DR.
 #
-# Runs every hour on the hour.
+# Reads directly from member A (the preferred primary) with --single-
+# transaction for a consistent logical dump.
+#
+# Runs every hour at :30 (offset from mysql-ram's :00 to spread S3 load).
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: mysql-ram-backup
-  namespace: pxc-ram
+  name: mysql-ghost-backup
+  namespace: mysql-ghost
   labels:
-    app: mysql-ram
+    app: mysql-ghost
     app.kubernetes.io/component: backup
 spec:
-  schedule: "0 * * * *"
+  schedule: "30 * * * *"
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 3
@@ -29,7 +29,7 @@ spec:
       template:
         metadata:
           labels:
-            app: mysql-ram-backup
+            app: mysql-ghost-backup
         spec:
           nodeSelector:
             kubernetes.io/hostname: kenobi
@@ -44,17 +44,17 @@ spec:
                   set -euo pipefail
                   TIMESTAMP=$(date +%Y%m%d-%H%M%S)
                   DATE=$(date +%Y-%m-%d)
-                  DUMP_FILE="/tmp/mysql-ram-${TIMESTAMP}.sql.gz"
+                  DUMP_FILE="/tmp/mysql-ghost-${TIMESTAMP}.sql.gz"
 
-                  echo "[$(date)] Starting mysqldump..."
-                  mysqldump -h mysql-ram-pxc.pxc-ram.svc.cluster.local \
+                  echo "[$(date)] Starting mysqldump of ghost..."
+                  mysqldump -h mysql-ghost-a-0.mysql-ghost-a.mysql-ghost.svc.cluster.local \
                     -uroot -p"${MYSQL_ROOT_PASSWORD}" \
-                    --all-databases \
+                    --databases ghost \
                     --single-transaction \
                     --routines \
                     --triggers \
                     --events \
-                    --set-gtid-purged=ON \
+                    --set-gtid-purged=OFF \
                     2>/dev/null | gzip > "${DUMP_FILE}"
 
                   SIZE=$(du -h "${DUMP_FILE}" | cut -f1)
@@ -63,9 +63,9 @@ spec:
                   # Download mc (minio client) for S3 upload
                   curl -sL https://dl.min.io/client/mc/release/linux-arm64/mc -o /tmp/mc && chmod +x /tmp/mc
                   /tmp/mc alias set backup "${S3_ENDPOINT}" "${S3_ACCESS_KEY}" "${S3_SECRET_KEY}" --api S3v4
-                  /tmp/mc cp "${DUMP_FILE}" "backup/${S3_BUCKET}/${DATE}/${TIMESTAMP}.sql.gz"
+                  /tmp/mc cp "${DUMP_FILE}" "backup/${S3_BUCKET}/ghost/${DATE}/${TIMESTAMP}.sql.gz"
 
-                  echo "[$(date)] Uploaded to s3://${S3_BUCKET}/${DATE}/${TIMESTAMP}.sql.gz (${SIZE})"
+                  echo "[$(date)] Uploaded to s3://${S3_BUCKET}/ghost/${DATE}/${TIMESTAMP}.sql.gz (${SIZE})"
 
                   rm -f "${DUMP_FILE}" /tmp/mc
                   echo "[$(date)] Backup complete."
@@ -73,7 +73,7 @@ spec:
                 - name: MYSQL_ROOT_PASSWORD
                   valueFrom:
                     secretKeyRef:
-                      name: mysql-ram-root
+                      name: mysql-ghost-root
                       key: password
                 - name: S3_ENDPOINT
                   value: "http://rustfs-storage-io.rustfs-clusters.svc:9000"
@@ -82,12 +82,12 @@ spec:
                 - name: S3_ACCESS_KEY
                   valueFrom:
                     secretKeyRef:
-                      name: mysql-backup-s3
+                      name: mysql-ghost-backup-s3
                       key: S3_ACCESS_KEY
                 - name: S3_SECRET_KEY
                   valueFrom:
                     secretKeyRef:
-                      name: mysql-backup-s3
+                      name: mysql-ghost-backup-s3
                       key: S3_SECRET_KEY
               resources:
                 requests:

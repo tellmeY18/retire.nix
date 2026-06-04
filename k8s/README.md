@@ -35,12 +35,11 @@ nodes are present; the Tailscale `pg-rw` MagicDNS endpoint stays stable.
 | **NixOS bootstrap** | `nh os switch` | k3s itself; OpenEBS ZFS LocalPV CSI driver; the `zfs-localpv` and `zfs-localpv-16k` StorageClasses; Tailscale Kubernetes operator. Declared via `services.k3s.charts` in `modules/services/k3s.nix` and present on every node the moment k3s starts — no human intervention required after a reboot. |
 | **CNPG operator** | `helmfile` | The `cloudnative-pg` chart in the `cnpg-system` namespace. Provides CRDs + the controller. |
 | **Postgres workloads** | `helmfile` (cnpg/cluster chart) | One Helm release per Postgres cluster. Renders the `Cluster`, `ScheduledBackup`, and `Pooler` CRs from values files in `apps/postgres/`. |
-| **PXC operator** | `helmfile` | The `pxc-operator` chart in the `pxc-system` namespace. Provides CRDs + the controller. |
-| **MySQL workloads** | `helmfile` (percona/pxc-db chart) | One Helm release per PXC cluster. Renders the `PerconaXtraDBCluster` CR (PXC nodes + HAProxy + backups) from values files in `apps/mysql/`. |
+| **MySQL workloads** | `kustomize` + `sops` | Two independent deployments, no operator. `mysql-ghost` — a 3-member MySQL Group Replication (MGR) cluster (StatefulSets + `proxysql-ghost`) for the `ghost`/`activitypub` DBs. `mysql-mediawiki` — a standalone single-node Percona Server for MediaWiki. Manifests under `clusters/glug-infra/mysql-ghost/` and `clusters/glug-infra/mysql-mediawiki/`; ProxySQL/backup secrets are sops-encrypted. |
 | **RustFS operator** | `helmfile` (helm-git) | The `rustfs-operator` chart pulled from `github.com/rustfs/operator` via the `helm-git` plugin. Provides the `Tenant` CRD + controller in the `rustfs-system` namespace. |
 | **RustFS workloads** | `kustomize` + `sops` | The `Tenant` CR (`tenant.yaml`) is applied post-helmfile once the CRD exists. Credentials Secret is sops-decrypted and applied before the Tenant. |
 | **Monitoring stack** | `helmfile` | `victoria-metrics-k8s-stack` chart (v0.77.0) in the `monitoring` namespace. Provides VMSingle + VMAgent + VMAlert + VMAlertmanager + Grafana + VictoriaMetrics Operator + CRDs (VMRule, VMPodScrape, VMServiceScrape). |
-| **Cluster glue** | `kubectl apply -k` (kustomize) | Namespaces (with PSA labels), NetworkPolicies, and Tailscale LoadBalancer Services (pg-rw, mysql-rw, grafana). |
+| **Cluster glue** | `kubectl apply -k` (kustomize) | Namespaces (with PSA labels), NetworkPolicies, and Tailscale LoadBalancer Services (pg-rw, grafana). |
 | **Encrypted secrets** | `helm-secrets` (sops) | S3 backup credentials live in `apps/postgres/secrets.yaml` and the Grafana admin password in `apps/victoria-metrics-k8s-stack/secrets.yaml` — both sops-encrypted Helm values, merged by `helm-secrets` at install time. No raw `Secret` manifest ever touches git or the kustomize pipeline. |
 
 ---
@@ -51,8 +50,8 @@ nodes are present; the Tailscale `pg-rw` MagicDNS endpoint stays stable.
 |---|---|---|
 | `cnpg-system` | helmfile chart `createNamespace: true` | CNPG operator Deployment + webhooks |
 | `cnpg-clusters` | `namespace.yaml` (kustomize) | Postgres `Cluster`, `Pooler`, `ScheduledBackup`, `Service`, `NetworkPolicy`, `Secret` (rendered by chart) |
-| `pxc-system` | helmfile chart `createNamespace: true` | PXC operator Deployment |
-| `pxc-clusters` | `pxc/namespace.yaml` (kustomize) | `PerconaXtraDBCluster`, HAProxy, backup schedules, `NetworkPolicy`, Tailscale `Service` |
+| `mysql-ghost` | `mysql-ghost/namespace.yaml` (kustomize) | MGR member StatefulSets (`mysql-ghost-a/b/c`), `proxysql-ghost` Deployment, hourly backup `CronJob`, `NetworkPolicy`, sops `Secret`s |
+| `mysql-mediawiki` | `mysql-mediawiki/namespace.yaml` (kustomize) | Standalone Percona Server StatefulSet (single node, kenobi hostPath), hourly backup `CronJob`, `NetworkPolicy`, sops `Secret`s |
 | `rustfs-system` | helmfile chart `createNamespace: true` | RustFS operator Deployment (Tenant CRD controller) |
 | `rustfs-clusters` | `rustfs/namespace.yaml` (kustomize) | RustFS `Tenant`, StatefulSets, credentials `Secret`, `NetworkPolicy`, Tailscale `Service` |
 | `changala` | `changala/namespace.yaml` (kustomize) | Changala Ring server `Deployment`, `ConfigMap` (atrg.toml), credentials `Secret` (sops), `NetworkPolicy`, Tailscale `Service` |
@@ -111,9 +110,10 @@ just k8s::apply
 `just k8s::apply` runs:
 
 1. `kubectl apply -k` — creates Namespaces (with PSA labels), NetworkPolicies,
-   and Tailscale LoadBalancer Services for CNPG, PXC, and RustFS.
-2. `helmfile sync` — installs/upgrades all operators (VM stack, CNPG, PXC,
-   RustFS) and workloads (Postgres, MySQL). helm-secrets decrypts each
+   and Tailscale LoadBalancer Services for CNPG and RustFS, plus the
+   `mysql-ghost` / `mysql-mediawiki` workloads.
+2. `helmfile sync` — installs/upgrades all operators (VM stack, CNPG,
+   RustFS) and the Postgres workloads. helm-secrets decrypts each
    `secrets.yaml` inline and merges it on top of the corresponding `values.yaml`.
 3. RustFS credentials Secret — sops-decrypted and applied (must exist before
    the Tenant CR so the operator can validate immediately).
@@ -144,19 +144,22 @@ just k8s::cnpg-backup-now          # on-demand base backup
 just k8s::cnpg-backup-list         # list Backup objects with phase
 ```
 
-### PXC (Percona XtraDB Cluster)
+### MySQL — `mysql-ghost` (MGR)
 
 ```sh
-just k8s::pxc-status               # show PerconaXtraDBCluster status
-just k8s::pxc-describe             # detailed cluster description
-just k8s::pxc-operator-logs        # tail operator logs
-just k8s::pxc-primary-logs         # tail writer node logs
-just k8s::pxc-haproxy-logs         # tail HAProxy logs
-just k8s::pxc-pods                 # list all PXC pods
-just k8s::pxc-backup-list          # list backup objects
-just k8s::pxc-backup-now           # trigger on-demand backup
-just k8s::pxc-shell                # MySQL CLI via HAProxy
+# MGR membership / current primary
+kubectl exec -n mysql-ghost mysql-ghost-a-0 -c mysql -- \
+  mysql -uroot -p"$ROOT" -e \
+  "SELECT member_host,member_state,member_role FROM performance_schema.replication_group_members;"
+
+# ProxySQL routing view (admin on :6032)
+kubectl exec -n mysql-ghost deploy/proxysql-ghost -- \
+  mysql -uradmin -p... -h127.0.0.1 -P6032 -e \
+  "SELECT hostgroup_id,hostname,status FROM runtime_mysql_servers;"
 ```
+
+Bootstrap, failover, and restore procedures live in
+[`../docs/mysql-ghost-mgr.md`](../docs/mysql-ghost-mgr.md).
 
 ### RustFS (S3-compatible object storage)
 
@@ -202,9 +205,10 @@ Secrets live as sops-encrypted Helm values files:
 - `k8s/apps/cnpg-operator/secrets.yaml` — operator-side image-pull
   credentials (empty by default)
 - `k8s/apps/victoria-metrics-k8s-stack/secrets.yaml` — Grafana admin password
-- `k8s/apps/pxc-operator/secrets.yaml` — PXC operator-side values (empty
-  by default)
-- `k8s/apps/mysql/secrets.yaml` — S3 backup credentials for PXC
+- `k8s/clusters/glug-infra/mysql-ghost/*.enc.yaml` — root/app/GR/backup
+  passwords and the `proxysql-ghost` config for the MGR cluster
+- `k8s/clusters/glug-infra/mysql-mediawiki/*.enc.yaml` — root/app and S3
+  backup credentials for the standalone MediaWiki MySQL
 - `k8s/clusters/glug-infra/rustfs/credentials-secret.enc.yaml` — RustFS
   admin access/secret keys (applied via `just k8s::rustfs-apply-secret`)
 
@@ -234,12 +238,12 @@ integration points:
 - **PgBouncer metrics** — VMPodScrape on port 9127 (pooler monitoring)
 - **CNPG operator metrics** — VMPodScrape on the operator's `/metrics`
   endpoint (defined in `cnpg-operator-vmpodscrape.yaml`)
-- **PXC instance metrics** — VMServiceScrape on port 9104 (mysqld_exporter
-  sidecar) in `pxc-clusters` namespace
-- **PXC HAProxy metrics** — VMServiceScrape on HAProxy stats port in
-  `pxc-clusters` namespace
-- **PXC VMRules** — alerts for Galera health (wsrep_ready, cluster
-  size, flow control), slow queries
+- **mysql-ghost instance metrics** — VMServiceScrape on the mysqld_exporter
+  sidecar (port 9104) of each MGR member in the `mysql-ghost` namespace
+- **proxysql-ghost metrics** — VMServiceScrape on the ProxySQL stats port in
+  the `mysql-ghost` namespace
+- **mysql-ghost VMRules** — alerts for MGR health (members ONLINE, primary
+  present, replication lag via `performance_schema.replication_group_members`)
 - **RustFS metrics** — VMServiceScrape on port 9000, scraping MinIO v2
   metrics API (`/minio/v2/metrics/cluster` + `/minio/v2/metrics/node`)
 - **RustFS VMRules** — alerts for cluster health (nodes/drives offline,
@@ -262,11 +266,14 @@ Webservices connect to:
 pg-rw.<tailnet>.ts.net:5432
 ```
 
-For MySQL (PXC):
+For MySQL, there is no tailnet endpoint — the consumers are in-cluster apps.
+Ghost/ActivityPub connect to the MGR cluster via its in-cluster ProxySQL:
 
 ```
-mysql-rw.<tailnet>.ts.net:3306
+proxysql-ghost.mysql-ghost.svc:3306
 ```
+
+MediaWiki connects directly to its standalone MySQL in `mysql-mediawiki`.
 
 ### PostgreSQL traffic path
 
@@ -292,19 +299,21 @@ stays pinned to one PgBouncer pod for the lifetime of its connection pool —
 purely a latency optimisation; PgBouncer is stateless across pods, so a sudden
 re-pinning is harmless.
 
-### MySQL traffic path
+### MySQL traffic path (`mysql-ghost` MGR)
 
 ```
-webservice
-  → mysql-rw.<tailnet>.ts.net:3306   (Tailscale MagicDNS)
-  → ts-proxy pod                      (LoadBalancer Service in pxc-clusters)
-  → mysql-haproxy Service             (created by PXC operator)
-  → HAProxy pods (connection routing)
-  → PXC writer node
+Ghost / ActivityPub pod
+  → proxysql-ghost.mysql-ghost.svc:3306   (in-cluster Service)
+  → proxysql-ghost pod (MGR-aware routing, kenobi)
+  → writer hostgroup HG10                 (current MGR primary)
+  → mysql-ghost primary pod (a on chopper, or failover target)
 ```
 
-When Galera promotes a new writer the HAProxy health checks detect the change
-and re-route within seconds. Webservices see at most a brief connection drop.
+ProxySQL's MGR monitor reads `sys.gr_member_routing_candidate_status` to track
+the current primary. When MGR elects a new primary (after a pod or node loss),
+ProxySQL re-points HG10 within seconds. Webservices see at most a brief
+connection drop. MediaWiki is not in this path — it talks to its standalone
+`mysql-mediawiki` MySQL directly.
 
 ### RustFS S3 traffic path
 
@@ -339,7 +348,7 @@ multiple nodes, it provides full node-failure tolerance.
 ```
 k8s/
 ├── README.md                                # this file
-├── helmfile.yaml                            # victoria-metrics-k8s-stack + cnpg + pxc + rustfs charts
+├── helmfile.yaml                            # victoria-metrics-k8s-stack + cnpg + rustfs charts
 ├── apps/
 │   ├── cnpg-operator/
 │   │   ├── values.yaml                      # plain Helm values
@@ -347,15 +356,9 @@ k8s/
 │   ├── victoria-metrics-k8s-stack/
 │   │   ├── values.yaml                      # VMSingle + VMAgent + Grafana + Alertmanager config
 │   │   └── secrets.yaml                     # sops-encrypted Grafana admin password
-│   ├── mysql/
-│   │   ├── values.yaml                      # PXC cluster + HAProxy + Backup config
-│   │   └── secrets.yaml                     # sops-encrypted S3 credentials
 │   ├── postgres/
 │   │   ├── values.yaml                      # Cluster + Pooler + Backup config
 │   │   └── secrets.yaml                     # sops-encrypted S3 credentials
-│   ├── pxc-operator/
-│   │   ├── values.yaml                      # plain Helm values
-│   │   └── secrets.yaml                     # sops-encrypted Helm values
 │   ├── rustfs-operator/
 │   │   ├── values.yaml                      # RustFS operator Helm values
 │   │   └── secrets.yaml                     # placeholder (no secrets needed)
@@ -368,11 +371,21 @@ k8s/
 │       ├── namespace.yaml                   # cnpg-clusters + PSA labels
 │       ├── networkpolicy.yaml               # default-deny + allow rules
 │       ├── tailscale-pg-service.yaml        # Tailscale LB: pg-rw
-│       ├── pxc/
-│       │   ├── kustomization.yaml           # entry point (pxc-clusters namespace)
-│       │   ├── namespace.yaml               # pxc-clusters + PSA labels
-│       │   ├── networkpolicy.yaml           # default-deny + HAProxy + PXC rules
-│       │   └── tailscale-mysql-service.yaml # Tailscale LB: mysql-rw
+│       ├── mysql-ghost/
+│       │   ├── kustomization.yaml           # entry point (mysql-ghost namespace)
+│       │   ├── namespace.yaml               # mysql-ghost + PSA labels
+│       │   ├── networkpolicy.yaml           # default-deny + MGR + ProxySQL rules
+│       │   ├── mysql-ghost-a/b/c.yaml        # 3 MGR member StatefulSets
+│       │   ├── proxysql-ghost.yaml           # MGR-aware ProxySQL Deployment + Service
+│       │   ├── backup-cronjob.yaml           # hourly logical dump → S3
+│       │   └── *.enc.yaml                    # sops-encrypted Secrets (root/app/gr/backup/proxysql)
+│       ├── mysql-mediawiki/
+│       │   ├── kustomization.yaml           # entry point (mysql-mediawiki namespace)
+│       │   ├── namespace.yaml               # mysql-mediawiki + PSA labels
+│       │   ├── networkpolicy.yaml           # default-deny + MediaWiki rules
+│       │   ├── mysql.yaml                    # standalone Percona Server (kenobi hostPath)
+│       │   ├── backup-cronjob.yaml           # hourly logical dump → S3
+│       │   └── *.enc.yaml                    # sops-encrypted Secrets
 │       ├── rustfs/
 │       │   ├── kustomization.yaml           # entry point (rustfs-clusters namespace)
 │       │   ├── namespace.yaml               # rustfs-clusters + PSA baseline labels
@@ -388,10 +401,9 @@ k8s/
 │           ├── cnpg-pooler-vmpodscrape.yaml
 │           ├── cnpg-operator-vmpodscrape.yaml
 │           ├── cnpg-vmrules.yaml
-│           ├── pxc-cluster-vmservicescrape.yaml
-│           ├── pxc-haproxy-vmservicescrape.yaml
-│           ├── pxc-vmrules.yaml
-│           ├── pxc-grafana-dashboard.yaml
+│           ├── mysql-ghost-vmservicescrape.yaml
+│           ├── mysql-ghost-vmrules.yaml
+│           ├── proxysql-ghost-vmservicescrape.yaml
 │           ├── rustfs-vmservicescrape.yaml
 │           ├── rustfs-vmrules.yaml
 │           ├── rustfs-grafana-dashboard.yaml
@@ -399,7 +411,6 @@ k8s/
 │           ├── laptop-battery-vmrules.yaml
 │           ├── zfs-vmrules.yaml
 │           ├── zfs-grafana-dashboard.yaml
-│           ├── pxc-grafana-dashboard.yaml
 │           ├── laptop-battery-grafana-dashboard.yaml
 │           └── cluster-overview-grafana-dashboard.yaml
 └── docs/
@@ -444,9 +455,15 @@ just k8s::rustfs-pods                                   # 4/4 Running
 # RustFS S3 health check.
 just k8s::rustfs-health
 
+# mysql-ghost MGR cluster is healthy (3 members ONLINE, one PRIMARY).
+kubectl -n mysql-ghost get pods -o wide                 # a→chopper, b→c3po, c→kenobi
+kubectl exec -n mysql-ghost mysql-ghost-a-0 -c mysql -- \
+  mysql -uroot -p"$ROOT" -e \
+  "SELECT member_host,member_state,member_role FROM performance_schema.replication_group_members;"
+
 # Tailscale ts-proxy pods up; devices registered on the tailnet.
 kubectl -n tailscale get pods
-tailscale status | grep -E 'pg-rw|mysql-rw|s3|grafana'
+tailscale status | grep -E 'pg-rw|s3|grafana'
 
 # Trigger an immediate CNPG backup; confirm it completes.
 just k8s::cnpg-backup-now

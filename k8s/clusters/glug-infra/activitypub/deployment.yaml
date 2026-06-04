@@ -35,7 +35,7 @@ spec:
             - name: NODE_ENV
               value: "development"
             - name: MYSQL_HOST
-              value: "mysql-pxc-db-haproxy.pxc-clusters.svc.cluster.local"
+              value: "proxysql-ghost.mysql-ghost.svc.cluster.local"
             - name: MYSQL_PORT
               value: "3306"
             - name: MYSQL_DATABASE

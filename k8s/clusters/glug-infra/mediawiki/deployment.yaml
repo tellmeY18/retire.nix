@@ -75,7 +75,7 @@ spec:
               ) 9>/smw-config/.setup.lock
           env:
             - name: MW_DB_HOST
-              value: "mysql-ram-pxc.pxc-ram.svc.cluster.local"
+              value: "mysql-mediawiki-db.mysql-mediawiki.svc.cluster.local"
           envFrom:
             - secretRef:
                 name: mediawiki-credentials
@@ -110,7 +110,7 @@ spec:
               protocol: TCP
           env:
             - name: MW_DB_HOST
-              value: "mysql-ram-pxc.pxc-ram.svc.cluster.local"
+              value: "mysql-mediawiki-db.mysql-mediawiki.svc.cluster.local"
           envFrom:
             - secretRef:
                 name: mediawiki-credentials
@@ -167,7 +167,7 @@ spec:
               done
           env:
             - name: MW_DB_HOST
-              value: "mysql-ram-pxc.pxc-ram.svc.cluster.local"
+              value: "mysql-mediawiki-db.mysql-mediawiki.svc.cluster.local"
           envFrom:
             - secretRef:
                 name: mediawiki-credentials

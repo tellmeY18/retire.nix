@@ -1,0 +1,127 @@
+---
+# mysql-ghost-c.yaml — MGR member C (kenobi, hostPath, quorum-only).
+#
+# Pinned to kenobi (the compute node). Datadir is a hostPath on local disk
+# (/var/lib/mysql-ghost, created by hosts/kenobi/parts/storage.nix) — NOT an
+# openebs/ZFS PVC. hostPath persists across reboots so this member rejoins
+# without a full re-clone, but the durable copies live on a/b. Weight 10 →
+# never elected primary; exists purely to give the group a third vote so it
+# can survive one storage node going down.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: mysql-ghost-c
+  namespace: mysql-ghost
+  labels:
+    app: mysql-ghost
+    member: c
+    app.kubernetes.io/name: percona-server
+    app.kubernetes.io/component: database
+    app.kubernetes.io/part-of: ghost
+spec:
+  serviceName: mysql-ghost-c
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mysql-ghost
+      member: c
+  template:
+    metadata:
+      labels:
+        app: mysql-ghost
+        member: c
+        app.kubernetes.io/name: percona-server
+        app.kubernetes.io/component: database
+        app.kubernetes.io/instance: mysql-ghost
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: kenobi
+      securityContext:
+        fsGroup: 1001
+      containers:
+        - name: mysql
+          image: percona/percona-server:8.0.45
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: mysql
+              containerPort: 3306
+            - name: gr-xcom
+              containerPort: 33061
+          env:
+            - name: MYSQL_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-ghost-root
+                  key: password
+            - name: MYSQL_DATABASE
+              value: "ghost"
+            - name: MYSQL_USER
+              value: "ghost"
+            - name: MYSQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-ghost-app
+                  key: password
+          volumeMounts:
+            - name: datadir
+              mountPath: /var/lib/mysql
+            - name: config
+              mountPath: /etc/my.cnf.d/common.cnf
+              subPath: common.cnf
+            - name: config
+              mountPath: /etc/my.cnf.d/member.cnf
+              subPath: member-c.cnf
+          resources:
+            requests:
+              memory: "1Gi"
+              cpu: "100m"
+            limits:
+              memory: "1.5Gi"
+              cpu: "1000m"
+          livenessProbe:
+            tcpSocket:
+              port: 3306
+            initialDelaySeconds: 60
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 5
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - mysqladmin ping -h 127.0.0.1 -uroot -p"${MYSQL_ROOT_PASSWORD}" --silent
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+      volumes:
+        - name: config
+          configMap:
+            name: mysql-ghost-mgr-config
+        - name: datadir
+          hostPath:
+            path: /var/lib/mysql-ghost
+            type: Directory
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql-ghost-c
+  namespace: mysql-ghost
+  labels:
+    app: mysql-ghost
+    member: c
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: true
+  selector:
+    app: mysql-ghost
+    member: c
+  ports:
+    - name: mysql
+      port: 3306
+      targetPort: 3306
+    - name: gr-xcom
+      port: 33061
+      targetPort: 33061

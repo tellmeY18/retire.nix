@@ -62,15 +62,6 @@ resources:
   - zfs-vmrules.yaml
   # ZFS Grafana dashboard — auto-imported by Grafana's sidecar.
   - zfs-grafana-dashboard.yaml
-  # PXC standalone monitoring resources (native VM CRDs).
-  - pxc-cluster-vmservicescrape.yaml
-  - pxc-haproxy-vmservicescrape.yaml
-  - pxc-vmrules.yaml
-  # PXC Grafana dashboard.
-  - pxc-grafana-dashboard.yaml
-  # ProxySQL + MySQL RAM replica monitoring resources.
-  - proxysql-vmrules.yaml
-  - proxysql-vmservicescrape.yaml
   # RustFS (MinIO-compatible S3) monitoring resources.
   - rustfs-vmservicescrape.yaml
   - rustfs-vmrules.yaml

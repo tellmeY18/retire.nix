@@ -1,0 +1,73 @@
+---
+# networkpolicy.yaml — NetworkPolicies for the mysql-ghost namespace.
+#
+# Contains the 3-member MGR group (app=mysql-ghost) and the dedicated
+# ProxySQL (app=proxysql-ghost). Default-deny ingress, then:
+#   - MGR members accept 3306 (SQL) + 33061 (XCom) from each other and from
+#     ProxySQL; 3306 also from monitoring.
+#   - ProxySQL accepts 3306 from the ghost namespace (the app) + monitoring.
+# Egress is left open (backup CronJob → RustFS S3, DNS).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: mysql-ghost
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+---
+# MGR members: replication + SQL traffic.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-mysql-ghost-ingress
+  namespace: mysql-ghost
+spec:
+  podSelector:
+    matchLabels:
+      app: mysql-ghost
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        # Group Replication peers + ProxySQL + intra-namespace tooling.
+        - podSelector: {}
+        # Monitoring scrapes exporter metrics.
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+      ports:
+        - protocol: TCP
+          port: 3306
+        - protocol: TCP
+          port: 33061
+---
+# ProxySQL: client traffic from Ghost.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-proxysql-ghost-ingress
+  namespace: mysql-ghost
+spec:
+  podSelector:
+    matchLabels:
+      app: proxysql-ghost
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        # Ghost connects here for all reads/writes.
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ghost
+        # Intra-namespace (debug) + monitoring.
+        - podSelector: {}
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+      ports:
+        - protocol: TCP
+          port: 3306
+        - protocol: TCP
+          port: 6032

@@ -1,0 +1,90 @@
+---
+# mysql-mediawiki-backup-cronjob.yaml — Hourly mysqldump to RustFS S3.
+#
+# Renamed from mysql-ram-backup. Dumps all databases, gzips, uploads to
+# s3://mysql-backups/mediawiki/<date>/<timestamp>.sql.gz, prunes >7 days.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: mysql-mediawiki-backup
+  namespace: mysql-mediawiki
+  labels:
+    app: mysql-mediawiki
+    app.kubernetes.io/component: backup
+spec:
+  schedule: "0 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      ttlSecondsAfterFinished: 3600
+      template:
+        metadata:
+          labels:
+            app: mysql-mediawiki-backup
+        spec:
+          nodeSelector:
+            kubernetes.io/hostname: kenobi
+          restartPolicy: OnFailure
+          containers:
+            - name: backup
+              image: percona/percona-server:8.0.45
+              command:
+                - sh
+                - -c
+                - |
+                  set -euo pipefail
+                  TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+                  DATE=$(date +%Y-%m-%d)
+                  DUMP_FILE="/tmp/mysql-mediawiki-${TIMESTAMP}.sql.gz"
+
+                  echo "[$(date)] Starting mysqldump..."
+                  mysqldump -h mysql-mediawiki-db.mysql-mediawiki.svc.cluster.local \
+                    -uroot -p"${MYSQL_ROOT_PASSWORD}" \
+                    --all-databases \
+                    --single-transaction \
+                    --routines \
+                    --triggers \
+                    --events \
+                    --set-gtid-purged=OFF \
+                    2>/dev/null | gzip > "${DUMP_FILE}"
+
+                  SIZE=$(du -h "${DUMP_FILE}" | cut -f1)
+                  echo "[$(date)] Dump complete: ${SIZE}"
+
+                  curl -sL https://dl.min.io/client/mc/release/linux-arm64/mc -o /tmp/mc && chmod +x /tmp/mc
+                  /tmp/mc alias set backup "${S3_ENDPOINT}" "${S3_ACCESS_KEY}" "${S3_SECRET_KEY}" --api S3v4
+                  /tmp/mc cp "${DUMP_FILE}" "backup/${S3_BUCKET}/mediawiki/${DATE}/${TIMESTAMP}.sql.gz"
+
+                  echo "[$(date)] Uploaded to s3://${S3_BUCKET}/mediawiki/${DATE}/${TIMESTAMP}.sql.gz (${SIZE})"
+                  rm -f "${DUMP_FILE}" /tmp/mc
+                  echo "[$(date)] Backup complete."
+              env:
+                - name: MYSQL_ROOT_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: mysql-mediawiki-root
+                      key: password
+                - name: S3_ENDPOINT
+                  value: "http://rustfs-storage-io.rustfs-clusters.svc:9000"
+                - name: S3_BUCKET
+                  value: "mysql-backups"
+                - name: S3_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: mysql-mediawiki-backup-s3
+                      key: S3_ACCESS_KEY
+                - name: S3_SECRET_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: mysql-mediawiki-backup-s3
+                      key: S3_SECRET_KEY
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 256Mi
+                limits:
+                  cpu: "2"
+                  memory: 1Gi

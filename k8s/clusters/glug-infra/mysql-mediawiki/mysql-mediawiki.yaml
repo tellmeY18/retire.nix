@@ -1,55 +1,38 @@
 ---
-# pxc-ram-cluster.yaml — Plain MySQL read replica on kenobi (aarch64).
+# mysql-mediawiki.yaml — Standalone Percona Server 8.0 for MediaWiki.
 #
-# NOT managed by the PXC operator. This is a standalone Percona Server
-# instance that receives async replication from the primary PXC cluster
-# on chopper. ProxySQL routes SELECTs here for low-latency reads.
-#
-# Why plain MySQL instead of PXC operator?
-#   - Single-node replica doesn't need Galera
-#   - No operator init container OOM issues on arm64
-#   - No operator reconciliation conflicts
-#   - Full control over probes, resources, security context
-#   - Less RAM overhead (no wsrep/gcache)
-#
-# Data persistence:
-#   hostPath at /var/lib/pxc-ram on kenobi (created by NixOS systemd-tmpfiles).
-#   Survives pod restarts AND node reboots. No SST needed.
-#
-# Replication:
-#   Configured via mysql.slave_master_info (persists on hostPath).
-#   On first boot: run the init-replication Job or manual setup.
-#   On restarts: replication auto-resumes from last position.
+# Single replica pinned to kenobi, data on hostPath /var/lib/mysql-mediawiki
+# (renamed from /var/lib/pxc-ram; created by hosts/kenobi/parts/storage.nix).
+# Sole read-write backend for MediaWiki. Not HA — protected by the hourly S3
+# backup CronJob. Renamed from the old `mysql-ram` StatefulSet.
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: mysql-ram
-  namespace: pxc-ram
+  name: mysql-mediawiki
+  namespace: mysql-mediawiki
   labels:
-    app: mysql-ram
+    app: mysql-mediawiki
     app.kubernetes.io/name: percona-server
-    app.kubernetes.io/component: replica
-    app.kubernetes.io/part-of: percona-xtradb-cluster-ram
+    app.kubernetes.io/component: database
+    app.kubernetes.io/part-of: mediawiki
 spec:
-  serviceName: mysql-ram
+  serviceName: mysql-mediawiki
   replicas: 1
   selector:
     matchLabels:
-      app: mysql-ram
+      app: mysql-mediawiki
   template:
     metadata:
       labels:
-        app: mysql-ram
+        app: mysql-mediawiki
         app.kubernetes.io/name: percona-server
-        app.kubernetes.io/component: replica
-        app.kubernetes.io/instance: mysql-ram
+        app.kubernetes.io/component: database
+        app.kubernetes.io/instance: mysql-mediawiki
     spec:
       nodeSelector:
         kubernetes.io/hostname: kenobi
-
       securityContext:
         fsGroup: 1001
-
       containers:
         - name: mysql
           image: percona/percona-server:8.0.45
@@ -57,7 +40,6 @@ spec:
           ports:
             - name: mysql
               containerPort: 3306
-              protocol: TCP
           env:
             - name: MYSQL_ALLOW_EMPTY_PASSWORD
               value: "yes"
@@ -65,8 +47,8 @@ spec:
             - name: datadir
               mountPath: /var/lib/mysql
             - name: config
-              mountPath: /etc/my.cnf.d/replica.cnf
-              subPath: replica.cnf
+              mountPath: /etc/my.cnf.d/my.cnf
+              subPath: my.cnf
           resources:
             requests:
               memory: "3Gi"
@@ -88,7 +70,6 @@ spec:
             periodSeconds: 10
             timeoutSeconds: 5
             failureThreshold: 3
-
         - name: prewarm
           image: percona/percona-server:8.0.45
           imagePullPolicy: IfNotPresent
@@ -99,9 +80,7 @@ spec:
               echo "Waiting for MySQL to be ready..."
               for i in $(seq 1 60); do
                 if mysqladmin ping -h 127.0.0.1 -uroot -p"$MYSQL_ROOT_PASSWORD" --silent 2>/dev/null; then
-                  echo "MySQL is up, prewarming ALL user tables into buffer pool..."
-                  # Dynamically discover and scan all tables in all user databases.
-                  # This ensures new databases added in the future are also prewarmed.
+                  echo "MySQL is up, prewarming user tables into buffer pool..."
                   mysql -h 127.0.0.1 -uroot -p"$MYSQL_ROOT_PASSWORD" -N -e "
                     SELECT CONCAT('SELECT COUNT(*) FROM \`', table_schema, '\`.\`', table_name, '\`;')
                     FROM information_schema.tables
@@ -113,13 +92,12 @@ spec:
                 fi
                 sleep 2
               done
-              # Stay alive (sidecar must keep running or pod restarts)
               exec sleep infinity
           env:
             - name: MYSQL_ROOT_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: mysql-ram-root
+                  name: mysql-mediawiki-root
                   key: password
                   optional: true
           resources:
@@ -129,45 +107,45 @@ spec:
             limits:
               memory: "64Mi"
               cpu: "100m"
-
       volumes:
         - name: datadir
           hostPath:
-            path: /var/lib/pxc-ram
+            path: /var/lib/mysql-mediawiki
             type: Directory
         - name: config
           configMap:
-            name: mysql-ram-config
+            name: mysql-mediawiki-config
 ---
-# Headless Service for the StatefulSet (DNS: mysql-ram-0.mysql-ram.pxc-ram.svc)
+# Headless Service (DNS: mysql-mediawiki-0.mysql-mediawiki.mysql-mediawiki.svc)
 apiVersion: v1
 kind: Service
 metadata:
-  name: mysql-ram
-  namespace: pxc-ram
+  name: mysql-mediawiki
+  namespace: mysql-mediawiki
   labels:
-    app: mysql-ram
+    app: mysql-mediawiki
 spec:
   clusterIP: None
   selector:
-    app: mysql-ram
+    app: mysql-mediawiki
   ports:
     - name: mysql
       port: 3306
       targetPort: 3306
 ---
-# ClusterIP Service for ProxySQL to target (stable endpoint).
+# Stable ClusterIP Service — MediaWiki connects here:
+#   mysql-mediawiki-db.mysql-mediawiki.svc.cluster.local:3306
 apiVersion: v1
 kind: Service
 metadata:
-  name: mysql-ram-pxc
-  namespace: pxc-ram
+  name: mysql-mediawiki-db
+  namespace: mysql-mediawiki
   labels:
-    app: mysql-ram
+    app: mysql-mediawiki
 spec:
   type: ClusterIP
   selector:
-    app: mysql-ram
+    app: mysql-mediawiki
   ports:
     - name: mysql
       port: 3306

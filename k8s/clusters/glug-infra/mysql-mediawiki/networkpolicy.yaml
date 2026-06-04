@@ -1,44 +1,38 @@
 ---
-# networkpolicy.yaml — NetworkPolicies for the proxysql namespace.
+# networkpolicy.yaml — NetworkPolicies for the mysql-mediawiki namespace.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: default-deny-ingress
-  namespace: proxysql
+  namespace: mysql-mediawiki
 spec:
   podSelector: {}
   policyTypes:
     - Ingress
 ---
-# Allow ingress to ProxySQL from Tailscale, workload namespaces, and monitoring.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: allow-proxysql-ingress
-  namespace: proxysql
+  name: allow-mysql-mediawiki-ingress
+  namespace: mysql-mediawiki
 spec:
   podSelector:
     matchLabels:
-      app: proxysql
+      app: mysql-mediawiki
   policyTypes:
     - Ingress
   ingress:
-    # MySQL client traffic on port 6033 from Tailscale + workloads.
     - from:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: tailscale
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: ghost
+        # MediaWiki pods (web + maintenance jobs).
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: mediawiki
+        # Monitoring scrapes metrics.
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: monitoring
+        # Intra-namespace (backup CronJob, debug pods).
+        - podSelector: {}
       ports:
         - protocol: TCP
           port: 3306
-        - protocol: TCP
-          port: 6032
