@@ -20,10 +20,10 @@
       # Direct tailnet endpoint (fast, lowest latency). Only resolvable on
       # nodes with Tailscale MagicDNS (accept-dns=true), i.e. c3po.
       "http://attic.tail477f2f.ts.net:8080/system"
-      # Public Funnel endpoint (resolvable via public DNS everywhere). Nodes
+      # Public Traefik ingress (resolvable via public DNS everywhere). Nodes
       # with accept-dns=false (chopper, kenobi) can't resolve the tailnet name
       # above and fall through to this. Same store, same signing key.
-      "https://attic-push.tail477f2f.ts.net/system"
+      "https://cache.tellmey.fyi/system"
     ];
 
     trusted-public-keys = [
@@ -34,7 +34,7 @@
     # Both attic endpoints serve the same store (signed by the key above).
     trusted-substituters = [
       "http://attic.tail477f2f.ts.net:8080/system"
-      "https://attic-push.tail477f2f.ts.net/system"
+      "https://cache.tellmey.fyi/system"
     ];
   };
 }

@@ -46,7 +46,11 @@ permissions:
 
 env:
   CACHIX_CACHE: tellmey18
-  ATTIC_SERVER: https://attic-push.tail477f2f.ts.net
+  # Attic via Traefik public ingress (direct HTTPS to the kenobi OCI VM).
+  # Replaces the Tailscale Funnel, which is bandwidth-limited and timed out
+  # on large closure pushes. (Joining the runner to the tailnet was also
+  # tried and didn't work reliably.)
+  ATTIC_SERVER: https://cache.tellmey.fyi
   ATTIC_CACHE: system
   PR_BRANCH: automation/flake-update
 
