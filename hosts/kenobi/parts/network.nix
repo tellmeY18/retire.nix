@@ -3,7 +3,7 @@
 # - Jumbo frames (MTU 9000) preserved for OCI VCN performance
 # - Firewall: public-facing ports (SSH, HTTP, HTTPS) + Tailscale
 # - Static route for chopper's pod CIDR via Tailscale (host-gw flannel)
-{ config, ... }:
+{ config, pkgs, ... }:
 {
   networking = {
     # Cloud VMs use DHCP — no NetworkManager needed.
@@ -58,6 +58,11 @@
     ];
     wants = [ "tailscaled.service" ];
     wantedBy = [ "multi-user.target" ];
+    # iproute2 must be on PATH — the ExecStartPre/ExecStart use `ip`. Without
+    # this the `until ip link show ... UP` loop runs `ip: command not found`
+    # forever (stderr swallowed), wedging switch-to-configuration and every
+    # subsequent deploy.
+    path = [ pkgs.iproute2 ];
     serviceConfig = {
       Type = "oneshot";
       RemainAfterExit = true;
