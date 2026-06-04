@@ -32,10 +32,16 @@ version:
 # Cluster — the heart of the configuration.
 # ---------------------------------------------------------------------------
 cluster:
-  # Four instances: one primary + three synchronous standbys spread across
-  # chopper and c3po. With anti-affinity preferred, CNPG will place new
-  # replicas on c3po (the second storage node).
-  instances: 4
+  # TEMPORARILY REDUCED to 2 (primary + one synchronous standby) after a
+  # 2026-06-04 incident: repeated storage-node reboots churned etcd, the CNPG
+  # operator lost leader election (couldn't renew its lease against the flapping
+  # apiserver) and the cluster got stuck "Failing over" with un-recoverable
+  # replicas. Recovery: scale down to a clean primary+standby pair. Scale back
+  # to 4 deliberately once the cluster has been stable for a while:
+  #   kubectl patch cluster postgres-cluster -n cnpg-clusters --type merge \
+  #     -p '{"spec":{"instances":4}}'   (then restore this value to 4)
+  # Target design: 4 instances (primary + 3 sync standbys across chopper/c3po).
+  instances: 2
 
   # Pin the PostgreSQL minor version explicitly. CNPG ships purpose-built
   # PostgreSQL container images that include all the operator-side tooling
