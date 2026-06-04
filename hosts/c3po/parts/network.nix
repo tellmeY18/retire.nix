@@ -1,5 +1,5 @@
 # hosts/c3po/parts/network.nix — Networking for c3po (k3s server + Tailscale)
-{ config, ... }:
+{ config, pkgs, ... }:
 {
   networking = {
     firewall = {
@@ -80,6 +80,10 @@
     ];
     wants = [ "tailscaled.service" ];
     wantedBy = [ "multi-user.target" ];
+    # iproute2 must be on PATH — ExecStartPre/ExecStart use `ip`. Without it
+    # the `until ip link show ... UP` loop runs `ip: command not found`
+    # forever, wedging switch-to-configuration and every subsequent deploy.
+    path = [ pkgs.iproute2 ];
     serviceConfig = {
       Type = "oneshot";
       RemainAfterExit = true;
