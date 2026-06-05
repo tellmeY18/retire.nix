@@ -56,7 +56,11 @@
 	//
 	// OmitDefaultRegions:false keeps Tailscale's built-in DERPs as fallback.
 	// DERPPort 443 = Traefik (TLS) in front of derper's HTTP :8080.
-	// STUNPort -1 = no STUN on this node (derper runs with -stun=false).
+	// STUNPort 3478 = derper's STUN server, exposed directly on kenobi's public
+	// IP via a hostPort (UDP, bypasses Traefik). STUN is REQUIRED for nodes to
+	// measure latency to this region and actually select it; without it the
+	// region is unreachable for latency probing and never used. Requires UDP
+	// 3478 open on both kenobi's host firewall and the OCI VCN security list.
 	"derpMap": {
 		"OmitDefaultRegions": false,
 		"Regions": {
@@ -70,7 +74,7 @@
 						"RegionID": 900,
 						"HostName": "derp.tellmey.fyi",
 						"DERPPort": 443,
-						"STUNPort": -1,
+						"STUNPort": 3478,
 					},
 				],
 			},

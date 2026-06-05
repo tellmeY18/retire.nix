@@ -20,8 +20,13 @@
         80
         443
       ];
-      # Tailscale UDP port for WireGuard tunnel
-      allowedUDPPorts = [ config.services.tailscale.port ];
+      # Tailscale UDP port for WireGuard tunnel + derper STUN (UDP 3478).
+      # NOTE: both also require matching OCI VCN security-list ingress rules
+      # (cloud firewall) — the NixOS firewall alone is not sufficient on OCI.
+      allowedUDPPorts = [
+        config.services.tailscale.port
+        3478
+      ];
       # Trust the tailnet + pod bridge interfaces
       trustedInterfaces = [
         "tailscale0"
