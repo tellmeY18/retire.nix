@@ -32,16 +32,21 @@ version:
 # Cluster — the heart of the configuration.
 # ---------------------------------------------------------------------------
 cluster:
-  # TEMPORARILY REDUCED to 2 (primary + one synchronous standby) after a
-  # 2026-06-04 incident: repeated storage-node reboots churned etcd, the CNPG
-  # operator lost leader election (couldn't renew its lease against the flapping
-  # apiserver) and the cluster got stuck "Failing over" with un-recoverable
-  # replicas. Recovery: scale down to a clean primary+standby pair. Scale back
-  # to 4 deliberately once the cluster has been stable for a while:
+  # SIMPLIFIED TO 1 (single primary, no standby) on 2026-06-05 after a
+  # cascading incident: a c3po node flap took the standby down; the cluster
+  # then thrashed because (a) synchronous replication wedged the lone primary
+  # and (b) every attempt to rebuild a standby by pg_basebackup'ing from the
+  # c3po-hosted primary stalled on c3po's flaky kubelet + slow (~360KB/s)
+  # uplink. Root cause is c3po's node instability, fixed separately by etcd
+  # heartbeat/election tuning in modules/services/k3s.nix.
+  #
+  # Restore HA only AFTER c3po stops blipping: bump back to 2 (or the target 4)
+  # AND restore the `synchronous` block below. With the primary on a stable
+  # node the standby rebuild will actually complete.
   #   kubectl patch cluster postgres-cluster -n cnpg-clusters --type merge \
-  #     -p '{"spec":{"instances":4}}'   (then restore this value to 4)
-  # Target design: 4 instances (primary + 3 sync standbys across chopper/c3po).
-  instances: 2
+  #     -p '{"spec":{"instances":2}}'   (then restore this value + synchronous)
+  # Target design: primary on a stable node + standby(s); c3po storage-only.
+  instances: 1
 
   # Pin the PostgreSQL minor version explicitly. CNPG ships purpose-built
   # PostgreSQL container images that include all the operator-side tooling
@@ -81,12 +86,16 @@ cluster:
   # PostgreSQL configuration
   # -------------------------------------------------------------------------
   postgresql:
-    # Quorum-based synchronous replication: at least 1 of the 2 standbys
-    # must acknowledge before commit. With 3 instances this gives RPO ≈ 0
-    # for a single replica loss (once the cluster spans ≥2 nodes).
-    synchronous:
-      method: any
-      number: 1
+    # Synchronous replication is DISABLED while running as a single instance
+    # (instances: 1) — there is no standby to synchronise with, and a synchronous
+    # requirement on a lone primary either blocks all writes (dataDurability:
+    # required) or is a no-op (preferred). Restore this block when scaling back
+    # to HA (≥2 instances), using `dataDurability: preferred` so losing the
+    # single standby cannot wedge the primary again:
+    #   synchronous:
+    #     method: any
+    #     number: 1
+    #     dataDurability: preferred   # relax sync when standbys are unavailable
 
     # Conservative parameter set tuned for laptop-class hardware. All values
     # are strings as required by the CNPG API.
