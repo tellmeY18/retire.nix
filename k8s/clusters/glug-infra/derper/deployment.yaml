@@ -11,8 +11,13 @@
 # LocalAPI), so it works fine behind a proxy — it just needs kenobi's
 # tailscaled socket, mounted via hostPath. That also pins the pod to kenobi.
 #
-# STUN is disabled (UDP can't traverse Traefik; Tailscale's default STUN
-# handles endpoint discovery). The derpMap entry sets STUNPort:-1 to match.
+# STUN: derper runs a STUN server on UDP :3478, exposed on the node via a
+# hostPort (NOT through Traefik — STUN is UDP and goes straight to kenobi's
+# public IP). This is REQUIRED for tailnet nodes to measure latency to this
+# region; without it the region has no measurable latency and is never picked
+# as a home/relay DERP (traffic falls back to Tailscale's shared relay). The
+# derpMap entry sets STUNPort:3478 to match. Needs UDP 3478 open on kenobi's
+# host firewall AND the OCI VCN security list.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -55,11 +60,15 @@ spec:
             - "-http-port"
             - "-1" # no separate :80 redirect listener
             - "-verify-clients" # only relay for our tailnet
-            - "-stun=false" # no STUN behind an HTTP proxy
+            - "-stun-port=3478" # STUN on UDP :3478 (direct, bypasses Traefik)
           ports:
             - name: derp
               containerPort: 8080
               protocol: TCP
+            - name: stun
+              containerPort: 3478
+              hostPort: 3478 # expose STUN on kenobi's public IP (UDP)
+              protocol: UDP
           volumeMounts:
             - name: tailscaled-sock
               mountPath: /var/run/tailscale
