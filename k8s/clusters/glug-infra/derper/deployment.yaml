@@ -1,0 +1,109 @@
+---
+# deployment.yaml — derper relay + its Service.
+#
+# Runtime mode: derper serves the DERP protocol over PLAIN HTTP on :8080
+# (`-a :8080` — derper only does its own TLS when the -a port is :443), and
+# Traefik terminates the public TLS in front (see ingress-traefik.yaml). So
+# there's no cert to manage in the pod.
+#
+# --verify-clients makes derper relay ONLY for nodes in our tailnet. It's
+# key-based (checks the connecting client's node key via the LOCAL tailscaled
+# LocalAPI), so it works fine behind a proxy — it just needs kenobi's
+# tailscaled socket, mounted via hostPath. That also pins the pod to kenobi.
+#
+# STUN is disabled (UDP can't traverse Traefik; Tailscale's default STUN
+# handles endpoint discovery). The derpMap entry sets STUNPort:-1 to match.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: derper
+  namespace: derper
+  labels:
+    app: derper
+    app.kubernetes.io/name: derper
+    app.kubernetes.io/part-of: tailnet
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: derper
+  template:
+    metadata:
+      labels:
+        app: derper
+        app.kubernetes.io/name: derper
+    spec:
+      # Pin to kenobi — the public-IP node and the host whose tailscaled
+      # socket we mount for --verify-clients.
+      nodeSelector:
+        kubernetes.io/hostname: kenobi
+      containers:
+        - name: derper
+          # NOTE: update this tag to the one produced by the "Build Derper
+          # Image" workflow (ghcr.io/tellmey18/derper:build-<N>).
+          image: ghcr.io/tellmey18/derper:build-1
+          imagePullPolicy: IfNotPresent
+          args:
+            - "-a"
+            - ":8080"            # non-443 → plain HTTP; Traefik does TLS
+            - "-http-port"
+            - "-1"               # no separate :80 redirect listener
+            - "-verify-clients"  # only relay for our tailnet
+            - "-stun=false"      # no STUN behind an HTTP proxy
+          ports:
+            - name: derp
+              containerPort: 8080
+              protocol: TCP
+          volumeMounts:
+            - name: tailscaled-sock
+              mountPath: /var/run/tailscale
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: "1"
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 1000
+            capabilities:
+              drop:
+                - ALL
+            seccompProfile:
+              type: RuntimeDefault
+          livenessProbe:
+            tcpSocket:
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+      volumes:
+        # kenobi's tailscaled control socket (world-rw 0666) for --verify-clients.
+        - name: tailscaled-sock
+          hostPath:
+            path: /var/run/tailscale
+            type: Directory
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: derper-svc
+  namespace: derper
+  labels:
+    app: derper
+spec:
+  type: ClusterIP
+  selector:
+    app: derper
+  ports:
+    - name: derp
+      protocol: TCP
+      port: 8080
+      targetPort: 8080

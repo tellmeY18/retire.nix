@@ -108,6 +108,7 @@ apply:
     kubectl apply -k clusters/glug-infra/attic
     kubectl apply -k clusters/glug-infra/changala
     kubectl apply -k clusters/glug-infra/penpot
+    kubectl apply -k clusters/glug-infra/derper
     kubectl apply -f clusters/glug-infra/monitoring/namespace.yaml
     helmfile sync
     @echo "Applying RustFS credentials (sops-decrypt)..."
@@ -138,6 +139,7 @@ diff:
     kubectl diff -k clusters/glug-infra/mysql-ghost || true
     kubectl diff -k clusters/glug-infra/mysql-mediawiki || true
     kubectl diff -k clusters/glug-infra/penpot || true
+    kubectl diff -k clusters/glug-infra/derper || true
     kubectl diff -k clusters/glug-infra/monitoring || true
     helmfile diff
 
