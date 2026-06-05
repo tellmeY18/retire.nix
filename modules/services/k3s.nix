@@ -278,6 +278,15 @@ in
             # encapsulation. Eliminates MTU/fragmentation issues from
             # double-encapsulation (vxlan inside wireguard).
             "--flannel-backend=host-gw"
+
+            # NOTE: etcd heartbeat/election tuning for c3po's high latency was
+            # attempted here (heartbeat-interval=250 / election-timeout=2500)
+            # but the *rolling deploy* of it wedged the cluster on 2026-06-05:
+            # restarting each member's etcd one-by-one (plus a failed chopper
+            # activation that rolled back) churned raft and left a member stuck.
+            # The values themselves are fine; the safe way to apply them is at
+            # cluster bootstrap or via a carefully-drained, one-at-a-time etcd
+            # restart — NOT a normal deploy. Re-introduce deliberately later.
           ]
 
           # Quorum-only nodes: taint so workloads never schedule here.
