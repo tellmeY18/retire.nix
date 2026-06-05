@@ -1,6 +1,12 @@
 # hosts/chopper/parts/k3s.nix — k3s control plane configuration for chopper.
 #
-# chopper is the cluster's first control plane node (server-init).
+# chopper is a control-plane + etcd server. It originally bootstrapped the
+# cluster (server-init / --cluster-init), but that role is only meaningful at
+# first bootstrap. After a 2026-06-05 incident wedged chopper's etcd member,
+# it was rebuilt as a normal JOINING server (role = server): --cluster-init is
+# removed so a wipe-and-rejoin can never accidentally bootstrap a split-brain
+# cluster. Any server can perform `k3s server --cluster-reset` for DR, so no
+# node needs to remain server-init.
 # Tailscale IP: 100.107.213.17
 #
 # TLS SANs include every address the API server might be reached at:
@@ -16,9 +22,15 @@
   services.k3s-cluster = {
     enable = true;
 
-    # First server — bootstraps the embedded etcd cluster.
-    role = "server-init";
-    clusterInit = true;
+    # Server — joins the existing etcd cluster (no longer the bootstrap node).
+    role = "server";
+
+    # Join via kenobi's apiserver (the reliable, public node — it serves the
+    # authoritative etcd member list for bootstrap). Joining via the flaky c3po
+    # handed the rejoining member a bad initial-cluster ("failed to find remote
+    # peer") and the etcd member never synced. Only used at join time; once
+    # joined, chopper operates from its local etcd.
+    serverAddr = "https://100.73.101.89:6443";
 
     # Static Tailscale IP — all k3s traffic binds to the tailnet.
     nodeIP = "100.107.213.17";
