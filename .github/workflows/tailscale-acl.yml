@@ -1,20 +1,31 @@
 # CI: Tailscale ACL GitOps — sync policy from tailscale/acl.hujson to the tailnet.
 #
-# On push to develop (when the ACL file changes), this workflow:
-#   1. Decrypts the Tailscale OAuth credentials from sops
-#   2. Validates the ACL via the Tailscale API (dry-run test)
-#   3. Pushes the policy to the tailnet
+# Uses Tailscale's official gitops-acl-action (gitops-pusher under the hood):
+#   - pull_request → develop : `test` only (validate + run ACL tests, no write)
+#   - push         → develop : `test` then `apply` (push policy to the tailnet)
+#   - workflow_dispatch      : `test` then `apply` (manual force-sync)
 #
-# Manual trigger also available for force-syncing without code changes.
+# Credentials are sops-encrypted in the repo (NOT raw GitHub secrets): we decrypt
+# secrets/ci/actions.yaml at runtime with the SOPS_AGE_KEY repo secret and feed
+# the OAuth client into the action via masked env vars.
 #
 # Prerequisites:
 #   - secrets/ci/actions.yaml contains ts_oauth_client_id + ts_oauth_secret
-#   - The OAuth client must have acl:write scope
+#   - The Tailscale OAuth client has the "acl" (Policy File) write scope
 #   - SOPS_AGE_KEY GitHub secret for decryption
+#
+# Notes:
+#   - tailnet "-" = the OAuth client's default tailnet (no org name needed).
+#   - apply is gated so PRs can only validate, never mutate the live policy.
 name: Tailscale ACL Sync
 
 on:
   push:
+    branches: [develop]
+    paths:
+      - "tailscale/acl.hujson"
+      - ".github/workflows/tailscale-acl.yml"
+  pull_request:
     branches: [develop]
     paths:
       - "tailscale/acl.hujson"
@@ -36,53 +47,39 @@ jobs:
 
       - uses: DeterminateSystems/nix-installer-action@main
 
-      - name: Decrypt CI secrets
-        id: secrets
+      - name: Decrypt OAuth credentials (sops)
         env:
           SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
         run: |
-          nix run nixpkgs#sops -- -d secrets/ci/actions.yaml > /tmp/ci-secrets.yaml
-          echo "ts_oauth_client_id=$(grep '^ts_oauth_client_id:' /tmp/ci-secrets.yaml | cut -d'"' -f2)" >> "$GITHUB_OUTPUT"
-          echo "ts_oauth_secret=$(grep '^ts_oauth_secret:' /tmp/ci-secrets.yaml | cut -d'"' -f2)" >> "$GITHUB_OUTPUT"
-          rm /tmp/ci-secrets.yaml
+          # Use sops --extract so the value is read directly, regardless of
+          # whether it's YAML-quoted (a `cut -d'"'` here silently grabbed the
+          # whole `key: value` line when values were unquoted).
+          CID=$(nix run nixpkgs#sops -- -d --extract '["ts_oauth_client_id"]' secrets/ci/actions.yaml)
+          CSEC=$(nix run nixpkgs#sops -- -d --extract '["ts_oauth_secret"]' secrets/ci/actions.yaml)
+          echo "::add-mask::$CID"
+          echo "::add-mask::$CSEC"
+          echo "TS_OAUTH_CLIENT_ID=$CID" >> "$GITHUB_ENV"
+          echo "TS_OAUTH_SECRET=$CSEC" >> "$GITHUB_ENV"
 
-      - name: Get Tailscale API token
-        id: token
-        run: |
-          TOKEN=$(curl -s -X POST "https://api.tailscale.com/api/v2/oauth/token" \
-            -d "client_id=${{ steps.secrets.outputs.ts_oauth_client_id }}" \
-            -d "client_secret=${{ steps.secrets.outputs.ts_oauth_secret }}" \
-            -d "grant_type=client_credentials" | jq -r '.access_token')
-          echo "::add-mask::$TOKEN"
-          echo "token=$TOKEN" >> "$GITHUB_OUTPUT"
+      # Always validate: lints the HuJSON, checks scopes, and runs any "tests"
+      # block in the policy. Safe on PRs — it never writes.
+      - name: Test ACL (dry-run)
+        uses: tailscale/gitops-acl-action@5a4a17f5708e9bf96f4ee915a95e9f83c2eebe1a # v1.5.2
+        with:
+          tailnet: "-"
+          oauth-client-id: ${{ env.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ env.TS_OAUTH_SECRET }}
+          policy-file: ./tailscale/acl.hujson
+          action: test
 
-      - name: Validate ACL (dry-run)
-        run: |
-          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
-            "https://api.tailscale.com/api/v2/tailnet/-/acl/validate" \
-            -H "Authorization: Bearer ${{ steps.token.outputs.token }}" \
-            -H "Content-Type: application/hujson" \
-            --data-binary @tailscale/acl.hujson)
-          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
-          BODY=$(echo "$RESPONSE" | sed '$d')
-          echo "$BODY"
-          if [[ "$HTTP_CODE" != "200" ]]; then
-            echo "::error::ACL validation failed (HTTP $HTTP_CODE)"
-            exit 1
-          fi
-          echo "✅ ACL policy is valid"
-
-      - name: Push ACL to tailnet
-        run: |
-          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
-            "https://api.tailscale.com/api/v2/tailnet/-/acl" \
-            -H "Authorization: Bearer ${{ steps.token.outputs.token }}" \
-            -H "Content-Type: application/hujson" \
-            --data-binary @tailscale/acl.hujson)
-          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
-          BODY=$(echo "$RESPONSE" | sed '$d')
-          if [[ "$HTTP_CODE" != "200" ]]; then
-            echo "::error::ACL push failed (HTTP $HTTP_CODE): $BODY"
-            exit 1
-          fi
-          echo "✅ ACL policy synced to tailnet"
+      # Push to the live tailnet only on push to develop or a manual dispatch —
+      # never on pull_request, so PRs can validate but not mutate the policy.
+      - name: Apply ACL to tailnet
+        if: github.event_name != 'pull_request'
+        uses: tailscale/gitops-acl-action@5a4a17f5708e9bf96f4ee915a95e9f83c2eebe1a # v1.5.2
+        with:
+          tailnet: "-"
+          oauth-client-id: ${{ env.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ env.TS_OAUTH_SECRET }}
+          policy-file: ./tailscale/acl.hujson
+          action: apply
