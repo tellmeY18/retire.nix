@@ -46,4 +46,34 @@
 			"users":  ["autogroup:nonroot", "root"],
 		},
 	],
+
+	// ─── Custom DERP map ──────────────────────────────────────────────
+	// Self-hosted DERP relay on kenobi (public OCI IP), behind Traefik at
+	// https://derp.tellmey.fyi. c3po is behind symmetric NAT, so kenobi↔c3po
+	// can't go direct and relays via DERP; routing that through our own node
+	// instead of Tailscale's throttled shared "blr" relay removes the
+	// bottleneck on attic→RustFS, etcd, CNPG and MGR across that pair.
+	//
+	// OmitDefaultRegions:false keeps Tailscale's built-in DERPs as fallback.
+	// DERPPort 443 = Traefik (TLS) in front of derper's HTTP :8080.
+	// STUNPort -1 = no STUN on this node (derper runs with -stun=false).
+	"derpMap": {
+		"OmitDefaultRegions": false,
+		"Regions": {
+			"900": {
+				"RegionID":   900,
+				"RegionCode": "glug",
+				"RegionName": "glug-infra (kenobi)",
+				"Nodes": [
+					{
+						"Name":     "kenobi",
+						"RegionID": 900,
+						"HostName": "derp.tellmey.fyi",
+						"DERPPort": 443,
+						"STUNPort": -1,
+					},
+				],
+			},
+		},
+	},
 }

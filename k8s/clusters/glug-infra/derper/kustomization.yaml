@@ -1,0 +1,27 @@
+---
+# kustomization.yaml — Self-hosted Tailscale DERP relay (derper).
+#
+# `kubectl apply -k k8s/clusters/glug-infra/derper`
+#
+# derper runs on kenobi behind Traefik (https://derp.tellmey.fyi) so the
+# kenobi↔c3po pair stops relaying through Tailscale's throttled shared DERP.
+#
+# Two out-of-band steps make nodes actually USE it:
+#   1. The derpMap entry in tailscale/acl.hujson (pushed by the ACL-sync
+#      workflow) — registers RegionID 900 → derp.tellmey.fyi.
+#   2. DNS: derp.tellmey.fyi A 68.233.115.209.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: derper
+
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: tailnet
+      app.kubernetes.io/managed-by: kustomize
+    includeSelectors: false
+
+resources:
+  - namespace.yaml
+  - deployment.yaml
+  - ingress-traefik.yaml
