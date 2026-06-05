@@ -37,6 +37,10 @@ spec:
       # socket we mount for --verify-clients.
       nodeSelector:
         kubernetes.io/hostname: kenobi
+      # fsGroup makes the emptyDir state volume group-writable by uid 1000 so
+      # derper can write its auto-generated relay keypair (-c path) on boot.
+      securityContext:
+        fsGroup: 1000
       containers:
         - name: derper
           # NOTE: update this tag to the one produced by the "Build Derper
@@ -44,12 +48,14 @@ spec:
           image: ghcr.io/tellmey18/derper:build-1
           imagePullPolicy: IfNotPresent
           args:
+            - "-c"
+            - "/var/lib/derper/derper.key" # auto-generated relay keypair
             - "-a"
-            - ":8080"            # non-443 → plain HTTP; Traefik does TLS
+            - ":8080" # non-443 → plain HTTP; Traefik does TLS
             - "-http-port"
-            - "-1"               # no separate :80 redirect listener
-            - "-verify-clients"  # only relay for our tailnet
-            - "-stun=false"      # no STUN behind an HTTP proxy
+            - "-1" # no separate :80 redirect listener
+            - "-verify-clients" # only relay for our tailnet
+            - "-stun=false" # no STUN behind an HTTP proxy
           ports:
             - name: derp
               containerPort: 8080
@@ -57,6 +63,8 @@ spec:
           volumeMounts:
             - name: tailscaled-sock
               mountPath: /var/run/tailscale
+            - name: derper-state
+              mountPath: /var/lib/derper
           resources:
             requests:
               cpu: 50m
@@ -90,6 +98,10 @@ spec:
           hostPath:
             path: /var/run/tailscale
             type: Directory
+        # Ephemeral store for derper's relay keypair (regenerated on restart;
+        # the derpMap entry doesn't pin the key, so a new key is harmless).
+        - name: derper-state
+          emptyDir: {}
 ---
 apiVersion: v1
 kind: Service
