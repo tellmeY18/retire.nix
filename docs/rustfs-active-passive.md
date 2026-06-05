@@ -214,6 +214,48 @@ chokepoint. Summary:
 | Public, low volume | Funnel | simple, auto-TLS, off-kenobi ingress — but throttled |
 | Public, high throughput | Traefik on kenobi | full bandwidth; kenobi is the chokepoint |
 
+### Decision: keep the tailnet LB, migrate the *public* endpoint off Funnel
+
+There are two distinct "tailscale" endpoints today — do not conflate them:
+
+- **`tailscale-s3-service.yaml`** = the tailnet **LoadBalancer**
+  (`s3.tail477f2f.ts.net`). **KEEP IT.** This is the best path for tailnet /
+  CI / laptop consumers: direct node-to-node WireGuard, full speed. Pin its
+  `ts-proxy` pod onto a **storage node** (not kenobi) so kenobi is fully out
+  of the data path.
+- **`tailscale-s3-funnel.yaml`** = the **public** (Funnel) endpoint. This is
+  the one to reconsider.
+
+**Recommendation for the public endpoint:**
+
+1. **First confirm a public (non-tailnet) S3 endpoint is actually needed.**
+   If every consumer is in-cluster or on the tailnet, **delete the Funnel
+   endpoint** and expose nothing publicly — least surface, no throttle, no
+   chokepoint.
+2. **If a public endpoint IS needed and carries real throughput, migrate it
+   from Funnel → a Traefik `IngressRoute` on kenobi** (reuse the existing
+   Let's Encrypt / `websecure` setup from the derper IngressRoute as a
+   template). Rationale: Traefik serves over **kenobi's full public OCI
+   uplink**, whereas Funnel relays through Tailscale's **rate-limited**
+   infrastructure (the same throttling that forced the self-hosted DERP) —
+   a poor fit for bulk object storage. Accept that kenobi becomes the public
+   ingress chokepoint; it is the cloud node with the best public link, so
+   that is the right place for it.
+3. **If public access is genuinely low-volume**, leaving Funnel as-is is fine
+   (simple, auto-TLS, off-kenobi). The migration only pays off for bulk S3.
+
+Migration sketch (Funnel → Traefik), when warranted:
+- Add an `IngressRoute` (entrypoint `websecure`, `certResolver letsencrypt`,
+  host e.g. `s3.tellmey.fyi`) routing to the RustFS S3 Service (the new nginx
+  failover Service from §3.3, so public access also gets failover).
+- Set a long/disabled backend timeout `ServersTransport` (S3 multipart
+  uploads are long-lived), mirroring the derper IngressRoute's transport.
+- Add the public DNS A record → kenobi's public IP; ensure OCI security list
+  already allows TCP 443 (it does — Traefik/derper use it).
+- Cut consumers over to the new host, then delete `tailscale-s3-funnel.yaml`.
+- **Do NOT** route this through the throttled Funnel or through the tailnet
+  LB; public bulk S3 wants kenobi's direct public uplink.
+
 ---
 
 ## 6. Tradeoffs & rollback
