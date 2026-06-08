@@ -6,9 +6,8 @@
 #   helmfile diff  --file k8s/helmfile.yaml   # preview changes
 #
 # Prerequisites:
-#   helm-secrets, helm-diff, and helm-git are Nix-managed via wrapHelm in
+#   helm-secrets and helm-diff are Nix-managed via wrapHelm in
 #   dev-k8s.nix. No manual `helm plugin install` step needed.
-#   helm-git is required for the rustfs-operator chart (sourced from git).
 #
 # Layered model:
 #   1. vm/victoria-metrics-k8s-stack → the monitoring stack (VMSingle,
@@ -23,8 +22,6 @@
 #   - Add another release block below with `name: analytics`.
 #   - `just k8s::apply`.
 #
-#   4. rustfs/rustfs-operator → RustFS operator (Tenant CRD + controller).
-#
 # Version policy:
 #   - Always pin chart versions explicitly. Never use "*" or floating tags.
 #   - When bumping, read the chart CHANGELOG for breaking changes.
@@ -38,11 +35,6 @@ repositories:
     url: https://traefik.github.io/charts
   - name: penpot
     url: http://helm.penpot.app
-  # NOTE: The rustfs-operator chart is not published to a Helm registry.
-  # It lives in the source repo at deploy/rustfs-operator/. We reference it
-  # via the helm-git plugin (included in the Nix dev shell via wrapHelm).
-  - name: rustfs-git
-    url: "git+https://github.com/rustfs/operator@deploy?ref=main"
 
 helmDefaults:
   wait: true
@@ -111,29 +103,6 @@ releases:
       - apps/postgres/values.yaml
     secrets:
       - apps/postgres/secrets.yaml
-
-  # ---------------------------------------------------------------------------
-  # 4. RustFS operator (CRDs + controller).
-  # ---------------------------------------------------------------------------
-  # Manages Tenant CRs that provision erasure-coded S3-compatible object
-  # storage clusters via StatefulSets. The operator watches all namespaces
-  # for Tenant resources.
-  #
-  # Chart source: https://github.com/rustfs/operator/tree/main/deploy/rustfs-operator
-  # Pulled via helm-git plugin from the rustfs-git repository defined above.
-  - name: rustfs-operator
-    namespace: rustfs-system
-    createNamespace: true
-    chart: rustfs-git/rustfs-operator
-    version: "0.1.0"
-    needs:
-      - monitoring/victoria-metrics-k8s-stack
-    values:
-      - apps/rustfs-operator/values.yaml
-    # No secrets needed — the operator itself has no credentials.
-    # If secrets are added later, create a sops-encrypted secrets.yaml and
-    # uncomment: secrets:
-    #              - apps/rustfs-operator/secrets.yaml
 
   # ---------------------------------------------------------------------------
   # 8. Penpot — open-source design and prototyping platform.

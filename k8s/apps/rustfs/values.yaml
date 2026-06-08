@@ -1,66 +1,28 @@
-# values.yaml — RustFS Tenant configuration for the glug-infra cluster.
+# values.yaml — RustFS configuration notes (documentation only).
 #
-# This is NOT a Helm chart — it's a plain values file that helmfile renders
-# into a Tenant CR + supporting resources via the rustfs-operator/tenant chart.
-# Since the rustfs-operator does not yet publish a tenant chart, we use a raw
-# manifest approach: helmfile's `needs` ensures the operator is installed first,
-# then we apply the Tenant CR directly via kustomize.
+# RustFS is NO LONGER operator-managed. It runs as a plain standalone
+# StatefulSet (one pod, one ZFS-backed PVC, no erasure coding). There is no
+# Helm chart and no Tenant CRD.
 #
-# This file documents the intended Tenant spec. The actual CR lives in
-# k8s/clusters/glug-infra/rustfs/tenant.yaml (applied by kustomize).
+# The actual manifests live in k8s/clusters/glug-infra/rustfs/ and are applied
+# by kustomize (`kubectl apply -k clusters/glug-infra/rustfs`):
+#   - statefulset.yaml   — the single standalone RustFS pod (RUSTFS_VOLUMES=/data)
+#   - service.yaml        — rustfs-hl (headless) + rustfs-storage-io (stable S3 endpoint)
+#   - namespace.yaml, networkpolicy.yaml, tailscale-s3-service.yaml, tailscale-s3-funnel.yaml
 #
-# ----- Configuration Reference -----
+# Why standalone (not the operator / erasure coding):
+#   The operator only builds erasure-coded sets (it rejects <4 drives). On a
+#   single laptop NVMe, EC across 4 local "drives" is not redundancy (one disk
+#   = one failure domain) — it only adds write amplification and a cross-node
+#   quorum gate that crashlooped when nodes flapped. A single drive is simpler
+#   and strictly more reliable here.
 #
-# RustFS Tenant CRD (rustfs.com/v1alpha1):
-#   pools[].servers            — number of StatefulSet replicas per pool
-#   pools[].persistence        — PVC template + volumesPerServer
-#   pools[].resources          — CPU/memory for RustFS containers
-#   pools[].topologySpread     — distribute across nodes
-#   credsSecret.name           — Secret with accesskey + secretkey
-#   image                      — RustFS container image
+# Durability lives underneath/around RustFS, not inside it:
+#   - ZFS: checksums, copy-on-write, snapshots on chopper's pool.
+#   - off-site backup (to be added) for true DR.
 #
-# Erasure coding constraint:
-#   servers * volumesPerServer >= 4  (minimum for distributed mode)
+# Stable in-cluster endpoint (unchanged for apps):
+#   http://rustfs-storage-io.rustfs-clusters.svc:9000
 #
-# Architecture note:
-#   All pools in a Tenant form ONE unified erasure-coded cluster.
-#   Multiple pools = capacity expansion, NOT performance tiering.
-#   For separate clusters, create separate Tenants.
-#
-# HA strategy:
-#   Phase 1 (single node): 4 servers on 1 node — no node-level HA, but
-#   RustFS erasure coding protects against volume/drive failures.
-#   Phase 2 (multi-node): pods spread via topologySpreadConstraints;
-#   survives single node loss.
-#
-# Storage:
-#   Uses the default `zfs-localpv` StorageClass (8k recordsize).
-#   RustFS uses its own block format on top of the filesystem, so
-#   recordsize alignment is less critical than for databases.
-
-# -- Tenant name (used by kustomize, not Helm) --
-tenantName: rustfs-storage
-
-# -- Pool configuration --
-# Single pool, 4 servers, 2 volumes each = 8 total volumes.
-# Satisfies the minimum erasure coding requirement (4*2=8 >= 4).
-# Provides redundancy: can tolerate loss of up to 4 drives (EC:4 default).
-pools:
-  - name: pool-0
-    servers: 4
-    volumesPerServer: 2
-    storageClassName: zfs-localpv
-    storageSize: 50Gi
-    resources:
-      requests:
-        cpu: "200m"
-        memory: "512Mi"
-      limits:
-        cpu: "1000m"
-        memory: "2Gi"
-
-# -- RustFS image --
-image: rustfs/rustfs:latest
-
-# -- Pod management --
-podManagementPolicy: Parallel
+# Root credentials: the `rustfs-credentials` Secret (sops:
+#   k8s/clusters/glug-infra/rustfs/credentials-secret.enc.yaml).

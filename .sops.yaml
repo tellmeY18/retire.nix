@@ -121,6 +121,25 @@ creation_rules:
   #         - *newhost
 
   # ---------------------------------------------------------------------------
+  # LAPTOP-side secrets — decrypted by the operator's laptop at tool-call time
+  # ---------------------------------------------------------------------------
+  #
+  # secrets/laptop/* holds credentials consumed by tooling that runs directly
+  # on the operator's Mac (NOT on any managed host and NOT in-cluster).
+  # Example:
+  #   secrets/laptop/wiki-mcp.yaml  → MediaWiki bot password for the
+  #                                   mediawiki-mcp-server, decrypted lazily
+  #                                   via an `exec` secret source in
+  #                                   ~/.config/mediawiki-mcp/config.json.
+  #
+  # Encrypted to the master key only — no managed host or CI runner has any
+  # business decrypting laptop-local credentials.
+  - path_regex: secrets/laptop/.*
+    key_groups:
+      - age:
+          - *master
+
+  # ---------------------------------------------------------------------------
   # CI secrets — decrypted by GitHub Actions using the &ci age key
   # ---------------------------------------------------------------------------
   #

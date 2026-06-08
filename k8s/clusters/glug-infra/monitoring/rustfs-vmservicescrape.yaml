@@ -34,7 +34,7 @@ spec:
       - rustfs-clusters
   selector:
     matchLabels:
-      rustfs.tenant: rustfs-storage
+      app.kubernetes.io/name: rustfs
   endpoints:
     # Cluster-level metrics — capacity, buckets, objects, erasure health.
     - targetPort: 9000

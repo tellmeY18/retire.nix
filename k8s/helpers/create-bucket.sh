@@ -20,7 +20,7 @@ BUCKET="${1:?Usage: create-bucket.sh <bucket_name> [access_key] [secret_key]}"
 ACCESS_KEY="${2:-$(openssl rand -hex 16)}"
 SECRET_KEY="${3:-$(openssl rand -hex 32)}"
 NAMESPACE="rustfs-clusters"
-POD="rustfs-storage-pool-0-0"
+POD="rustfs-0"
 ALIAS="local"
 
 echo "━━━ Creating bucket '${BUCKET}' in RustFS ━━━"

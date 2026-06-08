@@ -36,20 +36,15 @@ spec:
   type: LoadBalancer
   loadBalancerClass: tailscale
 
-  # Select the RustFS pods for the S3 API (IO service).
-  # The operator labels pods with `rustfs.tenant=<tenant-name>`.
+  # Select the standalone RustFS StatefulSet pod for the S3 API.
   selector:
-    rustfs.tenant: rustfs-storage
+    app.kubernetes.io/name: rustfs
 
   ports:
     - name: s3-api
       protocol: TCP
       port: 9000
       targetPort: 9000
-    - name: console
-      protocol: TCP
-      port: 9001
-      targetPort: 9001
 
   # Session affinity for consistent routing during multi-part uploads.
   sessionAffinity: ClientIP

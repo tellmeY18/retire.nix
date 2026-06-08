@@ -36,8 +36,7 @@ nodes are present; the Tailscale `pg-rw` MagicDNS endpoint stays stable.
 | **CNPG operator** | `helmfile` | The `cloudnative-pg` chart in the `cnpg-system` namespace. Provides CRDs + the controller. |
 | **Postgres workloads** | `helmfile` (cnpg/cluster chart) | One Helm release per Postgres cluster. Renders the `Cluster`, `ScheduledBackup`, and `Pooler` CRs from values files in `apps/postgres/`. |
 | **MySQL workloads** | `kustomize` + `sops` | Two independent deployments, no operator. `mysql-ghost` — a 3-member MySQL Group Replication (MGR) cluster (StatefulSets + `proxysql-ghost`) for the `ghost`/`activitypub` DBs. `mysql-mediawiki` — a standalone single-node Percona Server for MediaWiki. Manifests under `clusters/glug-infra/mysql-ghost/` and `clusters/glug-infra/mysql-mediawiki/`; ProxySQL/backup secrets are sops-encrypted. |
-| **RustFS operator** | `helmfile` (helm-git) | The `rustfs-operator` chart pulled from `github.com/rustfs/operator` via the `helm-git` plugin. Provides the `Tenant` CRD + controller in the `rustfs-system` namespace. |
-| **RustFS workloads** | `kustomize` + `sops` | The `Tenant` CR (`tenant.yaml`) is applied post-helmfile once the CRD exists. Credentials Secret is sops-decrypted and applied before the Tenant. |
+| **RustFS object storage** | `kustomize` + `sops` | Standalone, operator-free. A single RustFS `StatefulSet` (one pod, one ZFS-backed PVC, no erasure coding) + its Services under `clusters/glug-infra/rustfs/`. The `rustfs-credentials` Secret is sops-decrypted and applied before the StatefulSet. |
 | **Monitoring stack** | `helmfile` | `victoria-metrics-k8s-stack` chart (v0.77.0) in the `monitoring` namespace. Provides VMSingle + VMAgent + VMAlert + VMAlertmanager + Grafana + VictoriaMetrics Operator + CRDs (VMRule, VMPodScrape, VMServiceScrape). |
 | **Cluster glue** | `kubectl apply -k` (kustomize) | Namespaces (with PSA labels), NetworkPolicies, and Tailscale LoadBalancer Services (pg-rw, grafana). |
 | **Encrypted secrets** | `helm-secrets` (sops) | S3 backup credentials live in `apps/postgres/secrets.yaml` and the Grafana admin password in `apps/victoria-metrics-k8s-stack/secrets.yaml` — both sops-encrypted Helm values, merged by `helm-secrets` at install time. No raw `Secret` manifest ever touches git or the kustomize pipeline. |
@@ -52,8 +51,7 @@ nodes are present; the Tailscale `pg-rw` MagicDNS endpoint stays stable.
 | `cnpg-clusters` | `namespace.yaml` (kustomize) | Postgres `Cluster`, `Pooler`, `ScheduledBackup`, `Service`, `NetworkPolicy`, `Secret` (rendered by chart) |
 | `mysql-ghost` | `mysql-ghost/namespace.yaml` (kustomize) | MGR member StatefulSets (`mysql-ghost-a/b/c`), `proxysql-ghost` Deployment, hourly backup `CronJob`, `NetworkPolicy`, sops `Secret`s |
 | `mysql-mediawiki` | `mysql-mediawiki/namespace.yaml` (kustomize) | Standalone Percona Server StatefulSet (single node, kenobi hostPath), hourly backup `CronJob`, `NetworkPolicy`, sops `Secret`s |
-| `rustfs-system` | helmfile chart `createNamespace: true` | RustFS operator Deployment (Tenant CRD controller) |
-| `rustfs-clusters` | `rustfs/namespace.yaml` (kustomize) | RustFS `Tenant`, StatefulSets, credentials `Secret`, `NetworkPolicy`, Tailscale `Service` |
+| `rustfs-clusters` | `rustfs/namespace.yaml` (kustomize) | Standalone RustFS `StatefulSet` (single pod), its PVC, credentials `Secret`, `NetworkPolicy`, Tailscale `Service` |
 | `changala` | `changala/namespace.yaml` (kustomize) | Changala Ring server `Deployment`, `ConfigMap` (atrg.toml), credentials `Secret` (sops), `NetworkPolicy`, Tailscale `Service` |
 | `monitoring` | `monitoring/namespace.yaml` (kustomize) | VMSingle, VMAgent, VMAlert, VMAlertmanager, Grafana, node-exporter, kube-state-metrics, Grafana Tailscale Service |
 
@@ -163,19 +161,21 @@ Bootstrap, failover, and restore procedures live in
 
 ### RustFS (S3-compatible object storage)
 
+Standalone, operator-free: a single StatefulSet pod (`rustfs-0`), one
+ZFS-backed PVC, no erasure coding. Stable endpoint:
+`rustfs-storage-io.rustfs-clusters.svc:9000`.
+
 ```sh
-just k8s::rustfs-status            # show Tenant status
-just k8s::rustfs-describe          # detailed Tenant description
-just k8s::rustfs-operator-logs     # tail operator logs
-just k8s::rustfs-pod-logs          # tail storage pod logs
-just k8s::rustfs-pods              # list all RustFS pods
-just k8s::rustfs-pvcs              # list PVCs with capacity
+just k8s::rustfs-status            # StatefulSet + pod status
+just k8s::rustfs-describe          # describe the pod (events/probes)
+just k8s::rustfs-pod-logs          # tail the pod logs
+just k8s::rustfs-pods              # list the RustFS pod
+just k8s::rustfs-pvcs              # show the PVC + capacity
 just k8s::rustfs-port-forward      # port-forward S3 API to localhost:9000
-just k8s::rustfs-console           # port-forward Console UI to localhost:9001
-just k8s::rustfs-health            # test S3 API health
+just k8s::rustfs-health            # pod ready + service endpoint
 just k8s::rustfs-apply-secret      # apply sops-decrypted credentials
-just k8s::rustfs-capacity          # query RustFS cluster capacity
-just k8s::rustfs-node-status       # query RustFS node/drive status
+just k8s::rustfs-capacity          # query RustFS capacity metrics
+just k8s::rustfs-node-status       # query RustFS drive status metrics
 just k8s::rustfs-error-rate        # query RustFS S3 error rate
 ```
 
@@ -321,15 +321,16 @@ connection drop. MediaWiki is not in this path — it talks to its standalone
 client / webservice
   → s3.<tailnet>.ts.net:9000          (Tailscale MagicDNS)
   → ts-proxy pod                       (LoadBalancer Service in rustfs-clusters)
-  → RustFS IO Service                  (operator-created, port 9000)
-  → RustFS StatefulSet pods            (erasure-coded cluster, 4 servers)
+  → rustfs-storage-io Service          (ClusterIP, port 9000)
+  → rustfs-0 pod                       (standalone StatefulSet, single drive)
 ```
 
-RustFS distributes objects across all servers using erasure coding. Any server
-can handle any S3 request — the cluster rebalances internally. With 4 servers
-and EC:4 parity, the cluster tolerates up to 4 volume failures with no data
-loss. On a single node (phase 1), this means drive-level resilience; with
-multiple nodes, it provides full node-failure tolerance.
+RustFS runs standalone: ONE pod with a SINGLE ZFS-backed volume, no erasure
+coding and no operator. In-cluster apps hit `rustfs-storage-io:9000` directly.
+This is deliberately not internally redundant — on one laptop NVMe, erasure
+coding across local "drives" is not real redundancy and only adds write
+amplification plus a quorum gate that crashlooped under node flapping.
+Durability lives in ZFS (checksums, COW, snapshots) plus off-site backup (TBD).
 
 ---
 
@@ -359,12 +360,8 @@ k8s/
 │   ├── postgres/
 │   │   ├── values.yaml                      # Cluster + Pooler + Backup config
 │   │   └── secrets.yaml                     # sops-encrypted S3 credentials
-│   ├── rustfs-operator/
-│   │   ├── values.yaml                      # RustFS operator Helm values
-│   │   └── secrets.yaml                     # placeholder (no secrets needed)
 │   └── rustfs/
-│       ├── values.yaml                      # Tenant configuration reference
-│       └── secrets.yaml                     # placeholder (credentials in kustomize)
+│       └── values.yaml                      # standalone RustFS notes (no operator)
 ├── clusters/
 │   └── glug-infra/
 │       ├── kustomization.yaml               # entry point (cnpg-clusters namespace)
