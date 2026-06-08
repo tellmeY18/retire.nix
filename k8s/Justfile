@@ -104,6 +104,8 @@ fetch-kubeconfig:
 apply:
     kubectl apply -k clusters/glug-infra
     kubectl apply -k clusters/glug-infra/kube-system
+    @echo "Applying RustFS credentials (sops-decrypt) before the StatefulSet..."
+    sops --decrypt clusters/glug-infra/rustfs/credentials-secret.enc.yaml | kubectl apply -f -
     kubectl apply -k clusters/glug-infra/rustfs
     kubectl apply -k clusters/glug-infra/attic
     kubectl apply -k clusters/glug-infra/changala
@@ -111,9 +113,6 @@ apply:
     kubectl apply -k clusters/glug-infra/derper
     kubectl apply -f clusters/glug-infra/monitoring/namespace.yaml
     helmfile sync
-    @echo "Applying RustFS credentials (sops-decrypt)..."
-    sops --decrypt clusters/glug-infra/rustfs/credentials-secret.enc.yaml | kubectl apply -f -
-    kubectl apply -f clusters/glug-infra/rustfs/tenant.yaml
     @echo "Applying Attic credentials (sops-decrypt)..."
     sops --decrypt clusters/glug-infra/attic/credentials-secret.enc.yaml | kubectl apply -f -
     @echo "Applying Changala Ring credentials (sops-decrypt)..."
@@ -134,7 +133,6 @@ apply:
 diff:
     kubectl diff -k clusters/glug-infra || true
     kubectl diff -k clusters/glug-infra/rustfs || true
-    kubectl diff -f clusters/glug-infra/rustfs/tenant.yaml 2>/dev/null || true
     kubectl diff -k clusters/glug-infra/changala || true
     kubectl diff -k clusters/glug-infra/mysql-ghost || true
     kubectl diff -k clusters/glug-infra/mysql-mediawiki || true
@@ -322,37 +320,36 @@ mgr-routing:
 
 # ---------------------------------------------------------------------------
 # RustFS (S3-compatible object storage) day-2 helpers
+#
+# Standalone, operator-free: a single StatefulSet pod `rustfs-0`, one
+# ZFS-backed PVC, no erasure coding. Stable endpoint: rustfs-storage-io:9000.
 # ---------------------------------------------------------------------------
 
-# Show the RustFS Tenant status.
-[doc('Show RustFS Tenant status')]
+# Show the RustFS StatefulSet + pod status.
+[doc('Show RustFS StatefulSet + pod status')]
 rustfs-status:
-    kubectl get tenant rustfs-storage -n rustfs-clusters -o wide
+    kubectl get statefulset rustfs -n rustfs-clusters -o wide
+    kubectl get pods -n rustfs-clusters -l app.kubernetes.io/name=rustfs -o wide
 
-# Show detailed RustFS Tenant info.
-[doc('Show detailed RustFS Tenant description')]
+# Describe the RustFS pod (events, scheduling, probes).
+[doc('Describe the RustFS pod')]
 rustfs-describe:
-    kubectl describe tenant rustfs-storage -n rustfs-clusters
+    kubectl describe pod rustfs-0 -n rustfs-clusters
 
-# Tail logs from the RustFS operator.
-[doc('Tail RustFS operator logs')]
-rustfs-operator-logs:
-    kubectl logs -n rustfs-system -l app.kubernetes.io/name=rustfs-operator -f --tail=200
+# Tail logs from the RustFS pod.
+[doc('Tail RustFS pod logs')]
+rustfs-pod-logs:
+    kubectl logs -n rustfs-clusters rustfs-0 -f --tail=200
 
-# Tail logs from a specific RustFS pod (default: first pod).
-[doc('Tail RustFS storage pod logs')]
-rustfs-pod-logs pod="rustfs-storage-pool-0-0":
-    kubectl logs -n rustfs-clusters {{ pod }} -f --tail=200
-
-# Show all RustFS pods and their status.
-[doc('List all RustFS pods')]
+# Show the RustFS pod and its status.
+[doc('List the RustFS pod')]
 rustfs-pods:
-    kubectl -n rustfs-clusters get pods -l rustfs.tenant=rustfs-storage -o wide
+    kubectl -n rustfs-clusters get pods -l app.kubernetes.io/name=rustfs -o wide
 
-# Show RustFS PVCs and their capacity.
-[doc('List all RustFS PVCs')]
+# Show the RustFS PVC and its capacity.
+[doc('List the RustFS PVC')]
 rustfs-pvcs:
-    kubectl -n rustfs-clusters get pvc -l rustfs.tenant=rustfs-storage \
+    kubectl -n rustfs-clusters get pvc -l app.kubernetes.io/name=rustfs \
       -o custom-columns=NAME:.metadata.name,STATUS:.status.phase,CAPACITY:.status.capacity.storage,STORAGECLASS:.spec.storageClassName
 
 # Port-forward the RustFS S3 API to localhost:9000.
@@ -360,16 +357,13 @@ rustfs-pvcs:
 rustfs-port-forward:
     kubectl -n rustfs-clusters port-forward svc/rustfs-storage-io 9000:9000
 
-# Port-forward the RustFS Console UI to localhost:9001.
-[doc('Port-forward RustFS Console UI to localhost:9001')]
-rustfs-console:
-    kubectl -n rustfs-clusters port-forward svc/rustfs-storage-console 9001:9001
-
-# Test S3 API connectivity (requires aws cli or mc).
-[doc('Test RustFS S3 API health via tailnet')]
+# Check the RustFS pod is Ready and the Service has an endpoint.
+[doc('Check RustFS readiness + endpoint')]
 rustfs-health:
-    @echo "Testing S3 API health..."
-    kubectl -n rustfs-clusters exec rustfs-storage-pool-0-0 -- wget -qO- http://localhost:9000/minio/health/live && echo " OK" || echo " FAILED"
+    @echo "Pod ready:"
+    kubectl get pod rustfs-0 -n rustfs-clusters -o jsonpath='{.status.containerStatuses[0].ready}{"\n"}'
+    @echo "Service endpoints:"
+    kubectl get endpoints rustfs-storage-io -n rustfs-clusters
 
 # Apply the RustFS credentials Secret from sops-encrypted source.
 # Use this after editing credentials with `just k8s::edit-secret`.

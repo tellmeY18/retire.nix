@@ -1,0 +1,134 @@
+---
+# statefulset.yaml — Standalone single-node RustFS (no operator, no erasure).
+#
+# KISS object storage: ONE pod, ONE ZFS-backed volume, no erasure coding, no
+# Tenant CRD, no cross-node quorum. This deliberately replaces the rustfs
+# operator + EC Tenant: erasure coding across 4 "drives" on a single laptop
+# NVMe is not redundancy (one disk = one failure domain) and only added write
+# amplification + a quorum gate that crashlooped when nodes flapped.
+#
+# Durability lives where it belongs:
+#   - ZFS underneath (checksums, copy-on-write, snapshots) on chopper's pool.
+#   - off-site backup (added later) for true DR.
+#
+# Standalone mode is triggered by pointing RUSTFS_VOLUMES at a SINGLE local
+# path (`/data`) instead of the operator's distributed `{0...N}` glob — RustFS
+# then runs as a single drive with no erasure set / no read-write quorum.
+#
+# Pinned to chopper (the reliable node) and tolerates the storage taint, the
+# same way the operator scheduled its pods.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: rustfs
+  namespace: rustfs-clusters
+  labels:
+    app.kubernetes.io/name: rustfs
+    app.kubernetes.io/component: object-storage
+    app.kubernetes.io/part-of: rustfs
+    app.kubernetes.io/managed-by: kustomize
+spec:
+  serviceName: rustfs-hl
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: rustfs
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: rustfs
+        app.kubernetes.io/component: object-storage
+        app.kubernetes.io/part-of: rustfs
+    spec:
+      # Pin the single pod to chopper. The storage node's hard
+      # `node-role.glug.infra/storage:NoSchedule` taint needs a toleration
+      # (the operator added the same ones).
+      nodeSelector:
+        kubernetes.io/hostname: chopper
+      tolerations:
+        - effect: NoSchedule
+          key: node-role.glug.infra/storage
+          operator: Exists
+        - effect: NoExecute
+          key: node-role.glug.infra/storage
+          operator: Exists
+      # RustFS runs as uid/gid 10001 (matches the operator); fsGroup chowns the
+      # ZFS PVC so the non-root process can write it.
+      securityContext:
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        fsGroupChangePolicy: OnRootMismatch
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: rustfs
+          image: rustfs/rustfs:latest
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          env:
+            # SINGLE local path → standalone, no erasure set, no quorum gate.
+            - name: RUSTFS_VOLUMES
+              value: "/data"
+            - name: RUSTFS_ADDRESS
+              value: "0.0.0.0:9000"
+            - name: RUSTFS_CONSOLE_ENABLE
+              value: "false"
+            - name: RUST_LOG
+              value: info
+            # Non-matching Host headers fall back to path-style routing.
+            - name: RUSTFS_DOMAIN
+              value: s3.internal
+            # Root credentials (same Secret the operator used).
+            - name: RUSTFS_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: rustfs-credentials
+                  key: accesskey
+            - name: RUSTFS_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: rustfs-credentials
+                  key: secretkey
+          ports:
+            - name: s3
+              containerPort: 9000
+          # RustFS binds the S3 API on 9000; use a TCP readiness/liveness check
+          # (the MinIO-style /minio/health path returns 403 on RustFS).
+          readinessProbe:
+            tcpSocket:
+              port: 9000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 9000
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: "200m"
+              memory: "512Mi"
+            limits:
+              cpu: "1500m"
+              memory: "2Gi"
+          volumeMounts:
+            - name: data
+              mountPath: /data
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+        labels:
+          app.kubernetes.io/name: rustfs
+          app.kubernetes.io/part-of: rustfs
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: zfs-localpv
+        resources:
+          requests:
+            # Single full copy of all buckets. ZFS quota cap, not a reservation.
+            storage: 100Gi

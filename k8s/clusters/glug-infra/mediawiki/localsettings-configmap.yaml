@@ -205,6 +205,7 @@ data:
     # Custom S3-compatible endpoint (RustFS via path-style)
     $wgFileBackends['s3']['endpoint'] = 'http://rustfs-storage-io.rustfs-clusters.svc:9000';
     $wgFileBackends['s3']['use_path_style_endpoint'] = true;
+    $wgAWSUseHTTPS = false;
 
     # Public URL for images — $1 is replaced with bucket name
     $wgAWSBucketDomain = 's3-1.tail477f2f.ts.net/$1';
@@ -519,6 +520,16 @@ data:
     for ($y = 1961; $y <= $endYear; $y++) {
         $wgVisualEditorAvailableNamespaces[3000 + ($y - 1961) * 2] = true;
     }
+
+    ## HowTo namespace for college documentation
+    $wgExtraNamespaces[3200] = 'HowTo';
+    $wgExtraNamespaces[3201] = 'HowTo_talk';
+    $wgNamespacesWithSubpages[3200] = true;
+    $wgNamespacesWithSubpages[3201] = true;
+    $wgNamespacesToBeSearchedDefault[3200] = true;
+    $wgCirrusSearchNamespaceWeights[3200] = 1.0;
+    $wgVisualEditorAvailableNamespaces[3200] = true;
+    $wgVisualEditorAvailableNamespaces[3201] = true;
 
     ## Job queue
     # Don't run jobs on web requests — the sidecar handles them.

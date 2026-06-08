@@ -3,20 +3,21 @@
 #
 # `kubectl apply -k k8s/clusters/glug-infra/rustfs`
 #
-# What lives here (core Kubernetes types, no CRDs needed):
+# Standalone, operator-free object storage: a single RustFS StatefulSet (one
+# pod, one ZFS-backed PVC, no erasure coding, no Tenant CRD). See
+# statefulset.yaml for the rationale.
+#
+# What lives here (all core Kubernetes types — NO CRDs, NO operator):
 #   - The `rustfs-clusters` Namespace (with PodSecurity labels).
 #   - NetworkPolicies guarding the namespace.
+#   - The standalone RustFS StatefulSet + its Services (rustfs-hl headless and
+#     rustfs-storage-io ClusterIP — the stable S3 endpoint apps point at).
 #   - The Tailscale LoadBalancer Service that exposes the S3 API
 #     as `s3.<tailnet>.ts.net:9000`.
 #
-# What lives here but is applied AFTER helmfile (requires CRDs):
-#   - The RustFS Tenant CR (the actual storage cluster) — applied by
-#     `kubectl apply -f tenant.yaml` in the `just k8s::apply` recipe.
-#   - The credentials Secret (sops-encrypted) — applied by
-#     `just k8s::rustfs-apply-secret`.
-#
-# What does NOT live here (managed by helmfile instead):
-#   - The RustFS operator chart (rustfs-system namespace).
+# Applied separately (not a plain manifest):
+#   - credentials Secret (sops-encrypted) — `just k8s::rustfs-apply-secret`.
+#     The StatefulSet needs it to start, so apply the secret first.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
@@ -31,15 +32,7 @@ labels:
 resources:
   - namespace.yaml
   - networkpolicy.yaml
+  - statefulset.yaml
+  - service.yaml
   - tailscale-s3-service.yaml
   - tailscale-s3-funnel.yaml
-  # NOTE: The following are NOT listed here — they require the RustFS operator
-  # CRDs which are installed by helmfile. They are applied post-helmfile:
-  #
-  #   tenant.yaml
-  #     Applied by: kubectl apply -f clusters/glug-infra/rustfs/tenant.yaml
-  #     (done automatically by `just k8s::apply` after helmfile sync)
-  #
-  #   credentials-secret.enc.yaml
-  #     Applied by: sops --decrypt credentials-secret.enc.yaml | kubectl apply -f -
-  #     Use: just k8s::rustfs-apply-secret
