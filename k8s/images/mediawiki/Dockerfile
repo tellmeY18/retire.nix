@@ -88,9 +88,12 @@ RUN cd /var/www/html/extensions && \
 
 # ─── Extensions: Media & Embeds ──────────────────────────────────────────────
 RUN cd /var/www/html/extensions && \
-    # EmbedVideo v3.x — embed YouTube, Vimeo, Twitch, etc.
-    # Modern fork with MW 1.39+ support (replaces old hydrawiki v2.8)
-    git clone --depth 1 https://github.com/StarCitizenTools/mediawiki-extensions-EmbedVideo.git EmbedVideo && \
+    # EmbedVideo v4.0.0 — embed YouTube, Vimeo, Twitch, etc.
+    # Modern, namespaced fork (StarCitizenWiki); requires MW >= 1.43, works on 1.45.
+    # NOTE: the StarCitizenTools repo and this fork's master/2.x tags are the
+    # legacy hydrawiki code whose EmbedVideoHooks::addModules(string) fatals on
+    # MW 1.45 — pin the v4.0.0 tag, do NOT track a floating branch.
+    git clone --depth 1 -b v4.0.0 https://github.com/StarCitizenWiki/mediawiki-extensions-EmbedVideo.git EmbedVideo && \
     # RSS — embed RSS feeds
     git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/RSS && \
     # HitCounters — page view counts
