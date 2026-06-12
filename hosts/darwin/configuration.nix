@@ -1,6 +1,7 @@
 { pkgs
 , config
 , self
+, lib
 , ...
 }:
 {
@@ -84,16 +85,18 @@
     linux-builder = {
       enable = true;
     };
-    # These are the global Nix settings
+    # These are the global Nix settings. Community caches are merged with
+    # the binary-cache module via mkAfter to ensure graceful fallback.
     settings = {
-      substituters = [
+      # Append community caches after binary-cache module defaults
+      substituters = lib.mkAfter [
         "https://tellmey18.cachix.org"
         "https://devenv.cachix.org"
         "https://nix-community.cachix.org"
         "https://deploy-rs.cachix.org"
         "https://tranquil.cachix.org"
       ];
-      trusted-public-keys = [
+      trusted-public-keys = lib.mkAfter [
         "tellmey18.cachix.org-1:udK9FzY4ZOHz4OapcTUHkwb/b10+5eQzCi44ZA6oFLw="
         "devenv.cachix.org-1:w1cLUi8dv3hnoSPGAuibQv+f9TZLr6cv/Hm9XgU50cw="
         "nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs="

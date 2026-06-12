@@ -12,6 +12,21 @@
 # Architecture:
 #   CI → pushes via https://attic-push.tail477f2f.ts.net (Funnel, public)
 #   Hosts → pull via http://attic.tail477f2f.ts.net:8080 (tailnet, direct)
+#
+# Graceful fallback strategy:
+#   If attic (either endpoint) is unavailable, Nix will silently skip it
+#   and try the next substituter (cache.nixos.org). If all substituters
+#   fail, Nix will build from source (no blocking).
+#
+#   Substituter order (priority):
+#     1. cache.nixos.org      — always available, most reliable
+#     2. attic tailnet        — fast when available, may fail DNS
+#     3. attic public ingress — fallback if tailnet unreachable
+#
+#   DNS resolution timeout (curl): ~30s default. If attic is
+#   unreachable, expect up to 30s delay before falling back to
+#   cache.nixos.org. Consider setting CURLOPT_CONNECTTIMEOUT=10
+#   for faster failure if this becomes a blocker.
 { ... }:
 {
   nix.settings = {
