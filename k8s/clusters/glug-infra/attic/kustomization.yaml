@@ -12,3 +12,4 @@ resources:
   - tailscale-service.yaml
   - ingress-traefik.yaml
   - hpa.yaml
+  - gc-cronjob.yaml

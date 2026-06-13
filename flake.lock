@@ -157,6 +157,27 @@
         "type": "github"
       }
     },
+    "nix-darwin-aerohud": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1781374971,
+        "narHash": "sha256-egoM1gQq0dF4E5zS1wWqLoCQtJ+mj1hr3vg9UmVOxwk=",
+        "owner": "tellmeY18",
+        "repo": "nix-darwin",
+        "rev": "1b5caa6f694856ad74d601e6e07fcefd738add2d",
+        "type": "github"
+      },
+      "original": {
+        "owner": "tellmeY18",
+        "repo": "nix-darwin",
+        "rev": "1b5caa6f694856ad74d601e6e07fcefd738add2d",
+        "type": "github"
+      }
+    },
     "nix-homebrew": {
       "inputs": {
         "brew-src": "brew-src"
@@ -256,6 +277,7 @@
         "fenix": "fenix",
         "home-manager": "home-manager",
         "nix-darwin": "nix-darwin",
+        "nix-darwin-aerohud": "nix-darwin-aerohud",
         "nix-homebrew": "nix-homebrew",
         "nix-index-database": "nix-index-database",
         "nixpkgs": "nixpkgs",

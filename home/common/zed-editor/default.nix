@@ -16,7 +16,7 @@
       theme = {
         mode = "dark";
         light = "One Light";
-        dark = "Colorizer";
+        dark = "The Dark Side";
       };
       buffer_font_size = 18.0;
       ui_font_size = 16;
