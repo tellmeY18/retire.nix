@@ -101,6 +101,9 @@
   # Tailscale socket appears, surviving Tailscale app restarts.
   system.activationScripts.tailscaleAcceptDns = {
     text = ''
+      # Clean up old launch agent label (renamed to tailscaleDns)
+      launchctl remove org.nixos.tailscaleAcceptDns 2>/dev/null || true
+
       ts=/run/current-system/sw/bin/tailscale
       if [ -x "$ts" ] && "$ts" status >/dev/null 2>&1; then
         "$ts" set --accept-dns=false || true
@@ -108,31 +111,47 @@
     '';
   };
 
-  # LaunchAgent — reapplies accept-dns=false on every login.
-  # Waits for the Tailscale socket to appear before attempting.
-  launchd.user.agents.tailscaleAcceptDns = {
-    enable = true;
+  # LaunchAgent — fixes DNS on every login:
+  #   1. Disables Tailscale accept-dns (it conflicts with /etc/resolver)
+  #   2. Adds the tailnet search domain so bare hostnames resolve
+  #      (e.g. "chopper" → chopper.tail477f2f.ts.net)
+  launchd.user.agents.tailscaleDns = {
+    script = ''
+      # Clean up old agent label (renamed from tailscaleAcceptDns)
+      launchctl remove org.nixos.tailscaleAcceptDns 2>/dev/null || true
+
+      # Wait up to 30s for the Tailscale socket
+      for i in $(seq 30); do
+        if [ -S /var/run/tailscale/tailscaled.sock ]; then break; fi
+        sleep 1
+      done
+
+      TS=${pkgs.tailscale}/bin/tailscale
+      if [ -x "$TS" ] && "$TS" status >/dev/null 2>&1; then
+        # 1. Stop Tailscale from managing DNS (conflicts with /etc/resolver)
+        "$TS" set --accept-dns=false 2>/dev/null || true
+
+        # 2. Add search domain so bare hostnames resolve via MagicDNS
+        #    e.g. "ping chopper" → chopper.tail477f2f.ts.net
+        SEARCH="tail477f2f.ts.net"
+        for svc in "Wi-Fi" "Thunderbolt Bridge" "Ethernet"; do
+          CURRENT=$(networksetup -getsearchdomains "$svc" 2>/dev/null) || continue
+          echo "$CURRENT" | grep -qF "$SEARCH" || {
+            if [ -z "$CURRENT" ]; then
+              networksetup -setsearchdomains "$svc" "$SEARCH" 2>/dev/null || true
+            else
+              networksetup -setsearchdomains "$svc" "$CURRENT" "$SEARCH" 2>/dev/null || true
+            fi
+          }
+          break
+        done
+      fi
+    '';
     serviceConfig = {
       RunAtLoad = true;
       KeepAlive = false;
-      StandardOutPath = "/tmp/tailscaleAcceptDns.log";
-      StandardErrorPath = "/tmp/tailscaleAcceptDns.log";
-      ProgramArguments = [
-        "${pkgs.writeShellScript "tailscale-accept-dns" ''
-          # Wait up to 30s for the Tailscale socket to appear
-          for i in $(seq 30); do
-            if [ -S /var/run/tailscale/tailscaled.sock ]; then
-              break
-            fi
-            sleep 1
-          done
-
-          TS="${pkgs.tailscale}/bin/tailscale"
-          if [ -x "$TS" ] && "$TS" status >/dev/null 2>&1; then
-            "$TS" set --accept-dns=false 2>/dev/null || true
-          fi
-        ''}"
-      ];
+      StandardOutPath = "/tmp/tailscaleDns.log";
+      StandardErrorPath = "/tmp/tailscaleDns.log";
     };
   };
 

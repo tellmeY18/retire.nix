@@ -70,12 +70,12 @@
     };
 
     # Enhanced autosuggestions
+    # NOTE: only 'history' strategy is used to avoid wrapping the _main_complete
+    # widget, which causes "function definition file not found" errors when
+    # compinit runs after autosuggestions initializes.
     autosuggestion = {
       enable = true;
-      strategy = [
-        "history"
-        "completion"
-      ];
+      strategy = [ "history" ];
       highlight = "fg=#586e75";
     };
 
