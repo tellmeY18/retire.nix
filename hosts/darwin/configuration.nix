@@ -95,6 +95,10 @@
   # back to the OS; our /etc/resolver file above then handles the tailnet
   # zone via 100.100.100.100 (Tailscale's local proxy, always reachable when
   # the tunnel is up).
+  #
+  # The activation script is not enough — it only runs during darwin-rebuild.
+  # The LaunchAgent ensures this also runs on every login/boot *after* the
+  # Tailscale socket appears, surviving Tailscale app restarts.
   system.activationScripts.tailscaleAcceptDns = {
     text = ''
       ts=/run/current-system/sw/bin/tailscale
@@ -102,6 +106,34 @@
         "$ts" set --accept-dns=false || true
       fi
     '';
+  };
+
+  # LaunchAgent — reapplies accept-dns=false on every login.
+  # Waits for the Tailscale socket to appear before attempting.
+  launchd.user.agents.tailscaleAcceptDns = {
+    enable = true;
+    serviceConfig = {
+      RunAtLoad = true;
+      KeepAlive = false;
+      StandardOutPath = "/tmp/tailscaleAcceptDns.log";
+      StandardErrorPath = "/tmp/tailscaleAcceptDns.log";
+      ProgramArguments = [
+        "${pkgs.writeShellScript "tailscale-accept-dns" ''
+          # Wait up to 30s for the Tailscale socket to appear
+          for i in $(seq 30); do
+            if [ -S /var/run/tailscale/tailscaled.sock ]; then
+              break
+            fi
+            sleep 1
+          done
+
+          TS="${pkgs.tailscale}/bin/tailscale"
+          if [ -x "$TS" ] && "$TS" status >/dev/null 2>&1; then
+            "$TS" set --accept-dns=false 2>/dev/null || true
+          fi
+        ''}"
+      ];
+    };
   };
 
   nix = {
