@@ -215,6 +215,7 @@
       theme = "jonathan"; # Overridden on macOS by darwin/zsh (mkForce "robbyrussell")
       plugins = [
         "git"
+        "jj"
         "docker"
         "docker-compose"
         "sudo"

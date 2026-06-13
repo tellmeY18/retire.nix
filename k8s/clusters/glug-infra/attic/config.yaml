@@ -21,32 +21,32 @@ data:
     [database]
     url = "postgresql://attic:${ATTIC_DB_PASSWORD}@postgres-cluster-pooler-rw.cnpg-clusters.svc:5432/attic"
 
-    # S3-compatible object storage (RustFS)
+    # S3-compatible object storage (Cloudflare R2)
     [storage]
     type = "s3"
-    endpoint = "http://rustfs-storage-io.rustfs-clusters.svc:9000"
-    bucket = "attic"
-    region = "us-east-1"
+    endpoint = "https://fa427b086660f6a7b9a42ae386a2273a.r2.cloudflarestorage.com"
+    bucket = "attic-cache"
+    region = "auto"
 
     # Content-addressed chunking for deduplication.
-    # Tuned for THROUGHPUT over a high-latency homelab S3 (RustFS): each chunk
-    # is a separate S3 PUT + DB insert, so the stock 64KB-average chunking made
-    # a 4MB path ~64 round-trips (~30KB/s). Larger chunks (1MB avg) + a 1MB
-    # "store whole" threshold cut round-trips ~16x at a small dedup-granularity
-    # cost.
+    # R2 has low latency vs the old RustFS backend, so smaller chunks are
+    # fine — better dedup at the cost of more S3 PUTs (R2's 1M free writes
+    # per month can handle this easily).
     [chunking]
-    nar-size-threshold = 1048576
-    min-size = 262144
-    avg-size = 1048576
-    max-size = 4194304
+    nar-size-threshold = 262144
+    min-size = 65536
+    avg-size = 262144
+    max-size = 1048576
 
     # Compression
     [compression]
     type = "zstd"
 
-    # Garbage collection
+    # Garbage collection — aggressive to stay within R2's 10GB free storage.
+    # Paths older than 14 days are eligible for deletion. A separate CronJob
+    # runs `attic gc` weekly to actually prune them.
     [garbage-collection]
-    default-retention-period = "6 months"
+    default-retention-period = "14 days"
 
     # JWT signing
     [jwt.signing]

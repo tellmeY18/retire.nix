@@ -66,9 +66,6 @@ spec:
               kubernetes.io/metadata.name: penpot
         - namespaceSelector:
             matchLabels:
-              kubernetes.io/metadata.name: attic
-        - namespaceSelector:
-            matchLabels:
               kubernetes.io/metadata.name: nixery
         # MySQL backup CronJobs push dumps to the mysql-backups bucket.
         - namespaceSelector:

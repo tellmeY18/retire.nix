@@ -43,18 +43,24 @@
       url = "github:serokell/deploy-rs";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    nix-darwin-aerohud = {
+      url = "github:tellmeY18/nix-darwin/1b5caa6f694856ad74d601e6e07fcefd738add2d";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs =
-    inputs@{ self
-    , nix-homebrew
-    , nix-index-database
-    , nixvim
-    , fenix
-    , disko
-    , sops-nix
-    , deploy-rs
-    , ...
+    inputs@{
+      self,
+      nix-homebrew,
+      nix-index-database,
+      nixvim,
+      fenix,
+      disko,
+      sops-nix,
+      deploy-rs,
+      nix-darwin-aerohud,
+      ...
     }:
     let
       myLib = import ./lib { inherit inputs; };
@@ -122,7 +128,14 @@
           darwin = [
             nix-homebrew.darwinModules.nix-homebrew
             nix-index-database.darwinModules.nix-index
-            { nixpkgs.overlays = [ fenix.overlays.default ]; }
+            {
+              nixpkgs.overlays = [
+                fenix.overlays.default
+                nix-darwin-aerohud.overlays.default
+              ];
+            }
+            # aerohud module from the nix-darwin fork (tellmeY18)
+            "${nix-darwin-aerohud}/modules/services/aerohud"
             ./modules/dev/rust.nix
             ./hosts/darwin/homebrew.nix
           ];

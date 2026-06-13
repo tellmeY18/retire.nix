@@ -1,8 +1,9 @@
-{ pkgs
-, config
-, self
-, lib
-, ...
+{
+  pkgs,
+  config,
+  self,
+  lib,
+  ...
 }:
 {
   nixpkgs = {
@@ -66,20 +67,52 @@
     nerd-fonts.symbols-only
   ];
 
+  # Tailscale CLI — lets `tailscale` work in terminals while the macOS
+  # Tailscale app (system extension) owns the actual tunnel + DNS injection.
+  # Do NOT enable services.tailscale here; see services.nix for the rationale.
+  environment.systemPackages = [ pkgs.tailscale ];
+
+  # MagicDNS resolver — macOS /etc/resolver/<domain> files are loaded by
+  # mDNSResponder at startup and take precedence over scutil entries injected
+  # later by VPN apps.  Without this, the Tailscale app (when its admin-console
+  # nameserver is set to 1.1.1.1) pushes 1.1.1.1 as the resolver for the
+  # tail477f2f.ts.net supplemental entry, which can't resolve MagicDNS names.
+  # 100.100.100.100 is Tailscale's local DNS proxy — reachable only while
+  # connected; macOS falls back to the system resolver when it's unreachable.
+  environment.etc."resolver/tail477f2f.ts.net" = {
+    text = ''
+      nameserver 100.100.100.100
+      timeout 5
+    '';
+  };
+
+  # Tell the Tailscale daemon to stop managing system DNS.
+  # When accept-dns=true (the default), the macOS Tailscale app injects scutil
+  # supplemental resolvers at order 100800 — higher priority than any
+  # /etc/resolver/ file.  If the admin-console global nameserver is set to
+  # 1.1.1.1 those entries route *.tail477f2f.ts.net to Cloudflare, which
+  # cannot answer MagicDNS queries.  Disabling accept-dns hands DNS fully
+  # back to the OS; our /etc/resolver file above then handles the tailnet
+  # zone via 100.100.100.100 (Tailscale's local proxy, always reachable when
+  # the tunnel is up).
+  system.activationScripts.tailscaleAcceptDns = {
+    text = ''
+      ts=/run/current-system/sw/bin/tailscale
+      if [ -x "$ts" ] && "$ts" status >/dev/null 2>&1; then
+        "$ts" set --accept-dns=false || true
+      fi
+    '';
+  };
+
   nix = {
     distributedBuilds = true;
     buildMachines = [
       {
-        hostName = "100.107.213.17";
-        sshUser = "vysakh"; # Changed from 'user' to 'sshUser'
+        # Use MagicDNS name so this works regardless of IP reassignment.
+        # Resolved via /etc/resolver/tail477f2f.ts.net → 100.100.100.100.
+        hostName = "chopper.tail477f2f.ts.net";
+        sshUser = "vysakh";
         systems = [ "x86_64-linux" ];
-        # Optional additional settings you might want to add:
-        # maxJobs = 4;
-        # speedFactor = 2;
-        # supportedFeatures = [ "nixos-test" "benchmark" "big-parallel" "kvm" ];
-        # mandatoryFeatures = [ ];
-        # sshKey = "/path/to/ssh/key"; # if needed
-        # protocol = "ssh-ng"; # for better performance
       }
     ];
     linux-builder = {

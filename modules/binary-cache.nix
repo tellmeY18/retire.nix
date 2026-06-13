@@ -10,34 +10,33 @@
 # runners are NOT on the tailnet. See .github/workflows/flake-update.yml.
 #
 # Architecture:
-#   CI → pushes via https://attic-push.tail477f2f.ts.net (Funnel, public)
-#   Hosts → pull via http://attic.tail477f2f.ts.net:8080 (tailnet, direct)
+#   CI → pushes via https://cache.tellmey.fyi (public Traefik ingress)
+#   NixOS nodes → pull via http://attic.tail477f2f.ts.net:8080 (tailnet, fast)
+#   darwin (mac) → pull via https://cache.tellmey.fyi (public; accept-dns=false
+#                  means the nix daemon can't resolve .tail477f2f.ts.net)
 #
-# Graceful fallback strategy:
-#   If attic (either endpoint) is unavailable, Nix will silently skip it
-#   and try the next substituter (cache.nixos.org). If all substituters
-#   fail, Nix will build from source (no blocking).
+# Fallback behaviour:
+#   fallback = true  — if a substituter errors (DNS failure, 5xx, timeout),
+#                      nix tries the next one and ultimately builds from source.
+#   connect-timeout = 5  — fail fast on unreachable substituters instead of
+#                          blocking for the default 30 s.
 #
 #   Substituter order (priority):
 #     1. cache.nixos.org      — always available, most reliable
-#     2. attic tailnet        — fast when available, may fail DNS
-#     3. attic public ingress — fallback if tailnet unreachable
-#
-#   DNS resolution timeout (curl): ~30s default. If attic is
-#   unreachable, expect up to 30s delay before falling back to
-#   cache.nixos.org. Consider setting CURLOPT_CONNECTTIMEOUT=10
-#   for faster failure if this becomes a blocker.
+#     2. attic tailnet        — fast on NixOS nodes; DNS error on darwin
+#                               (falls through via fallback=true)
+#     3. attic public ingress — resolvable everywhere via public DNS
 { ... }:
 {
   nix.settings = {
     substituters = [
       "https://cache.nixos.org"
-      # Direct tailnet endpoint (fast, lowest latency). Only resolvable on
-      # nodes with Tailscale MagicDNS (accept-dns=true), i.e. c3po.
+      # Direct tailnet endpoint (fast, lowest latency). Resolvable on NixOS
+      # nodes that resolve MagicDNS via their own nameserver config.
+      # On darwin the nix daemon reads /etc/resolv.conf (192.168.1.1) and
+      # can't resolve this; fallback=true lets it skip to the public endpoint.
       "http://attic.tail477f2f.ts.net:8080/system"
-      # Public Traefik ingress (resolvable via public DNS everywhere). Nodes
-      # with accept-dns=false (chopper, kenobi) can't resolve the tailnet name
-      # above and fall through to this. Same store, same signing key.
+      # Public Traefik ingress — resolvable everywhere. Same store, same key.
       "https://cache.tellmey.fyi/system"
     ];
 
@@ -51,5 +50,12 @@
       "http://attic.tail477f2f.ts.net:8080/system"
       "https://cache.tellmey.fyi/system"
     ];
+
+    # Treat a substituter error (DNS failure, timeout, 5xx) as a soft failure
+    # and continue to the next substituter or build from source.
+    fallback = true;
+
+    # Fail fast on unreachable substituters (default is ~30 s).
+    connect-timeout = 5;
   };
 }
