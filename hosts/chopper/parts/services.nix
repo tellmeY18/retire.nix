@@ -93,44 +93,11 @@
   ####################
   # Cloudflare Tunnel#
   ####################
-  # Tunnels are auto-created by services.cloudflared-bootstrap below.
-  # We reference them by NAME (not UUID) so the config has a stable SSOT.
-  # The credentials file is auto-written by the bootstrap module.
+  # Disabled: cloudflared fails to build on nixpkgs-unstable
+  # (test flake in management/events_test.go). Re-enable once upstream
+  # fixes the panic-in-goroutine issue.
   services.cloudflared = {
-    enable = true;
-    tunnels.chopper-main = {
-      credentialsFile = "/var/lib/cloudflared/chopper-main.json";
-      default = "http_status:404";
-      ingress = {
-        "next.tellmey.fyi" = {
-          service = "http://localhost:80";
-        };
-        "chat.tellmey.fyi" = {
-          service = "http://localhost:6167";
-        };
-        "cal.tellmey.fyi" = {
-          service = "http://localhost:4000";
-        };
-        "school.tellmey.fyi" = {
-          service = "http://localhost:7000";
-        };
-      };
-    };
-  };
-
-  # Auto-create tunnels in Cloudflare on activation if they don't exist.
-  # Writes credentials to /var/lib/cloudflared/<name>.json.
-  services.cloudflared-bootstrap = {
-    enable = true;
-    certificateFile = "/run/secrets/cloudflare-cert";
-    tunnels = [ "chopper-main" ];
-  };
-
-  # Declarative DNS provisioning — auto-creates Cloudflare CNAMEs for every
-  # hostname declared in services.cloudflared.tunnels.<name>.ingress above.
-  services.cloudflared-dns = {
-    enable = true;
-    certificateFile = "/run/secrets/cloudflare-cert";
+    enable = false;
   };
 
   ####################

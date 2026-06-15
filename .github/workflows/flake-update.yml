@@ -53,6 +53,7 @@ env:
   # tried and didn't work reliably.)
   ATTIC_SERVER: https://cache.tellmey.fyi
   ATTIC_CACHE: system
+  ATTIC_SUBSTITUTER: --extra-substituters https://cache.tellmey.fyi/system --extra-trusted-public-keys system:mvnfTi6w7gvX6oksJ4JhHLL4wVUa576bgtLJ6lh9C2Y=
   PR_BRANCH: automation/flake-update
 
 jobs:
@@ -124,13 +125,13 @@ jobs:
         run: nix flake check --no-build
 
       - name: Build NixOS (chopper)
-        run: nix build .#nixosConfigurations.chopper.config.system.build.toplevel --print-build-logs
+        run: nix build .#nixosConfigurations.chopper.config.system.build.toplevel --print-build-logs $ATTIC_SUBSTITUTER
 
       - name: Build NixOS (c3po)
-        run: nix build .#nixosConfigurations.c3po.config.system.build.toplevel --print-build-logs
+        run: nix build .#nixosConfigurations.c3po.config.system.build.toplevel --print-build-logs $ATTIC_SUBSTITUTER
 
       - name: Build Home Manager (vysakh@chopper)
-        run: nix build .#homeConfigurations."vysakh@chopper".activationPackage --print-build-logs
+        run: nix build .#homeConfigurations."vysakh@chopper".activationPackage --print-build-logs $ATTIC_SUBSTITUTER
 
       - name: Setup Attic
         if: ${{ !inputs.skip_cache }}
@@ -144,11 +145,11 @@ jobs:
         run: |
           set -euo pipefail
           chopper=$(nix build .#nixosConfigurations.chopper.config.system.build.toplevel \
-            --no-link --print-out-paths)
+            --no-link --print-out-paths $ATTIC_SUBSTITUTER)
           c3po=$(nix build .#nixosConfigurations.c3po.config.system.build.toplevel \
-            --no-link --print-out-paths)
+            --no-link --print-out-paths $ATTIC_SUBSTITUTER)
           hm=$(nix build .#homeConfigurations."vysakh@chopper".activationPackage \
-            --no-link --print-out-paths)
+            --no-link --print-out-paths $ATTIC_SUBSTITUTER)
 
           attic push -j 6 "$ATTIC_CACHE" "$chopper" "$c3po" "$hm"
 
@@ -173,7 +174,7 @@ jobs:
       # magic-nix-cache disabled on arm64 — causes rate-limit crashes
 
       - name: Build NixOS (kenobi)
-        run: nix build .#nixosConfigurations.kenobi.config.system.build.toplevel --print-build-logs
+        run: nix build .#nixosConfigurations.kenobi.config.system.build.toplevel --print-build-logs $ATTIC_SUBSTITUTER
 
       - name: Setup Attic
         if: ${{ !inputs.skip_cache }}
@@ -187,7 +188,7 @@ jobs:
         run: |
           set -euo pipefail
           kenobi=$(nix build .#nixosConfigurations.kenobi.config.system.build.toplevel \
-            --no-link --print-out-paths)
+            --no-link --print-out-paths $ATTIC_SUBSTITUTER)
           attic push -j 6 "$ATTIC_CACHE" "$kenobi"
 
   build-aarch64-darwin:
@@ -212,10 +213,10 @@ jobs:
       # magic-nix-cache skipped on macOS — dyld incompatibility
 
       - name: Build macOS (darwin)
-        run: nix build .#darwinConfigurations."Vysakhs-MacBook-Pro".system --print-build-logs
+        run: nix build .#darwinConfigurations."Vysakhs-MacBook-Pro".system --print-build-logs $ATTIC_SUBSTITUTER
 
       - name: Build Home Manager (darwin)
-        run: nix build .#homeConfigurations."mathewalex@Vysakhs-MacBook-Pro".activationPackage --print-build-logs
+        run: nix build .#homeConfigurations."mathewalex@Vysakhs-MacBook-Pro".activationPackage --print-build-logs $ATTIC_SUBSTITUTER
 
       - name: Setup Attic
         if: ${{ !inputs.skip_cache }}
@@ -229,9 +230,9 @@ jobs:
         run: |
           set -euo pipefail
           darwin_sys=$(nix build .#darwinConfigurations."Vysakhs-MacBook-Pro".system \
-            --no-link --print-out-paths)
+            --no-link --print-out-paths $ATTIC_SUBSTITUTER)
           darwin_hm=$(nix build .#homeConfigurations."mathewalex@Vysakhs-MacBook-Pro".activationPackage \
-            --no-link --print-out-paths)
+            --no-link --print-out-paths $ATTIC_SUBSTITUTER)
 
           attic push -j 8 "$ATTIC_CACHE" "$darwin_sys" "$darwin_hm"
 
