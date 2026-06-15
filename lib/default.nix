@@ -174,6 +174,13 @@ let
             # false rollbacks and disable magic rollback for server nodes.
             activationTimeout = 300;
             confirmTimeout = 120;
+          }
+          # If a buildHost is specified, build on that machine instead of the target.
+          # Useful when the target is an old/underpowered machine (c3po builds via chopper).
+          // lib.optionalAttrs (meta.deploy ? buildHost) {
+            sshBuild = {
+              host = meta.deploy.buildHost;
+            };
           };
         }
       )

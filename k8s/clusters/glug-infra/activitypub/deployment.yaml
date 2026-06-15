@@ -22,6 +22,21 @@ spec:
         app.kubernetes.io/component: federation
         app.kubernetes.io/part-of: ghost-activitypub
     spec:
+      tolerations:
+        - key: node-role.glug.infra/storage
+          operator: Equal
+          value: "true"
+          effect: NoSchedule
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              preference:
+                matchExpressions:
+                  - key: node-role.glug.infra/storage
+                    operator: In
+                    values:
+                      - "true"
       containers:
         - name: activitypub
           image: ghcr.io/tellmey18/activitypub:build-1
@@ -92,7 +107,7 @@ spec:
               value: "true"
           resources:
             requests:
-              cpu: 50m
+              cpu: 25m
               memory: 192Mi
             limits:
               cpu: "1"

@@ -135,11 +135,30 @@ vmagent:
     # Resources — conservative for laptop hardware.
     resources:
       requests:
-        cpu: "100m"
+        cpu: "25m"
         memory: "128Mi"
       limits:
         cpu: "500m"
         memory: "512Mi"
+
+    # Run on storage nodes (c3po/chopper) since vmagent is a cluster-wide
+    # scraper — it doesn't need to be on the compute node. Storage nodes
+    # have plenty of headroom (10% CPU) for the scrape workload.
+    tolerations:
+      - key: node-role.glug.infra/storage
+        operator: Equal
+        value: "true"
+        effect: NoSchedule
+    affinity:
+      nodeAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            preference:
+              matchExpressions:
+                - key: node-role.glug.infra/storage
+                  operator: In
+                  values:
+                    - "true"
 
 # ===========================================================================
 # VMAlert — rule evaluation engine (replaces Prometheus rule evaluation)

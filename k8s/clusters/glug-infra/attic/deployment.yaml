@@ -8,11 +8,10 @@ metadata:
     app.kubernetes.io/component: cache
     app.kubernetes.io/part-of: nix-infra
 spec:
-  # Attic is stateless (state in PostgreSQL + S3). Multiple replicas
-  # improve availability during CI pushes and survive pod failures.
-  # All pods run on kenobi (compute powerhouse) — no topology spread needed.
-  # HPA manages scaling: min 2, max 4 based on CPU.
-  replicas: 2
+  # Attic is stateless (state in PostgreSQL + S3). Single replica reduces
+  # resource pressure on kenobi when CI is idle. HPA manages scaling:
+  # min 1, max 4 based on CPU.
+  replicas: 1
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -96,7 +95,7 @@ spec:
               mountPath: /tmp
           resources:
             requests:
-              cpu: 50m
+              cpu: 25m
               memory: 768Mi
             limits:
               # CI pushes entire NixOS closures (hundreds of paths).

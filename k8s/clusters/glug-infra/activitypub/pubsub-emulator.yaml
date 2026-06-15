@@ -20,6 +20,21 @@ spec:
         app.kubernetes.io/name: pubsub-ap
         app.kubernetes.io/part-of: ghost-activitypub
     spec:
+      tolerations:
+        - key: node-role.glug.infra/storage
+          operator: Equal
+          value: "true"
+          effect: NoSchedule
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              preference:
+                matchExpressions:
+                  - key: node-role.glug.infra/storage
+                    operator: In
+                    values:
+                      - "true"
       containers:
         - name: pubsub
           image: gcr.io/google.com/cloudsdktool/google-cloud-cli:499.0.0-emulators
@@ -57,7 +72,7 @@ spec:
               containerPort: 8085
           resources:
             requests:
-              cpu: 50m
+              cpu: 10m
               memory: 128Mi
             limits:
               cpu: 500m

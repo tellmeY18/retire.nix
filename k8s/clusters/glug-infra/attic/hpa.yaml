@@ -1,6 +1,6 @@
 ---
 # hpa.yaml — HorizontalPodAutoscaler for Attic.
-# Scales 2→4 replicas based on CPU utilization.
+# Scales 1→4 replicas based on CPU utilization.
 # CI pushes cause CPU spikes; HPA adds pods during bulk uploads.
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
@@ -15,7 +15,7 @@ spec:
     apiVersion: apps/v1
     kind: Deployment
     name: attic
-  minReplicas: 2
+  minReplicas: 1
   maxReplicas: 4
   metrics:
     - type: Resource

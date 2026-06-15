@@ -1,6 +1,6 @@
 ---
 # hpa.yaml — HorizontalPodAutoscaler for MediaWiki.
-# Scales 2→5 replicas based on CPU utilization.
+# Scales 2→3 replicas based on CPU utilization.
 # MediaWiki uses ~80m per pod under normal load.
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
@@ -16,7 +16,7 @@ spec:
     kind: Deployment
     name: mediawiki
   minReplicas: 2
-  maxReplicas: 5
+  maxReplicas: 3
   metrics:
     - type: Resource
       resource:

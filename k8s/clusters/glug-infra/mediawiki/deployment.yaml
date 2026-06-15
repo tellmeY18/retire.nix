@@ -12,7 +12,7 @@ metadata:
     app.kubernetes.io/name: mediawiki
     app.kubernetes.io/part-of: mediawiki
 spec:
-  replicas: 5
+  replicas: 2
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -43,7 +43,7 @@ spec:
         # Ensures schema is always up-to-date on every deploy.
         # Connects directly to primary MySQL (bypasses ProxySQL).
         - name: db-migrate
-          image: ghcr.io/tellmey18/mediawiki:build-55
+          image: ghcr.io/tellmey18/mediawiki:build-56
           command:
             - sh
             - -c
@@ -87,14 +87,14 @@ spec:
               mountPath: /smw-config
           resources:
             requests:
-              memory: "256Mi"
-              cpu: "100m"
+              memory: "128Mi"
+              cpu: "25m"
             limits:
               memory: "512Mi"
               cpu: "500m"
       containers:
         - name: mediawiki
-          image: ghcr.io/tellmey18/mediawiki:build-55
+          image: ghcr.io/tellmey18/mediawiki:build-56
           command:
             - sh
             - -c
@@ -122,8 +122,8 @@ spec:
               mountPath: /smw-config
           resources:
             requests:
-              cpu: 100m
-              memory: 512Mi
+              cpu: 25m
+              memory: 128Mi
             limits:
               cpu: "2"
               memory: 1Gi
@@ -156,7 +156,7 @@ spec:
         # Handles HTMLCacheUpdate (template purges), CirrusSearch indexing,
         # and all other async jobs. Replaces $wgJobRunRate on web requests.
         - name: jobrunner
-          image: ghcr.io/tellmey18/mediawiki:build-55
+          image: ghcr.io/tellmey18/mediawiki:build-56
           command:
             - sh
             - -c
@@ -179,8 +179,8 @@ spec:
               mountPath: /smw-config
           resources:
             requests:
-              cpu: 50m
-              memory: 128Mi
+              cpu: 10m
+              memory: 64Mi
             limits:
               cpu: 500m
               memory: 256Mi

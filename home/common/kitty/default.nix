@@ -6,12 +6,13 @@
 
     # Font configuration
     font = {
-      name = "FontAwesome";
+      name = "JetBrainsMono Nerd Font";
       size = 12.0;
     };
 
-    # Theme and colors
-    themeFile = "FunForrest";
+    # Theme and colors — SATANIC PALETTE
+    # FreeBSD devil-inspired: void blacks, crimson reds, gold accents
+    # themeFile deliberately unset; colors defined inline below
 
     # Settings
     settings = {
@@ -19,6 +20,48 @@
       bold_font = "auto";
       italic_font = "auto";
       bold_italic_font = "auto";
+
+      # ── Satanic color palette ──────────────────────────
+      foreground = "#d4c5d4";
+      background = "#0a0a0f";
+      selection_foreground = "#d4c5d4";
+      selection_background = "#3a1a2a";
+      cursor = "#c12127";
+      cursor_text_color = "#0a0a0f";
+      url_color = "#d4a84b";
+      marked = "#7a4a8a";
+
+      # Black
+      color0 = "#0a0a0f";
+      color8 = "#14101a";
+
+      # Red
+      color1 = "#c12127";
+      color9 = "#e63946";
+
+      # Green
+      color2 = "#4a9c6f";
+      color10 = "#5abc7f";
+
+      # Yellow
+      color3 = "#d4a84b";
+      color11 = "#e8c05b";
+
+      # Blue
+      color4 = "#4a6a9c";
+      color12 = "#5a8abe";
+
+      # Magenta
+      color5 = "#7a4a8a";
+      color13 = "#9a5aaa";
+
+      # Cyan
+      color6 = "#4a9c9c";
+      color14 = "#5abeae";
+
+      # White
+      color7 = "#d4c5d4";
+      color15 = "#f0e0f0";
 
       # Performance
       repaint_delay = 10;
@@ -31,7 +74,7 @@
       initial_window_height = 800;
       window_padding_width = 30;
       window_margin_width = 0;
-      background_opacity = "0.70";
+      background_opacity = "0.85";
       hide_window_decorations = false;
       confirm_os_window_close = 0;
       background_blur = 24;

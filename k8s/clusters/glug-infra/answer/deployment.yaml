@@ -16,7 +16,7 @@ metadata:
     app.kubernetes.io/component: server
     app.kubernetes.io/part-of: answer
 spec:
-  replicas: 3
+  replicas: 1
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -32,6 +32,11 @@ spec:
         app.kubernetes.io/component: server
         app.kubernetes.io/part-of: answer
     spec:
+      tolerations:
+        - key: node-role.glug.infra/storage
+          operator: Equal
+          value: "true"
+          effect: NoSchedule
       securityContext:
         runAsNonRoot: true
         runAsUser: 1000
@@ -132,7 +137,7 @@ spec:
       protocol: TCP
       name: http
   # Sticky sessions — Answer stores login sessions in per-pod file cache.
-  # Without affinity, requests bounce between pods and sessions break.
+  # Without affinity, sessions bounce between pods and sessions break.
   sessionAffinity: ClientIP
   sessionAffinityConfig:
     clientIP:

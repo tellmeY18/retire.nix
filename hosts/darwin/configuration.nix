@@ -1,9 +1,8 @@
-{
-  pkgs,
-  config,
-  self,
-  lib,
-  ...
+{ pkgs
+, config
+, self
+, lib
+, ...
 }:
 {
   nixpkgs = {
@@ -14,6 +13,7 @@
   };
   # Import system packages
   imports = [
+    ../../profiles/base.nix
     ../../packages/darwin
     ./programs.nix
     ./services.nix
@@ -187,7 +187,10 @@
         "deploy-rs.cachix.org-1:xfNobmiwF/vzvK1gpfediPwpdIP0rpDV2rYqx40zdSI="
         "tranquil.cachix.org-1:PoO+mGL6a6LcJiPakMDHN4E218/ei/7v2sxeDtNkSRg="
       ];
-      experimental-features = "nix-command flakes ca-derivations";
+      # macOS users are in `admin`, not `wheel`. The base config adds
+      # `@wheel`, so we add `@admin` here to cover both platforms.
+      trusted-users = lib.mkBefore [ "@admin" ];
+      experimental-features = lib.mkAfter [ "ca-derivations" ];
     };
   };
   # Enable Touch ID for sudo authentication.

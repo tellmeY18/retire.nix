@@ -1,6 +1,5 @@
 { pkgs, ... }:
 
-
 {
   programs.tmux = {
     enable = true;
@@ -32,7 +31,6 @@
 
     # Prefix key
     prefix = "C-a";
-
 
     # Sensible plugin at top
     sensibleOnTop = true;
@@ -128,25 +126,26 @@
       set -g default-command "${pkgs.zsh}/bin/zsh"
 
       # =====================================
-      # ===           Theme               ===
+      # ===     Satanic Theme (tmux)       ===
       # =====================================
+      # Inspired by FreeBSD devil: void blacks, crimson reds, gold
 
       # Status bar design
       set -g status-justify left
       set -g status-interval 2
       set -g status-position bottom
-      set -g status-bg colour235
-      set -g status-fg colour137
+      set -g status-bg "#0a0a0f"
+      set -g status-fg "#d4c5d4"
       set -g status-left-length 70
-      set -g status-right-length 50
+      set -g status-right-length 55
 
-      set -g status-left '#[fg=colour233,bg=colour245,bold] #h #[fg=colour245,bg=colour238,nobold]#[fg=colour245,bg=colour238] #S #[fg=colour238,bg=colour235,nobold]'
+      set -g status-left '#[fg=#0a0a0f,bg=#c12127,bold]  #h #[fg=#c12127,bg=#1a1420,nobold]#[fg=#d4c5d4,bg=#1a1420] #S #[fg=#1a1420,bg=#0a0a0f,nobold]'
 
-      set -g status-right '#[fg=colour238,bg=colour235]#[fg=colour245,bg=colour238] #{cpu_percentage} #[fg=colour245,bg=colour238]#[fg=colour233,bg=colour245,bold] #{battery_percentage} #[fg=colour245,bg=colour245]#[fg=colour232,bg=colour245,bold] %d/%m %H:%M:%S '
+      set -g status-right '#[fg=#1a1420,bg=#0a0a0f]#[fg=#d4a84b,bg=#1a1420] #{cpu_percentage} #[fg=#1a1420,bg=#1a1420]#[fg=#d4c5d4,bg=#1a1420,nobold]#[fg=#c12127,bg=#1a1420,bold] #{battery_percentage} #[fg=#1a1420,bg=#1a1420]#[fg=#0a0a0f,bg=#c12127,bold] %d/%m %H:%M:%S '
 
-      # Window status
-      setw -g window-status-current-format '#[fg=colour235,bg=colour208]#[fg=colour232,bg=colour208] #I #[fg=colour208,bg=colour237,nobold]#[fg=colour250,bg=colour237] #W #[fg=colour237,bg=colour235,nobold]'
-      setw -g window-status-format '#[fg=colour235,bg=colour238]#[fg=colour245,bg=colour238] #I #[fg=colour238,bg=colour235,nobold]#[fg=colour245,bg=colour235] #W #[fg=colour235,bg=colour235,nobold]'
+      # Window status — active in devil red, inactive in muted ash
+      setw -g window-status-current-format '#[fg=#0a0a0f,bg=#c12127]#[fg=#0a0a0f,bg=#c12127] #I #[fg=#c12127,bg=#14101a,nobold]#[fg=#d4c5d4,bg=#14101a] #W #[fg=#14101a,bg=#0a0a0f,nobold]'
+      setw -g window-status-format '#[fg=#0a0a0f,bg=#4a3a4a]#[fg=#d4c5d4,bg=#4a3a4a] #I #[fg=#4a3a4a,bg=#0a0a0f,nobold]#[fg=#5a4a5a,bg=#0a0a0f] #W #[fg=#0a0a0f,bg=#0a0a0f,nobold]'
 
       # =====================================
       # ===        Key bindings           ===
@@ -186,19 +185,19 @@
       # ===          Appearance           ===
       # =====================================
 
-      # Pane border
-      set -g pane-border-style fg=colour238
-      set -g pane-active-border-style fg=colour208
+      # Pane border — default ash, active devil red
+      set -g pane-border-style fg="#4a3a4a"
+      set -g pane-active-border-style fg="#c12127"
 
       # Message text
-      set -g message-style bg=colour235,fg=colour208
-      set -g message-command-style bg=colour235,fg=colour208
+      set -g message-style bg="#0a0a0f",fg="#c12127"
+      set -g message-command-style bg="#0a0a0f",fg="#c12127"
 
       # Window mode
-      setw -g mode-style bg=colour238,fg=colour208
+      setw -g mode-style bg="#1a1420",fg="#c12127"
 
       # Window status bell
-      setw -g window-status-bell-style bg=colour1,fg=colour255,bold
+      setw -g window-status-bell-style bg="#c12127",fg="#0a0a0f",bold
 
       # =====================================
       # ===      Plugin configurations   ===
@@ -211,11 +210,11 @@
       set -g @resurrect-save-shell-history 'on'
 
       # Prefix highlight
-      set -g @prefix_highlight_fg 'colour232'
-      set -g @prefix_highlight_bg 'colour208'
+      set -g @prefix_highlight_fg '#0a0a0f'
+      set -g @prefix_highlight_bg '#c12127'
       set -g @prefix_highlight_show_copy_mode 'on'
-      set -g @prefix_highlight_copy_mode_attr 'fg=colour232,bg=colour208,bold'
-      set -g @prefix_highlight_prefix_prompt 'Wait'
+      set -g @prefix_highlight_copy_mode_attr 'fg=#0a0a0f,bg=#c12127,bold'
+      set -g @prefix_highlight_prefix_prompt '[!]'
       set -g @prefix_highlight_copy_prompt 'Copy'
     '';
   };

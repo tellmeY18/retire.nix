@@ -29,7 +29,9 @@
     };
     nixvim = {
       url = "github:nix-community/nixvim";
-      inputs.nixpkgs.follows = "nixpkgs";
+      # Intentionally NOT following nixpkgs — nixvim manages its own
+      # plugin builds against its tested nixpkgs pin. Using `follows`
+      # triggers a version-mismatch warning with no real benefit.
     };
     disko = {
       url = "github:nix-community/disko";

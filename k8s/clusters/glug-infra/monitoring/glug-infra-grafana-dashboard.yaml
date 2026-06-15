@@ -19,7 +19,7 @@
 # Metric sources:
 #   - kube-state-metrics:       kube_node_info, kube_pod_status_phase
 #   - node-exporter:            node_cpu_*, node_memory_*, node_network_*,
-#                               node_zfs_*
+#                               node_zfs_*, node_zram_* (textfile collector)
 #   - cAdvisor / kubelet:       container_cpu_*, container_memory_*,
 #                               kubelet_volume_stats_*
 #   - cnpg:                     cnpg_pg_replication_lag, cnpg_backends_total
@@ -781,10 +781,90 @@ data:
           }
         },
         {
+          "id": 34,
+          "title": "ZRAM Usage",
+          "description": "Per-node ZRAM usage percentage (compr_data_size / disksize). When this approaches 100%, swap spills to disk/zvol, causing latency spikes. Orange at 60%, red at 80%.",
+          "type": "timeseries",
+          "gridPos": { "h": 7, "w": 12, "x": 0, "y": 45 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "(node_zram_compr_data_size / node_zram_disksize) * 100",
+              "legendFormat": "{{instance}} {{device}}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "min": 0,
+              "max": 100,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "value": null, "color": "green" },
+                  { "value": 60, "color": "orange" },
+                  { "value": 80, "color": "red" }
+                ]
+              },
+              "custom": {
+                "fillOpacity": 10,
+                "lineWidth": 2,
+                "thresholdsStyle": { "mode": "line" }
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom", "calcs": [] },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          }
+        },
+        {
+          "id": 35,
+          "title": "ZRAM Compression",
+          "description": "Per-node ZRAM compression ratio (orig_data_size / compr_data_size). Higher is better. zstd on swap typically achieves 3-5x. Below 2x suggests incompressible data or a config issue.",
+          "type": "timeseries",
+          "gridPos": { "h": 7, "w": 12, "x": 12, "y": 45 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "node_zram_orig_data_size / node_zram_compr_data_size",
+              "legendFormat": "{{instance}} {{device}}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "decimals": 1,
+              "min": 0,
+              "max": 10,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "value": null, "color": "red" },
+                  { "value": 2, "color": "orange" },
+                  { "value": 4, "color": "green" }
+                ]
+              },
+              "custom": {
+                "fillOpacity": 10,
+                "lineWidth": 2,
+                "thresholdsStyle": { "mode": "line" }
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom", "calcs": [] },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          }
+        },
+        {
           "id": 24,
           "title": "Ingress (Traefik)",
           "type": "row",
-          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 45 },
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 52 },
           "collapsed": false,
           "panels": []
         },
@@ -793,7 +873,7 @@ data:
           "title": "Requests/s by Service",
           "description": "Per-service HTTP request rate through Traefik.",
           "type": "timeseries",
-          "gridPos": { "h": 8, "w": 8, "x": 0, "y": 46 },
+          "gridPos": { "h": 8, "w": 8, "x": 0, "y": 53 },
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
           "targets": [
             {
@@ -829,7 +909,7 @@ data:
           "title": "Response Time P95",
           "description": "95th percentile response time per Traefik service.",
           "type": "timeseries",
-          "gridPos": { "h": 8, "w": 8, "x": 8, "y": 46 },
+          "gridPos": { "h": 8, "w": 8, "x": 8, "y": 53 },
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
           "targets": [
             {
@@ -867,7 +947,7 @@ data:
           "title": "HTTP Status Codes",
           "description": "Aggregate request rate by HTTP status code across all Traefik services.",
           "type": "timeseries",
-          "gridPos": { "h": 8, "w": 8, "x": 16, "y": 46 },
+          "gridPos": { "h": 8, "w": 8, "x": 16, "y": 53 },
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
           "targets": [
             {
@@ -927,7 +1007,7 @@ data:
           "id": 28,
           "title": "Logs (VictoriaLogs)",
           "type": "row",
-          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 54 },
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 61 },
           "collapsed": false,
           "panels": []
         },
@@ -936,7 +1016,7 @@ data:
           "title": "Recent Cluster Logs",
           "description": "Live log stream from VictoriaLogs. Shows the most recent log entries across all namespaces.",
           "type": "logs",
-          "gridPos": { "h": 8, "w": 16, "x": 0, "y": 55 },
+          "gridPos": { "h": 8, "w": 16, "x": 0, "y": 62 },
           "datasource": { "type": "victoriametrics-logs-datasource", "uid": "victorialogs" },
           "targets": [
             {
@@ -960,7 +1040,7 @@ data:
           "title": "Log Ingestion Rate",
           "description": "Events per second being shipped by Vector log collectors into VictoriaLogs.",
           "type": "stat",
-          "gridPos": { "h": 4, "w": 8, "x": 16, "y": 55 },
+          "gridPos": { "h": 4, "w": 8, "x": 16, "y": 62 },
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
           "targets": [
             {
@@ -996,7 +1076,7 @@ data:
           "title": "Logs by Namespace",
           "description": "Log volume per namespace over time, derived from Vector component metrics.",
           "type": "timeseries",
-          "gridPos": { "h": 4, "w": 8, "x": 16, "y": 59 },
+          "gridPos": { "h": 4, "w": 8, "x": 16, "y": 66 },
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
           "targets": [
             {
@@ -1031,7 +1111,7 @@ data:
           "id": 32,
           "title": "Alerts",
           "type": "row",
-          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 63 },
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 70 },
           "collapsed": false,
           "panels": []
         },
@@ -1040,7 +1120,7 @@ data:
           "title": "Active Firing Alerts",
           "description": "All currently firing alerts across the cluster. An empty table is the ideal state. Severity column is color-coded: red for critical, orange for warning.",
           "type": "table",
-          "gridPos": { "h": 8, "w": 24, "x": 0, "y": 64 },
+          "gridPos": { "h": 8, "w": 24, "x": 0, "y": 71 },
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
           "targets": [
             {

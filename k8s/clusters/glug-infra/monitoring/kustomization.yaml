@@ -71,6 +71,8 @@ resources:
   # Laptop battery monitoring.
   - laptop-battery-vmrules.yaml
   - laptop-battery-grafana-dashboard.yaml
+  # ZRAM swap monitoring (textfile collector sourced from host sysfs).
+  - zram-vmrules.yaml
   # Cloudprober — active synthetic endpoint monitoring.
   - cloudprober.yaml
   - cloudprober-vmservicescrape.yaml

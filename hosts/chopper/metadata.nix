@@ -19,6 +19,8 @@
   deploy = {
     host = "100.107.213.17"; # Tailscale IP
     sshUser = "root";
-    remoteBuild = true; # target builds its own closure (cross-arch safe)
+    # Build remotely via ssh-ng://. Requires the deploying user to be in
+    # nix.settings.trusted-users on the Mac (see profiles/base.nix).
+    remoteBuild = true;
   };
 }

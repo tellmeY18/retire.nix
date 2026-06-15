@@ -20,7 +20,7 @@
 # Metric sources:
 #   - kube-state-metrics:   kube_node_*, kube_pod_*, kubelet_volume_stats_*
 #   - node-exporter:        node_cpu_*, node_memory_*, node_zfs_*,
-#                           node_power_supply_*
+#                           node_zram_* (textfile), node_power_supply_*
 #   - cnpg:                 cnpg_collector_up, cnpg_pg_replication_lag,
 #                           cnpg_backends_total
 #   - percona/mysqld_exporter: mysql_global_status_wsrep_*,
@@ -919,6 +919,86 @@ data:
                 ]
               }
             ]
+          },
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom", "calcs": [] },
+            "tooltip": { "mode": "multi", "sort": "none" }
+          }
+        },
+        {
+          "id": 26,
+          "title": "ZRAM Usage",
+          "description": "Per-node ZRAM usage percentage (compr_data_size / disksize). When this approaches 100%, swap starts spilling to disk/zvol, causing latency spikes. Orange at 60%, red at 80%.",
+          "type": "timeseries",
+          "gridPos": { "h": 7, "w": 12, "x": 0, "y": 33 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "(node_zram_compr_data_size / node_zram_disksize) * 100",
+              "legendFormat": "{{instance}} {{device}}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "min": 0,
+              "max": 100,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "value": null, "color": "green" },
+                  { "value": 60, "color": "orange" },
+                  { "value": 80, "color": "red" }
+                ]
+              },
+              "custom": {
+                "fillOpacity": 10,
+                "lineWidth": 2,
+                "thresholdsStyle": { "mode": "line" }
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom", "calcs": [] },
+            "tooltip": { "mode": "multi", "sort": "none" }
+          }
+        },
+        {
+          "id": 27,
+          "title": "ZRAM Compression",
+          "description": "Per-node ZRAM compression ratio (orig_data_size / compr_data_size). Higher is better. zstd typically achieves 3-5x on swap. Below 2x suggests poor compression or incompressible data.",
+          "type": "timeseries",
+          "gridPos": { "h": 7, "w": 12, "x": 12, "y": 33 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "node_zram_orig_data_size / node_zram_compr_data_size",
+              "legendFormat": "{{instance}} {{device}}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "decimals": 1,
+              "min": 0,
+              "max": 10,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "value": null, "color": "red" },
+                  { "value": 2, "color": "orange" },
+                  { "value": 4, "color": "green" }
+                ]
+              },
+              "custom": {
+                "fillOpacity": 10,
+                "lineWidth": 2,
+                "thresholdsStyle": { "mode": "line" }
+              }
+            },
+            "overrides": []
           },
           "options": {
             "legend": { "displayMode": "list", "placement": "bottom", "calcs": [] },

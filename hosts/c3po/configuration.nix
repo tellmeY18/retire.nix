@@ -12,6 +12,7 @@
     ./parts/power.nix
     ./parts/swap.nix
     ../../profiles/k3s-storage-node.nix
+    ../../profiles/zram.nix
     ../../profiles/zfs-openebs-datasets.nix
   ];
 
@@ -58,6 +59,16 @@
   ];
 
   # Tailscale config is in parts/network.nix
+
+  # ZRAM swap — compressed RAM swap alongside the ZFS zvol.
+  # ZRAM is higher priority (100), so the kernel uses it first.
+  # The existing ZFS zvol (/dev/zvol/rpool/swap) is a lower-priority
+  # fallback for extreme spikes. zstd gives good compression on x86.
+  profiles.zram = {
+    enable = true;
+    algorithm = "zstd";
+    memoryPercent = 50;
+  };
 
   # Nix settings — community caches for faster builds
   nix.settings = {

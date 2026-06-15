@@ -42,8 +42,9 @@ present:
 # flake and copies derivation sources over Tailscale.
 #
 # Hosts:
-#   chopper   x86_64-linux   k3s server-init (etcd + apiserver)
-#   kenobi    aarch64-linux  k3s agent (compute node, OCI ARM VM)
+#   chopper   x86_64-linux    k3s server-init (etcd + apiserver)
+#   c3po      x86_64-linux    k3s server (etcd + storage)
+#   kenobi    aarch64-linux   k3s server (compute node, OCI ARM VM)
 
 # Deploy to a specific NixOS host.
 #
@@ -51,9 +52,14 @@ present:
 # their networking blips during activation, so the magic-rollback confirmation
 # round-trip fails and triggers a rollback that churns k3s/etcd. See the
 # deploy-k3s-nodes skill.
+#
+# --fallback: build from source when tailnet binary caches
+# (attic.tail477f2f.ts.net, cache.tellmey.fyi) are unreachable from the Mac.
+# This is common since they're on the tailnet and DNS doesn't resolve
+# during remote builds.
 [doc('Deploy NixOS config to a host (e.g. just deploy chopper)')]
 deploy host:
-    nix run .#deploy-rs -- .#{{ host }} --skip-checks --magic-rollback false
+    nix run .#deploy-rs -- .#{{ host }} --skip-checks --magic-rollback false -- --fallback
 
 # Deploy to ALL configured NixOS hosts.
 #
@@ -62,7 +68,7 @@ deploy host:
 # verifying each node rejoins (see the deploy-k3s-nodes skill) before the next.
 [doc('Deploy NixOS config to all hosts (avoid for the k3s nodes — see skill)')]
 deploy-all:
-    nix run .#deploy-rs -- --skip-checks --magic-rollback false
+    nix run .#deploy-rs -- --skip-checks --magic-rollback false -- --fallback
 
 # Dry-run: build + dry-activate without switching.
 [doc('Dry-run deploy (build only, no switch)')]
@@ -83,7 +89,7 @@ eval host:
 eval-all:
     #!/usr/bin/env bash
     set -euo pipefail
-    for host in chopper kenobi; do
+    for host in chopper c3po kenobi; do
       echo "Evaluating $host..."
       nix eval .#nixosConfigurations.$host.config.system.build.toplevel.drvPath
       echo "  ✓ $host OK"
@@ -93,6 +99,11 @@ eval-all:
 [doc('Build chopper NixOS config')]
 build-chopper:
     nix build .#nixosConfigurations.chopper.config.system.build.toplevel
+
+# Build c3po NixOS configuration.
+[doc('Build c3po NixOS config')]
+build-c3po:
+    nix build .#nixosConfigurations.c3po.config.system.build.toplevel
 
 # Build kenobi NixOS configuration (aarch64-linux).
 [doc('Build kenobi NixOS config')]
@@ -116,7 +127,7 @@ build-home-chopper:
 
 # Build all configurations.
 [doc('Build everything (all hosts + HM)')]
-build-all: build-chopper build-kenobi build-mac build-home-mac build-home-chopper
+build-all: build-chopper build-c3po build-kenobi build-mac build-home-mac build-home-chopper
 
 # ═══════════════════════════════════════════════════════════════════════════
 #  LINT / CHECK — code quality
@@ -200,6 +211,7 @@ ssh host:
     set -euo pipefail
     case "{{ host }}" in
       chopper) ssh root@100.107.213.17 ;;
+      c3po)    ssh root@100.109.132.76 ;;
       kenobi)  ssh root@100.73.101.89 ;;
       *)       echo "Unknown host: {{ host }}"; exit 1 ;;
     esac
@@ -210,7 +222,7 @@ closure-sizes:
     #!/usr/bin/env bash
     set -euo pipefail
     echo "=== Closure Sizes ==="
-    for pair in "chopper:100.107.213.17" "kenobi:100.73.101.89"; do
+    for pair in "chopper:100.107.213.17" "c3po:100.109.132.76" "kenobi:100.73.101.89"; do
       name="${pair%%:*}"
       ip="${pair##*:}"
       size=$(ssh -o ConnectTimeout=5 root@$ip \
@@ -225,13 +237,14 @@ gc host:
     set -euo pipefail
     case "{{ host }}" in
       chopper) ssh root@100.107.213.17 "nix-collect-garbage -d && nix-store --optimise" ;;
+      c3po)    ssh root@100.109.132.76 "nix-collect-garbage -d && nix-store --optimise" ;;
       kenobi)  ssh root@100.73.101.89 "nix-collect-garbage -d && nix-store --optimise" ;;
       *)       echo "Unknown host: {{ host }}"; exit 1 ;;
     esac
 
 # Garbage-collect all hosts.
 [doc('Garbage-collect all hosts')]
-gc-all: (gc "chopper") (gc "kenobi")
+gc-all: (gc "chopper") (gc "c3po") (gc "kenobi")
 
 # Collect local garbage.
 [doc('Garbage-collect the local Mac nix store')]

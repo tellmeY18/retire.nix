@@ -1,0 +1,60 @@
+---
+# zram-vmrules.yaml — VMRule for ZRAM swap monitoring.
+#
+# Exposes alerts for ZRAM compression ratio and usage across the cluster.
+# Metrics come from the node-exporter textfile collector (systemd timer on
+# each host that reads /sys/block/zram* sysfs files).
+#
+# Node-agnostic: fires on any host with ZRAM metrics, harmless no-op on hosts
+# without ZRAM (the textfile simply doesn't exist and rules evaluate empty).
+
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMRule
+metadata:
+  name: zram-alerts
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: zram
+    app.kubernetes.io/component: alerting
+    app.kubernetes.io/part-of: victoria-metrics-k8s-stack
+    app.kubernetes.io/managed-by: kustomize
+spec:
+  groups:
+    - name: zram.rules
+      rules:
+        # ── ZRAM usage ──────────────────────────────────────────────────
+        # Usage percentage = compressed data / device size
+        # Threshold: > 80% means ZRAM is nearly full and swap will fall
+        # through to the slower disk/zvol swap device.
+        - alert: ZRAMUsageHigh
+          annotations:
+            description: >-
+              ZRAM device {{ $labels.device }} on {{ $labels.instance }}
+              is {{ $value | humanizePercentage }} full
+              ({{ $labels.device }} compressed data is approaching device
+              capacity). Swap will spill to disk/zvol, causing latency spikes.
+            summary: ZRAM usage is high
+          expr: |-
+            (node_zram_compr_data_size / node_zram_disksize) * 100 > 80
+          for: 5m
+          labels:
+            severity: warning
+
+        # ── ZRAM compression ratio ──────────────────────────────────────
+        # Compression ratio = orig_data_size / compr_data_size
+        # A ratio below 2.0x means poor compression (mostly incompressible
+        # data or algorithm mismatch). zstd typically achieves 3-4x on
+        # swap workloads.
+        - alert: ZRAMCompressionRatioLow
+          annotations:
+            description: >-
+              ZRAM device {{ $labels.device }} on {{ $labels.instance }}
+              has a compression ratio of {{ printf "%.1f" $value }}x.
+              Normal zstd compression on swap should be 3-5x. Below 2x
+              suggests mostly incompressible data or a config issue.
+            summary: ZRAM compression ratio is low
+          expr: |-
+            node_zram_orig_data_size / node_zram_compr_data_size < 2
+          for: 10m
+          labels:
+            severity: warning
