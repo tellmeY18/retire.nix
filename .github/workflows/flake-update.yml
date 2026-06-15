@@ -4,14 +4,15 @@
 #   1. Runs `nix flake update` to pull the latest nixpkgs-unstable + inputs
 #   2. Opens a PR with the updated flake.lock
 #   3. Builds EVERY host config on native-arch runners (3 parallel jobs)
-#   4. Each job pushes its closures to Attic after successful build
-#   5. Finalize: auto-merges if all builds pass, closes PR if any fail
+#   4. Each job pushes its closures to Attic in a named step
+#   5. Finalize: auto-merges if all builds + pushes pass, closes PR if any fail
 #
 # Architecture:
-#   Each arch job is SELF-CONTAINED: build + push. This means:
+#   Each arch job is SELF-CONTAINED: build then push. This means:
 #   - Re-running a single failed job doesn't redo successful ones
-#   - Cache push happens per-arch (no "all or nothing" gate)
-#   - Finalize merges based on BUILD success (push is best-effort)
+#   - Push is a named step with `set -euo pipefail` — if it fails,
+#     the job fails, and finalize will NOT merge.
+#   - skipped via `skip_cache` input for build-only validation.
 #
 # On transient failures (rate limits, etc.): use "Re-run failed jobs"
 # in the GitHub Actions UI. Only the failed arch re-runs.
@@ -91,7 +92,7 @@ jobs:
           commit-message: "chore(flake): update flake.lock"
           title: "chore(flake): update flake.lock"
           body: |
-            Automated `nix flake update` — builds running for all systems.
+            Automated `nix flake update` — builds + Attic push running for all systems.
             Use **Re-run failed jobs** if a single arch fails transiently.
           labels: flake-update
           delete-branch: true
@@ -131,32 +132,26 @@ jobs:
       - name: Build Home Manager (vysakh@chopper)
         run: nix build .#homeConfigurations."vysakh@chopper".activationPackage --print-build-logs
 
-      - name: Push to Attic
+      - name: Setup Attic
         if: ${{ !inputs.skip_cache }}
-        continue-on-error: true
+        uses: ./.github/actions/attic-setup
+        with:
+          sops-age-key: ${{ secrets.SOPS_AGE_KEY }}
+
+      - name: Push to Attic (x86_64-linux)
+        if: ${{ !inputs.skip_cache }}
         timeout-minutes: 25
-        env:
-          SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
         run: |
-          nix run nixpkgs#sops -- -d secrets/ci/actions.yaml > /tmp/ci.yaml
-          ATTIC_TOKEN=$(grep '^attic_token:' /tmp/ci.yaml | awk '{print $2}')
-          rm /tmp/ci.yaml
-
-          nix profile install nixpkgs#attic-client
-          attic login ci "$ATTIC_SERVER" "$ATTIC_TOKEN"
-          attic use "$ATTIC_CACHE"
-
-          # Build all three targets, keeping every closure live in the store
-          # (no GC between them). Then push the combined closure set once.
+          set -euo pipefail
           chopper=$(nix build .#nixosConfigurations.chopper.config.system.build.toplevel \
-            --no-link --print-out-paths 2>/dev/null)
+            --no-link --print-out-paths)
           c3po=$(nix build .#nixosConfigurations.c3po.config.system.build.toplevel \
-            --no-link --print-out-paths 2>/dev/null)
+            --no-link --print-out-paths)
           hm=$(nix build .#homeConfigurations."vysakh@chopper".activationPackage \
-            --no-link --print-out-paths 2>/dev/null)
+            --no-link --print-out-paths)
 
-          nix path-info -r "$chopper" "$c3po" "$hm" 2>/dev/null \
-            | attic push --stdin -j 6 "$ATTIC_CACHE" || true
+          nix path-info -r "$chopper" "$c3po" "$hm" \
+            | attic push --stdin -j 6 "$ATTIC_CACHE"
 
   build-aarch64-linux:
     needs: prepare
@@ -181,25 +176,21 @@ jobs:
       - name: Build NixOS (kenobi)
         run: nix build .#nixosConfigurations.kenobi.config.system.build.toplevel --print-build-logs
 
-      - name: Push to Attic
+      - name: Setup Attic
         if: ${{ !inputs.skip_cache }}
-        continue-on-error: true
+        uses: ./.github/actions/attic-setup
+        with:
+          sops-age-key: ${{ secrets.SOPS_AGE_KEY }}
+
+      - name: Push to Attic (aarch64-linux)
+        if: ${{ !inputs.skip_cache }}
         timeout-minutes: 25
-        env:
-          SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
         run: |
-          nix run nixpkgs#sops -- -d secrets/ci/actions.yaml > /tmp/ci.yaml
-          ATTIC_TOKEN=$(grep '^attic_token:' /tmp/ci.yaml | awk '{print $2}')
-          rm /tmp/ci.yaml
-
-          nix profile install nixpkgs#attic-client
-          attic login ci "$ATTIC_SERVER" "$ATTIC_TOKEN"
-          attic use "$ATTIC_CACHE"
-
+          set -euo pipefail
           kenobi=$(nix build .#nixosConfigurations.kenobi.config.system.build.toplevel \
-            --no-link --print-out-paths 2>/dev/null)
-          nix path-info -r "$kenobi" 2>/dev/null \
-            | attic push --stdin -j 6 "$ATTIC_CACHE" || true
+            --no-link --print-out-paths)
+          nix path-info -r "$kenobi" \
+            | attic push --stdin -j 6 "$ATTIC_CACHE"
 
   build-aarch64-darwin:
     needs: prepare
@@ -228,41 +219,27 @@ jobs:
       - name: Build Home Manager (darwin)
         run: nix build .#homeConfigurations."mathewalex@Vysakhs-MacBook-Pro".activationPackage --print-build-logs
 
-      - name: Push to Attic
+      - name: Setup Attic
         if: ${{ !inputs.skip_cache }}
-        continue-on-error: true
+        uses: ./.github/actions/attic-setup
+        with:
+          sops-age-key: ${{ secrets.SOPS_AGE_KEY }}
+
+      - name: Push to Attic (aarch64-darwin)
+        if: ${{ !inputs.skip_cache }}
         timeout-minutes: 45
-        env:
-          SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
         run: |
-          nix run nixpkgs#sops -- -d secrets/ci/actions.yaml > /tmp/ci.yaml
-          ATTIC_TOKEN=$(grep '^attic_token:' /tmp/ci.yaml | awk '{print $2}')
-          rm /tmp/ci.yaml
+          set -euo pipefail
+          darwin_sys=$(nix build .#darwinConfigurations."Vysakhs-MacBook-Pro".system \
+            --no-link --print-out-paths)
+          darwin_hm=$(nix build .#homeConfigurations."mathewalex@Vysakhs-MacBook-Pro".activationPackage \
+            --no-link --print-out-paths)
 
-          nix profile install nixpkgs#attic-client
-          attic login ci "$ATTIC_SERVER" "$ATTIC_TOKEN"
-          attic use "$ATTIC_CACHE"
-
-          # Both darwin targets were already built above; --no-link just
-          # re-resolves the store paths without rebuilding, keeping the
-          # full closure live in the runner store for the push step.
-          # A single combined push avoids the timeout-per-target problem
-          # and skips paths already in cache.nixos.org (attic upstream filter).
-          darwin_sys=$(
-            nix build .#darwinConfigurations."Vysakhs-MacBook-Pro".system \
-              --no-link --print-out-paths 2>/dev/null
-          )
-          darwin_hm=$(
-            nix build .#homeConfigurations."mathewalex@Vysakhs-MacBook-Pro".activationPackage \
-              --no-link --print-out-paths 2>/dev/null
-          )
-
-          # pipe the full deduped closure of both roots into a single upload
-          nix path-info -r "$darwin_sys" "$darwin_hm" 2>/dev/null \
-            | attic push --stdin -j 8 "$ATTIC_CACHE" || true
+          nix path-info -r "$darwin_sys" "$darwin_hm" \
+            | attic push --stdin -j 8 "$ATTIC_CACHE"
 
   # ---------------------------------------------------------------------------
-  # 3. Finalize — merge on all builds green (push is best-effort)
+  # 3. Finalize — merge only when all builds and pushes succeed
   # ---------------------------------------------------------------------------
   finalize:
     needs:
@@ -294,7 +271,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh pr comment "$PR_NUMBER" --repo "${{ github.repository }}" \
-            --body "✅ All builds passed. Binaries pushed to Attic (best-effort). Auto-merging."
+            --body "✅ All builds passed and pushed to Attic. Auto-merging."
           gh pr merge "$PR_NUMBER" --repo "${{ github.repository }}" \
             --squash --auto --delete-branch
 
