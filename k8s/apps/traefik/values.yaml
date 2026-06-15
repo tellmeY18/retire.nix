@@ -40,11 +40,14 @@ deployment:
         path: /var/lib/traefik
         type: DirectoryOrCreate
 
-# ACME (Let's Encrypt) TLS certificate resolver.
+# Increase entrypoint read timeouts for large Attic uploads (initrd etc.).
+# Default is 60s in Traefik v3 — Attic push of large closures can exceed this.
 additionalArguments:
   - "--certificatesresolvers.letsencrypt.acme.email=vysakhpr218@gmail.com"
   - "--certificatesresolvers.letsencrypt.acme.storage=/acme/acme.json"
   - "--certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web"
+  - "--entryPoints.web.transport.respondingTimeouts.readTimeout=600s"
+  - "--entryPoints.websecure.transport.respondingTimeouts.readTimeout=600s"
 
 # Mount the hostPath volume for ACME state.
 additionalVolumeMounts:

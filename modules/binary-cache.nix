@@ -38,11 +38,22 @@
       "http://attic.tail477f2f.ts.net:8080/system"
       # Public Traefik ingress — resolvable everywhere. Same store, same key.
       "https://cache.tellmey.fyi/system"
+      # Popular community binary caches
+      "https://nix-community.cachix.org"
+      "https://devenv.cachix.org"
+      "https://deploy-rs.cachix.org"
+      "https://cachix.cachix.org"
+      "https://tellmey18.cachix.org"
     ];
 
     trusted-public-keys = [
       "cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY="
       "system:mvnfTi6w7gvX6oksJ4JhHLL4wVUa576bgtLJ6lh9C2Y="
+      # Popular community binary caches
+      "nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs="
+      "devenv.cachix.org-1:w1cLUi8dv3hnoSPGAuibQv+f9TZLr6cv/Hm9XgU50cw="
+      "deploy-rs.cachix.org-1:WfYy4n/FmMUOR55R4BcI04+CLy18CXsMJMIRhDw3hOw="
+      "cachix.cachix.org-1:myoobmXM2d/eFGhO/9rE8cVoEPCFU1N2aR2YmZ77Rso="
     ];
 
     # Both attic endpoints serve the same store (signed by the key above).

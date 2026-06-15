@@ -95,7 +95,7 @@ spec:
               mountPath: /tmp
           resources:
             requests:
-              cpu: 25m
+              cpu: 100m
               memory: 768Mi
             limits:
               # CI pushes entire NixOS closures (hundreds of paths).

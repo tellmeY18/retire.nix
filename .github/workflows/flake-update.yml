@@ -150,8 +150,7 @@ jobs:
           hm=$(nix build .#homeConfigurations."vysakh@chopper".activationPackage \
             --no-link --print-out-paths)
 
-          nix path-info -r "$chopper" "$c3po" "$hm" \
-            | attic push --stdin -j 6 "$ATTIC_CACHE"
+          attic push -j 6 "$ATTIC_CACHE" "$chopper" "$c3po" "$hm"
 
   build-aarch64-linux:
     needs: prepare
@@ -189,8 +188,7 @@ jobs:
           set -euo pipefail
           kenobi=$(nix build .#nixosConfigurations.kenobi.config.system.build.toplevel \
             --no-link --print-out-paths)
-          nix path-info -r "$kenobi" \
-            | attic push --stdin -j 6 "$ATTIC_CACHE"
+          attic push -j 6 "$ATTIC_CACHE" "$kenobi"
 
   build-aarch64-darwin:
     needs: prepare
@@ -235,8 +233,7 @@ jobs:
           darwin_hm=$(nix build .#homeConfigurations."mathewalex@Vysakhs-MacBook-Pro".activationPackage \
             --no-link --print-out-paths)
 
-          nix path-info -r "$darwin_sys" "$darwin_hm" \
-            | attic push --stdin -j 8 "$ATTIC_CACHE"
+          attic push -j 8 "$ATTIC_CACHE" "$darwin_sys" "$darwin_hm"
 
   # ---------------------------------------------------------------------------
   # 3. Finalize — merge only when all builds and pushes succeed
