@@ -1,4 +1,4 @@
-{ pkgs, ... }:
+{ ... }:
 {
   services = {
     # Tailscale daemon is intentionally NOT managed by nix-darwin.
