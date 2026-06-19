@@ -8,7 +8,7 @@
     # Inherit common zsh config
     profileExtra = ''
       # GitHub API token for Homebrew (avoids rate limiting on brew bundle, nix flake update)
-      export HOMEBREW_GITHUB_API_TOKEN="$(gh auth token 2>/dev/null || echo '')"
+      export HOMEBREW_GITHUB_API_TOKEN="$(gh auth token 2>/dev/null || true)"
 
       # Add Homebrew to PATH
       eval "$(/opt/homebrew/bin/brew shellenv)"
