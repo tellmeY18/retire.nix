@@ -106,9 +106,178 @@
           autoHide = true;
         };
 
+        # ── Hotkeys ────────────────────────────────────────────────
+        # Migrated from AeroSpace muscle memory:
+        #   Opt+HJKL → focus,  Opt+Shift+HJKL → move
+        #   Opt+1-9 → workspace,  Opt+Shift+1-9 → move to workspace
+        #   Opt+Tab → back-and-forth,  Opt+Shift+F → fullscreen
+        hotkeys = [
+          # Focus (vim)
+          {
+            id = "focus.left";
+            binding = "Option+H";
+          }
+          {
+            id = "focus.down";
+            binding = "Option+J";
+          }
+          {
+            id = "focus.up";
+            binding = "Option+K";
+          }
+          {
+            id = "focus.right";
+            binding = "Option+L";
+          }
+
+          # Move windows (vim)
+          {
+            id = "move.left";
+            binding = "Option+Shift+H";
+          }
+          {
+            id = "move.down";
+            binding = "Option+Shift+J";
+          }
+          {
+            id = "move.up";
+            binding = "Option+Shift+K";
+          }
+          {
+            id = "move.right";
+            binding = "Option+Shift+L";
+          }
+
+          # Cycle column width (AeroSpace resize)
+          {
+            id = "cycleColumnWidthBackward";
+            binding = "Option+-";
+          }
+          {
+            id = "cycleColumnWidthForward";
+            binding = "Option+=";
+          }
+
+          # Workspaces 1–9 (AeroSpace: alt-1 through alt-9)
+          {
+            id = "switchWorkspace.0";
+            binding = "Option+1";
+          }
+          {
+            id = "switchWorkspace.1";
+            binding = "Option+2";
+          }
+          {
+            id = "switchWorkspace.2";
+            binding = "Option+3";
+          }
+          {
+            id = "switchWorkspace.3";
+            binding = "Option+4";
+          }
+          {
+            id = "switchWorkspace.4";
+            binding = "Option+5";
+          }
+          {
+            id = "switchWorkspace.5";
+            binding = "Option+6";
+          }
+          {
+            id = "switchWorkspace.6";
+            binding = "Option+7";
+          }
+          {
+            id = "switchWorkspace.7";
+            binding = "Option+8";
+          }
+          {
+            id = "switchWorkspace.8";
+            binding = "Option+9";
+          }
+
+          # Move window to workspace (AeroSpace: alt-shift-1-9)
+          {
+            id = "moveToWorkspace.0";
+            binding = "Option+Shift+1";
+          }
+          {
+            id = "moveToWorkspace.1";
+            binding = "Option+Shift+2";
+          }
+          {
+            id = "moveToWorkspace.2";
+            binding = "Option+Shift+3";
+          }
+          {
+            id = "moveToWorkspace.3";
+            binding = "Option+Shift+4";
+          }
+          {
+            id = "moveToWorkspace.4";
+            binding = "Option+Shift+5";
+          }
+          {
+            id = "moveToWorkspace.5";
+            binding = "Option+Shift+6";
+          }
+          {
+            id = "moveToWorkspace.6";
+            binding = "Option+Shift+7";
+          }
+          {
+            id = "moveToWorkspace.7";
+            binding = "Option+Shift+8";
+          }
+          {
+            id = "moveToWorkspace.8";
+            binding = "Option+Shift+9";
+          }
+
+          # Quick switch (back-and-forth)
+          {
+            id = "workspaceBackAndForth";
+            binding = "Option+Tab";
+          }
+
+          # Fullscreen
+          {
+            id = "toggleFullscreen";
+            binding = "Option+Shift+F";
+          }
+
+          # Toggle floating
+          {
+            id = "toggleFocusedWindowFloating";
+            binding = "Option+Shift+Space";
+          }
+
+          # Toggle workspace layout (Niri ↔ Dwindle)
+          {
+            id = "toggleWorkspaceLayout";
+            binding = "Option+Shift+L";
+          }
+
+          # Overview (workspace exposé)
+          {
+            id = "toggleOverview";
+            binding = "Option+Shift+O";
+          }
+
+          # Quake terminal — keep default (Opt+`) but also add Opt+Return as alternative
+          {
+            id = "toggleQuakeTerminal";
+            binding = "Option+Return";
+          }
+
+          # Focus next/prev monitor (AeroSpace: alt-shift-tab → move-workspace-to-monitor)
+          {
+            id = "focusMonitorNext";
+            binding = "Option+Shift+Tab";
+          }
+        ];
+
         # Workspaces 1–5 on laptop, 6–9 on external monitor.
-        # Hotkeys follow OmniWM defaults: Cmd+1-9 for workspace switch,
-        # Shift+Cmd+1-9 for move-to-workspace, Cmd+HJKL for vim focus.
         workspaces = [
           {
             name = "1";
