@@ -1,4 +1,4 @@
-# hosts/darwin/sketchybar — Lua-based sketchybar config with AeroSpace integration.
+# hosts/darwin/sketchybar — Lua-based sketchybar config with OmniWM integration.
 #
 # Architecture (following azuwis/nix-config pattern):
 #   - services.sketchybar.enable manages the launchd service
@@ -6,6 +6,7 @@
 #   - --config points to our ./config/sketchybarrc entry point
 #   - All .lua files live as real files (not inline nix strings)
 #   - Hotload is disabled when running from /nix/store (nix-darwin restarts on change)
+#   - Workspace state queried via omniwmctl IPC
 { lib, pkgs, ... }:
 
 let

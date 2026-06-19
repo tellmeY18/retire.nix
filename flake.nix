@@ -46,23 +46,22 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
     nix-darwin-aerohud = {
-      url = "github:tellmeY18/nix-darwin/1b5caa6f694856ad74d601e6e07fcefd738add2d";
+      url = "github:tellmeY18/nix-darwin/534c8dd2835889972cbec0d7f27e78aee19159b6";
       inputs.nixpkgs.follows = "nixpkgs";
     };
   };
 
   outputs =
-    inputs@{
-      self,
-      nix-homebrew,
-      nix-index-database,
-      nixvim,
-      fenix,
-      disko,
-      sops-nix,
-      deploy-rs,
-      nix-darwin-aerohud,
-      ...
+    inputs@{ self
+    , nix-homebrew
+    , nix-index-database
+    , nixvim
+    , fenix
+    , disko
+    , sops-nix
+    , deploy-rs
+    , nix-darwin-aerohud
+    , ...
     }:
     let
       myLib = import ./lib { inherit inputs; };
@@ -138,6 +137,8 @@
             }
             # aerohud module from the nix-darwin fork (tellmeY18)
             "${nix-darwin-aerohud}/modules/services/aerohud"
+            # omniwm module from the same fork — manages ~/.config/omniwm/settings.toml
+            "${nix-darwin-aerohud}/modules/services/omniwm"
             ./modules/dev/rust.nix
             ./hosts/darwin/homebrew.nix
           ];

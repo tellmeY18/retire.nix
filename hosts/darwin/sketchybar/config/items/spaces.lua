@@ -1,45 +1,12 @@
 local colors = require("colors")
 local icons = require("icons")
 
--- Register AeroSpace workspace change event.
-sbar.add("event", "aerospace_workspace_change")
-
--- Icon map: app name → sketchybar-app-font glyph.
--- This font maps common app names to icons. See:
--- https://github.com/kvndrsslr/sketchybar-app-font
-local app_icons = {
-  ["Arc"]              = ":arc:",
-  ["Code"]             = ":code:",
-  ["Discord"]          = ":discord:",
-  ["Finder"]           = ":finder:",
-  ["Firefox"]          = ":firefox:",
-  ["Google Chrome"]    = ":google_chrome:",
-  ["Kitty"]            = ":kitty:",
-  ["Mail"]             = ":mail:",
-  ["Messages"]         = ":messages:",
-  ["Music"]            = ":music:",
-  ["Notes"]            = ":notes:",
-  ["Notion"]           = ":notion:",
-  ["Obsidian"]         = ":obsidian:",
-  ["Preview"]          = ":preview:",
-  ["Safari"]           = ":safari:",
-  ["Signal"]           = ":signal:",
-  ["Slack"]            = ":slack:",
-  ["Spotify"]          = ":spotify:",
-  ["System Settings"]  = ":gear:",
-  ["Telegram"]         = ":telegram:",
-  ["Terminal"]         = ":terminal:",
-  ["Thunderbird"]      = ":thunderbird:",
-  ["VLC"]              = ":vlc:",
-  ["WezTerm"]          = ":wezterm:",
-  ["WhatsApp"]         = ":whats_app:",
-  ["Zed"]              = ":zed:",
-  ["Zen"]              = ":zen_browser:",
-}
+-- Workspace switching via omniwmctl (OmniWM IPC).
+-- omniwm must have IPC enabled (services.omniwm.settings.general.ipcEnabled = true).
 
 local spaces = {}
 
-for i = 1, 10 do
+for i = 1, 9 do
   local space = sbar.add("item", "space." .. i, {
     icon = {
       string = tostring(i),
@@ -64,44 +31,58 @@ for i = 1, 10 do
     },
     padding_left = 2,
     padding_right = 2,
-    click_script = "aerospace workspace " .. i,
+    click_script = "omniwmctl command switch-workspace " .. i,
+    update_freq = 3,
   })
 
   spaces[i] = space
 
-  -- Update workspace appearance on focus change.
-  space:subscribe("aerospace_workspace_change", function(env)
-    local focused = env.FOCUSED_WORKSPACE == tostring(i)
+  space:subscribe({ "forced", "routine" }, function()
+    -- Query OmniWM for the current workspace state on this monitor.
+    -- Parse JSON to find which workspace is focused and its app icons.
+    sbar.exec(
+      "omniwmctl query workspaces --format json 2>/dev/null || echo '[]'",
+      function(result)
+        local focused = false
+        local icon_line = ""
 
-    -- Get windows in this workspace for the app icons.
-    sbar.exec("/run/current-system/sw/bin/aerospace list-windows --workspace " .. i .. " --format '%{app-name}' 2>/dev/null", function(result)
-      local icon_line = ""
-      if result then
-        for app in result:gmatch("[^\r\n]+") do
-          local mapped = app_icons[app]
-          if mapped then
-            icon_line = icon_line .. mapped
+        -- Try to parse JSON; on failure, do nothing.
+        local ok, data = pcall(sbar.parse_json, result)
+        if ok and data then
+          for _, ws in ipairs(data) do
+            if ws["is-current"] or ws["is-focused"] then
+              if ws["number"] == i then
+                focused = true
+              end
+            end
+            if ws["number"] == i then
+              local counts = ws["window-counts"] or {}
+              local managed = counts["managed"] or 0
+              if managed > 0 then
+                icon_line = "●"
+              end
+            end
           end
         end
+
+        local has_windows = icon_line ~= ""
+
+        sbar.animate("tanh", 10, function()
+          space:set({
+            icon = {
+              color = focused and colors.crust or (has_windows and colors.text or colors.overlay0),
+            },
+            label = {
+              string = icon_line,
+              color = focused and colors.crust or colors.subtext0,
+            },
+            background = {
+              color = focused and colors.blue or (has_windows and colors.surface1 or colors.surface0),
+            },
+          })
+        end)
       end
-
-      local has_windows = icon_line ~= ""
-
-      sbar.animate("tanh", 10, function()
-        space:set({
-          icon = {
-            color = focused and colors.crust or (has_windows and colors.text or colors.overlay0),
-          },
-          label = {
-            string = icon_line,
-            color = focused and colors.crust or colors.subtext0,
-          },
-          background = {
-            color = focused and colors.blue or (has_windows and colors.surface1 or colors.surface0),
-          },
-        })
-      end)
-    end)
+    )
   end)
 end
 
