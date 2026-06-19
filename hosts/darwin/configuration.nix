@@ -17,7 +17,6 @@
     ../../packages/darwin
     ./programs.nix
     ./services.nix
-    ./sketchybar
   ];
   system = {
     defaults = {

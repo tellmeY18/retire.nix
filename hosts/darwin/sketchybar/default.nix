@@ -1,12 +1,8 @@
-# hosts/darwin/sketchybar — Lua-based sketchybar config with OmniWM integration.
+# hosts/darwin/sketchybar — Disabled in favour of OmniWM's built-in workspace bar.
 #
-# Architecture (following azuwis/nix-config pattern):
-#   - services.sketchybar.enable manages the launchd service
-#   - launchd agent gets Lua (with sbarlua) in PATH
-#   - --config points to our ./config/sketchybarrc entry point
-#   - All .lua files live as real files (not inline nix strings)
-#   - Hotload is disabled when running from /nix/store (nix-darwin restarts on change)
-#   - Workspace state queried via omniwmctl IPC
+# Kept in-tree for reference; the import was removed from configuration.nix
+# and services.sketchybar.enable is set to false.
+# If you re-enable it, restore the `./sketchybar` import in configuration.nix.
 { lib, pkgs, ... }:
 
 let
@@ -15,28 +11,10 @@ let
   ]);
 in
 {
-  # Hide the native macOS menu bar — sketchybar replaces it.
-  system.defaults.NSGlobalDomain._HIHideMenuBar = true;
-
-  # Install sketchybar-app-font for app-name-to-icon mapping.
-  fonts.packages = with pkgs; [
-    sketchybar-app-font
-    nerd-fonts.symbols-only
-  ];
+  # Don't hide the menu bar — OmniWM's bar overlaps it when enabled.
+  system.defaults.NSGlobalDomain._HIHideMenuBar = false;
 
   services.sketchybar = {
-    enable = true;
-    extraPackages = with pkgs; [
-      lua
-    ];
-  };
-
-  # Override the launchd agent to use our Lua config directory.
-  launchd.user.agents.sketchybar = {
-    path = lib.mkBefore [ lua ];
-    serviceConfig.ProgramArguments = lib.mkAfter [
-      "--config"
-      "${./config}/sketchybarrc"
-    ];
+    enable = false;
   };
 }

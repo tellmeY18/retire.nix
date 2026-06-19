@@ -70,8 +70,16 @@
           singleWindowAspectRatio = "fill";
         };
 
+        # Built-in OmniWM workspace bar replaces sketchybar.
+        # Positions: overlappingMenuBar, underMenuBar, floating
         workspaceBar = {
-          enabled = false;
+          enabled = true;
+          position = "overlappingMenuBar";
+          height = 32.0;
+          showLabels = true;
+          deduplicateAppIcons = true;
+          hideEmptyWorkspaces = true;
+          notchAware = true;
         };
 
         gestures = {
