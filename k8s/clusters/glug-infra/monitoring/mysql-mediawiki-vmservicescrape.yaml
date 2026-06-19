@@ -1,0 +1,30 @@
+---
+# mysql-mediawiki-vmservicescrape.yaml — VMServiceScrape for MediaWiki MySQL.
+#
+# Scrapes the mysqld-exporter sidecar (port 9104) on the standalone
+# Percona Server pod in the mysql-mediawiki namespace.
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMServiceScrape
+metadata:
+  name: mysql-mediawiki-scrape
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: mysql-mediawiki
+    app.kubernetes.io/component: database
+    app.kubernetes.io/part-of: victoria-metrics-k8s-stack
+    app.kubernetes.io/managed-by: kustomize
+spec:
+  namespaceSelector:
+    matchNames:
+      - mysql-mediawiki
+  selector:
+    matchLabels:
+      app: mysql-mediawiki
+  endpoints:
+    - port: metrics
+      targetPort: 9104
+      interval: 30s
+      relabelConfigs:
+        - sourceLabels: [__meta_kubernetes_pod_node_name]
+          targetLabel: node
+          action: replace

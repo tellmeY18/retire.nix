@@ -108,17 +108,10 @@ apply:
     sops --decrypt clusters/glug-infra/rustfs/credentials-secret.enc.yaml | kubectl apply -f -
     kubectl apply -k clusters/glug-infra/rustfs
     kubectl apply -k clusters/glug-infra/attic
-    kubectl apply -k clusters/glug-infra/changala
-    kubectl apply -k clusters/glug-infra/penpot
-    kubectl apply -k clusters/glug-infra/derper
     kubectl apply -f clusters/glug-infra/monitoring/namespace.yaml
     helmfile sync
     @echo "Applying Attic credentials (sops-decrypt)..."
     sops --decrypt clusters/glug-infra/attic/credentials-secret.enc.yaml | kubectl apply -f -
-    @echo "Applying Changala Ring credentials (sops-decrypt)..."
-    sops --decrypt clusters/glug-infra/changala/ring-credentials-secret.enc.yaml | kubectl apply -f -
-    @echo "Applying Changala Aggregator credentials (sops-decrypt)..."
-    sops --decrypt clusters/glug-infra/changala/aggregator-credentials-secret.enc.yaml | kubectl apply -f -
     @echo "Applying Ghost MGR DB secrets (sops-decrypt), then the cluster..."
     sops --decrypt clusters/glug-infra/mysql-ghost/credentials-secret.enc.yaml | kubectl apply -f -
     sops --decrypt clusters/glug-infra/mysql-ghost/proxysql-ghost-config-secret.enc.yaml | kubectl apply -f -
@@ -133,11 +126,8 @@ apply:
 diff:
     kubectl diff -k clusters/glug-infra || true
     kubectl diff -k clusters/glug-infra/rustfs || true
-    kubectl diff -k clusters/glug-infra/changala || true
     kubectl diff -k clusters/glug-infra/mysql-ghost || true
     kubectl diff -k clusters/glug-infra/mysql-mediawiki || true
-    kubectl diff -k clusters/glug-infra/penpot || true
-    kubectl diff -k clusters/glug-infra/derper || true
     kubectl diff -k clusters/glug-infra/monitoring || true
     helmfile diff
 
@@ -394,52 +384,7 @@ rustfs-error-rate:
 # Changala day-2 helpers (Ring + Aggregator)
 # ---------------------------------------------------------------------------
 
-# Show all Changala resources.
-[doc('Show Changala Deployment status')]
-changala-status:
-    kubectl get deploy,pods,svc,ingress -n changala -o wide
 
-# Tail Ring logs.
-[doc('Tail Changala Ring logs')]
-ring-logs:
-    kubectl logs -n changala -l app.kubernetes.io/name=changala-ring -f --tail=200
-
-# Tail Aggregator logs.
-[doc('Tail Changala Aggregator logs')]
-aggregator-logs:
-    kubectl logs -n changala -l app.kubernetes.io/name=changala-aggregator -f --tail=200
-
-# Restart Ring.
-[doc('Restart Changala Ring (rolling)')]
-ring-restart:
-    kubectl rollout restart deploy/changala-ring -n changala
-
-# Restart Aggregator.
-[doc('Restart Changala Aggregator (rolling)')]
-aggregator-restart:
-    kubectl rollout restart deploy/changala-aggregator -n changala
-
-# Apply Ring credentials.
-[doc('Apply sops-decrypted Ring credentials')]
-ring-apply-secret:
-    @echo "Decrypting and applying Ring credentials..."
-    sops --decrypt clusters/glug-infra/changala/ring-credentials-secret.enc.yaml | kubectl apply -f -
-
-# Apply Aggregator credentials.
-[doc('Apply sops-decrypted Aggregator credentials')]
-aggregator-apply-secret:
-    @echo "Decrypting and applying Aggregator credentials..."
-    sops --decrypt clusters/glug-infra/changala/aggregator-credentials-secret.enc.yaml | kubectl apply -f -
-
-# Port-forward Ring to localhost:3001.
-[doc('Port-forward Ring to localhost:3001')]
-ring-port-forward:
-    kubectl -n changala port-forward svc/changala-ring-svc 3001:3000
-
-# Port-forward Aggregator to localhost:3002.
-[doc('Port-forward Aggregator to localhost:3002')]
-aggregator-port-forward:
-    kubectl -n changala port-forward svc/changala-aggregator-svc 3002:3000
 
 # ---------------------------------------------------------------------------
 # Endpoint monitoring (Cloudprober)

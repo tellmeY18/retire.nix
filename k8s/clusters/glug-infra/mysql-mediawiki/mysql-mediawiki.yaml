@@ -70,6 +70,36 @@ spec:
             periodSeconds: 10
             timeoutSeconds: 5
             failureThreshold: 3
+        - name: mysqld-exporter
+          image: prom/mysqld-exporter:v0.15.1
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: metrics
+              containerPort: 9104
+          args:
+            - "--mysqld.address=localhost:3306"
+            - "--mysqld.username=root"
+          env:
+            - name: MYSQLD_EXPORTER_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-mediawiki-root
+                  key: password
+          resources:
+            requests:
+              memory: "32Mi"
+              cpu: "10m"
+            limits:
+              memory: "64Mi"
+              cpu: "100m"
+          livenessProbe:
+            tcpSocket:
+              port: 9104
+            initialDelaySeconds: 15
+          readinessProbe:
+            tcpSocket:
+              port: 9104
+            initialDelaySeconds: 5
         - name: prewarm
           image: percona/percona-server:8.0.45
           imagePullPolicy: IfNotPresent

@@ -53,7 +53,6 @@ env:
   # tried and didn't work reliably.)
   ATTIC_SERVER: https://cache.tellmey.fyi
   ATTIC_CACHE: system
-  ATTIC_SUBSTITUTER: --extra-substituters https://cache.tellmey.fyi/system --extra-trusted-public-keys system:mvnfTi6w7gvX6oksJ4JhHLL4wVUa576bgtLJ6lh9C2Y=
   PR_BRANCH: automation/flake-update
 
 jobs:

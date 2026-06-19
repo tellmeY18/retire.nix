@@ -39,35 +39,4 @@ spec:
               kubernetes.io/metadata.name: monitoring
       ports:
         - protocol: TCP
-          port: 3306
-        - protocol: TCP
-          port: 33061
----
-# ProxySQL: client traffic from Ghost.
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: allow-proxysql-ghost-ingress
-  namespace: mysql-ghost
-spec:
-  podSelector:
-    matchLabels:
-      app: proxysql-ghost
-  policyTypes:
-    - Ingress
-  ingress:
-    - from:
-        # Ghost connects here for all reads/writes.
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: ghost
-        # Intra-namespace (debug) + monitoring.
-        - podSelector: {}
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: monitoring
-      ports:
-        - protocol: TCP
-          port: 3306
-        - protocol: TCP
-          port: 6032
+          port: 6070

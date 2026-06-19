@@ -33,9 +33,6 @@ repositories:
     url: https://cloudnative-pg.github.io/charts
   - name: traefik
     url: https://traefik.github.io/charts
-  - name: penpot
-    url: http://helm.penpot.app
-
 helmDefaults:
   wait: true
   timeout: 600
@@ -104,32 +101,6 @@ releases:
     secrets:
       - apps/postgres/secrets.yaml
 
-  # ---------------------------------------------------------------------------
-  # 8. Penpot — open-source design and prototyping platform.
-  # ---------------------------------------------------------------------------
-  # Chart 0.43.0 ships Penpot app 2.15.
-  # Bundled PostgreSQL + Valkey sub-charts are disabled; we use the existing
-  # CNPG cluster (postgres-pooler-rw.cnpg-clusters) and a standalone Valkey
-  # deployed by kustomize in the penpot namespace.
-  # Assets are stored in RustFS S3 (bucket 'penpot').
-  #
-  # Prerequisites (one-time):
-  #   just k8s::create-db penpot
-  #   just k8s::create-bucket penpot
-  #   just k8s::encrypt-secret apps/penpot/secrets.yaml
-  #   kubectl apply -k clusters/glug-infra/penpot
-  - name: penpot
-    namespace: penpot
-    createNamespace: false # namespace created by kustomize (PSA labels)
-    chart: penpot/penpot
-    version: "0.43.0"
-    needs:
-      - cnpg-system/cloudnative-pg
-      - monitoring/victoria-metrics-k8s-stack
-    values:
-      - apps/penpot/values.yaml
-    secrets:
-      - apps/penpot/secrets.yaml
 
   # ---------------------------------------------------------------------------
   # 9. Traefik ingress controller.

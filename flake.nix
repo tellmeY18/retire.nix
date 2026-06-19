@@ -180,16 +180,11 @@
         "mathewalex@Vysakhs-MacBook-Pro" = myLib.mkHome {
           system = "aarch64-darwin";
           modules = [
+            # Expose the flake `self` to home-manager modules so they can
+            # reference paths relative to the repository root (e.g. skills).
+            ({ ... }: { _module.args.self = self; })
             nixvim.homeModules.nixvim
             ./home/darwin-home.nix
-          ];
-        };
-
-        "vysakh@chopper" = myLib.mkHome {
-          system = "x86_64-linux";
-          modules = [
-            nixvim.homeModules.nixvim
-            ./home/linux-home.nix
           ];
         };
       };

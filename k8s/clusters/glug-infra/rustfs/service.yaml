@@ -1,12 +1,14 @@
 ---
-# service.yaml — Services for the standalone RustFS StatefulSet.
+# service.yaml — Services for the RustFS active-passive HA setup.
 #
-# Two services:
-#   - rustfs-hl        : headless, required by the StatefulSet for stable pod
-#                        DNS (rustfs-0.rustfs-hl...). Not used by apps.
-#   - rustfs-storage-io: the stable S3 endpoint apps already point at. We KEEP
-#                        the operator's old service name so NO app manifests
-#                        need to change during the operator → standalone switch.
+# Three services:
+#   - rustfs-hl        : headless, required by the chopper StatefulSet for stable
+#                        pod DNS (rustfs-0.rustfs-hl...). Not used by apps.
+#   - rustfs-chopper   : ClusterIP pointing directly at the chopper RustFS pod.
+#                        Used by the nginx proxy and mc-mirror as upstream.
+#   - rustfs-storage-io: the stable S3 endpoint apps already point at. Routes to
+#                        the nginx failover proxy (label s3-failover), which
+#                        selects between chopper (primary) and c3po (backup).
 #                        (Apps use: http://rustfs-storage-io.rustfs-clusters.svc:9000)
 apiVersion: v1
 kind: Service
@@ -29,17 +31,55 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: rustfs-storage-io
+  name: rustfs-c3po-hl
+  namespace: rustfs-clusters
+  labels:
+    app.kubernetes.io/name: rustfs-c3po
+    app.kubernetes.io/part-of: rustfs
+    app.kubernetes.io/managed-by: kustomize
+spec:
+  clusterIP: None
+  selector:
+    app.kubernetes.io/name: rustfs-c3po
+  ports:
+    - name: s3
+      port: 9000
+      targetPort: 9000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rustfs-chopper
   namespace: rustfs-clusters
   labels:
     app.kubernetes.io/name: rustfs
-    app.kubernetes.io/component: s3-api
+    app.kubernetes.io/component: object-storage
     app.kubernetes.io/part-of: rustfs
     app.kubernetes.io/managed-by: kustomize
 spec:
   type: ClusterIP
   selector:
     app.kubernetes.io/name: rustfs
+  ports:
+    - name: s3
+      protocol: TCP
+      port: 9000
+      targetPort: 9000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rustfs-storage-io
+  namespace: rustfs-clusters
+  labels:
+    app.kubernetes.io/name: s3-failover
+    app.kubernetes.io/component: s3-api
+    app.kubernetes.io/part-of: rustfs
+    app.kubernetes.io/managed-by: kustomize
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: s3-failover
   ports:
     - name: s3
       protocol: TCP

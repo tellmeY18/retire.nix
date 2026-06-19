@@ -45,6 +45,8 @@ spec:
               containerPort: 3306
             - name: admin
               containerPort: 6032
+            - name: metrics
+              containerPort: 6070
           volumeMounts:
             - name: config
               mountPath: /etc/proxysql.cnf
@@ -66,6 +68,7 @@ spec:
               port: 3306
             initialDelaySeconds: 5
             periodSeconds: 5
+
       volumes:
         - name: config
           secret:
@@ -91,3 +94,7 @@ spec:
       protocol: TCP
       port: 6032
       targetPort: 6032
+    - name: metrics
+      protocol: TCP
+      port: 6070
+      targetPort: 6070

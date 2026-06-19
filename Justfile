@@ -120,14 +120,9 @@ build-mac:
 build-home-mac:
     nix build .#homeConfigurations."mathewalex@Vysakhs-MacBook-Pro".activationPackage
 
-# Build Home Manager config for chopper.
-[doc('Build Home Manager for chopper')]
-build-home-chopper:
-    nix build .#homeConfigurations."vysakh@chopper".activationPackage
-
 # Build all configurations.
 [doc('Build everything (all hosts + HM)')]
-build-all: build-chopper build-c3po build-kenobi build-mac build-home-mac build-home-chopper
+build-all: build-chopper build-c3po build-kenobi build-mac build-home-mac
 
 # ═══════════════════════════════════════════════════════════════════════════
 #  LINT / CHECK — code quality

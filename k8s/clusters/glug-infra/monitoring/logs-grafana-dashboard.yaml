@@ -246,12 +246,12 @@ data:
               "targets": [
                 {
                   "datasource": { "type": "victoriametrics-logs-datasource", "uid": "victorialogs" },
-                  "expr": "namespace:pxc-clusters",
+                  "expr": "namespace:mysql-ghost",
                   "refId": "A",
                   "maxLines": 100
                 }
               ],
-              "title": "MySQL Primary (PXC)",
+              "title": "MySQL Ghost (MGR)",
               "type": "logs"
             },
             {
@@ -271,12 +271,12 @@ data:
               "targets": [
                 {
                   "datasource": { "type": "victoriametrics-logs-datasource", "uid": "victorialogs" },
-                  "expr": "namespace:pxc-ram",
+                  "expr": "namespace:mysql-mediawiki",
                   "refId": "A",
                   "maxLines": 100
                 }
               ],
-              "title": "MySQL RAM Replica",
+              "title": "MySQL MediaWiki",
               "type": "logs"
             },
             {

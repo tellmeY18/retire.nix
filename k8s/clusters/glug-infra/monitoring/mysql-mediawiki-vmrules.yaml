@@ -1,0 +1,43 @@
+---
+# mysql-mediawiki-vmrules.yaml — VMRule for standalone MediaWiki MySQL.
+#
+# Single-node Percona Server 8.0 on kenobi. Not HA — alerts focus on
+# availability, resource pressure, and backup status.
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMRule
+metadata:
+  name: mysql-mediawiki-alerts
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: mysql-mediawiki
+    app.kubernetes.io/component: alerting
+    app.kubernetes.io/part-of: victoria-metrics-k8s-stack
+    app.kubernetes.io/managed-by: kustomize
+spec:
+  groups:
+    - name: mysql-mediawiki-health
+      rules:
+        - alert: MysqlMediaWikiDown
+          annotations:
+            description: >-
+              MySQL for MediaWiki on {{ $labels.node }} is not reachable
+              by mysqld_exporter. MediaWiki will be unable to serve pages.
+            summary: mysql-mediawiki is down.
+          expr: |
+            mysql_up{app="mysql-mediawiki"} == 0
+          for: 1m
+          labels:
+            severity: critical
+
+        - alert: MysqlMediaWikiHighConnections
+          annotations:
+            description: >-
+              MySQL connection count on {{ $labels.node }} is
+              {{ $value }} (threshold: 80). Investigate connection
+              leaks or increase max_connections.
+            summary: High connection count on mysql-mediawiki.
+          expr: |
+            mysql_global_status_threads_connected{app="mysql-mediawiki"} > 80
+          for: 5m
+          labels:
+            severity: warning

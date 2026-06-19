@@ -1,0 +1,96 @@
+---
+# nginx-s3-proxy-deployment.yaml — S3 failover proxy for RustFS active-passive HA.
+#
+# This is the SINGLE stable S3 endpoint apps point at. It selects between two
+# standalone RustFS instances (chopper primary, c3po backup) and fails over
+# when the primary is unreachable.
+#
+# Traffic path:
+#   apps / tailscale-lb / funnel
+#     → rustfs-storage-io / s3-tailscale / rustfs-s3-internal  (select s3-failover)
+#     → nginx-s3-proxy pods (this Deployment, label: s3-failover)
+#     → rustfs-chopper:9000  (primary) or rustfs-c3po:9000 (backup)
+#
+# Scheduled on kenobi (reliable cloud node with good uplink).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-s3-proxy
+  namespace: rustfs-clusters
+  labels:
+    app.kubernetes.io/name: s3-failover
+    app.kubernetes.io/component: s3-failover-proxy
+    app.kubernetes.io/part-of: rustfs
+    app.kubernetes.io/managed-by: kustomize
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: s3-failover
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: s3-failover
+        app.kubernetes.io/component: s3-failover-proxy
+        app.kubernetes.io/part-of: rustfs
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: kenobi
+      tolerations:
+        - effect: NoSchedule
+          key: node-role.glug.infra/storage
+          operator: Exists
+      # Use the unprivileged nginx image (runs as UID 101, no root init needed).
+      # Container-level security enforces restricted PodSecurity standard.
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: nginx
+          image: nginxinc/nginx-unprivileged:alpine
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          env:
+            # unprivileged nginx listens on 8080 by default; override to 9000.
+            - name: NGINX_PORT
+              value: "9000"
+          ports:
+            - name: s3
+              containerPort: 9000
+          readinessProbe:
+            tcpSocket:
+              port: 9000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 9000
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+          volumeMounts:
+            - name: nginx-conf
+              mountPath: /etc/nginx/conf.d
+              readOnly: true
+      volumes:
+        - name: nginx-conf
+          configMap:
+            name: nginx-s3-proxy
+            items:
+              - key: nginx.conf
+                path: default.conf

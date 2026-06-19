@@ -122,10 +122,6 @@ spec:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: monitoring
-        # Changala app connects directly to postgres-cluster-rw:5432.
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: changala
         # Apache Answer connects directly to postgres-cluster-rw:5432.
         - namespaceSelector:
             matchLabels:

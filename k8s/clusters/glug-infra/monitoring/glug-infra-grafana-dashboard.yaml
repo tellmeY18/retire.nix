@@ -1,7 +1,7 @@
 # glug-infra-grafana-dashboard.yaml — Comprehensive "single pane of glass"
 # Grafana dashboard covering every layer of the GLUG Infrastructure:
-# cluster health, node resources, pod resources, databases (CNPG + PXC),
-# storage (PVC + ZFS), ingress (Traefik), logs (VictoriaLogs), and alerts.
+# cluster health, node resources, pod resources, databases (CNPG + MySQL),
+# storage (PVC + ZFS + ZRAM), logs (VictoriaLogs), and alerts.
 #
 # Grafana's sidecar (configured in victoria-metrics-k8s-stack) watches for
 # ConfigMaps with the label `grafana_dashboard: "1"` and auto-imports them.
@@ -23,8 +23,8 @@
 #   - cAdvisor / kubelet:       container_cpu_*, container_memory_*,
 #                               kubelet_volume_stats_*
 #   - cnpg:                     cnpg_pg_replication_lag, cnpg_backends_total
-#   - percona/mysqld_exporter:  mysql_global_status_wsrep_*,
-#                               mysql_global_status_queries
+#   - mysqld_exporter:          mysql_global_status_*, mysql_up,
+#                               mysql_perf_schema_*
 #   - traefik:                  traefik_service_requests_total,
 #                               traefik_service_request_duration_seconds_*
 #   - victorialogs:             log exploration via VictoriaLogs datasource
@@ -498,14 +498,14 @@ data:
         },
         {
           "id": 16,
-          "title": "PXC Cluster Size",
-          "description": "Minimum reported Galera cluster size. Red if 0, orange if < 3, green at 3+.",
+          "title": "MGR Group Size",
+          "description": "Number of MGR members in ONLINE state. Red if < 2 (quorum lost), orange at 2, green at 3.",
           "type": "stat",
           "gridPos": { "h": 4, "w": 8, "x": 8, "y": 24 },
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
           "targets": [
             {
-              "expr": "min(mysql_global_status_wsrep_cluster_size) or vector(0)",
+              "expr": "count(mysql_perf_schema_replication_group_member_stats{member_state=\"ONLINE\"}) or vector(0)",
               "instant": true,
               "refId": "A"
             }
@@ -516,7 +516,7 @@ data:
                 "mode": "absolute",
                 "steps": [
                   { "value": null, "color": "red" },
-                  { "value": 1, "color": "orange" },
+                  { "value": 2, "color": "orange" },
                   { "value": 3, "color": "green" }
                 ]
               }
@@ -534,14 +534,14 @@ data:
         },
         {
           "id": 17,
-          "title": "PXC Wsrep Ready",
-          "description": "Galera cluster readiness. Uses min() so if ANY node is not ready, this turns red.",
+          "title": "MGR Primary",
+          "description": "MGR primary member status. 1 = primary is elected and ONLINE (green), 0 = no primary (red).",
           "type": "stat",
           "gridPos": { "h": 4, "w": 8, "x": 16, "y": 24 },
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
           "targets": [
             {
-              "expr": "min(mysql_global_status_wsrep_ready) or vector(0)",
+              "expr": "count(mysql_perf_schema_replication_group_member_stats{member_role=\"PRIMARY\",member_state=\"ONLINE\"}) or vector(0)",
               "instant": true,
               "refId": "A"
             }
@@ -552,8 +552,8 @@ data:
                 {
                   "type": "value",
                   "options": {
-                    "1": { "text": "Ready \u2713", "color": "green" },
-                    "0": { "text": "NOT READY \u26a0", "color": "red" }
+                    "1": { "text": "Elected \u2713", "color": "green" },
+                    "0": { "text": "NO PRIMARY \u26a0", "color": "red" }
                   }
                 }
               ],
@@ -617,13 +617,13 @@ data:
         {
           "id": 19,
           "title": "MySQL Queries/s",
-          "description": "Per-second query rate across all PXC nodes.",
+          "description": "Per-second query rate across all mysql-ghost MGR members.",
           "type": "timeseries",
           "gridPos": { "h": 8, "w": 12, "x": 12, "y": 28 },
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
           "targets": [
             {
-              "expr": "sum by (instance) (rate(mysql_global_status_queries[5m]))",
+              "expr": "sum by (instance) (rate(mysql_global_status_queries{app=\"mysql-ghost\"}[5m]))",
               "legendFormat": "{{ instance }}",
               "refId": "A"
             }

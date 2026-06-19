@@ -62,10 +62,6 @@ resources:
   - zfs-vmrules.yaml
   # ZFS Grafana dashboard — auto-imported by Grafana's sidecar.
   - zfs-grafana-dashboard.yaml
-  # RustFS (MinIO-compatible S3) monitoring resources.
-  - rustfs-vmservicescrape.yaml
-  - rustfs-vmrules.yaml
-  - rustfs-grafana-dashboard.yaml
   # Cluster-wide PVC storage alerts.
   - pvc-storage-vmrules.yaml
   # Laptop battery monitoring.
@@ -73,6 +69,14 @@ resources:
   - laptop-battery-grafana-dashboard.yaml
   # ZRAM swap monitoring (textfile collector sourced from host sysfs).
   - zram-vmrules.yaml
+  # MySQL Group Replication (mysql-ghost) monitoring.
+  - mysql-ghost-vmservicescrape.yaml
+  - mysql-ghost-vmrules.yaml
+  # ProxySQL (mysql-ghost frontend) monitoring.
+  - proxysql-ghost-vmservicescrape.yaml
+  # Standalone MediaWiki MySQL (mysql-mediawiki) monitoring.
+  - mysql-mediawiki-vmservicescrape.yaml
+  - mysql-mediawiki-vmrules.yaml
   # Cloudprober — active synthetic endpoint monitoring.
   - cloudprober.yaml
   - cloudprober-vmservicescrape.yaml
@@ -89,7 +93,11 @@ resources:
   - vector-log-collector.yaml
   # Logs exploration Grafana dashboard.
   - logs-grafana-dashboard.yaml
+  # Cluster Overview — single pane of glass.
+  - cluster-overview-grafana-dashboard.yaml
   # GLUG Infra overview Grafana dashboard.
   - glug-infra-grafana-dashboard.yaml
+  # System Insights — rich node-exporter telemetry dashboard.
+  - system-insights-grafana-dashboard.yaml
   # jiralert — Jira incident lifecycle management (create/escalate/resolve).
   # - jiralert.yaml

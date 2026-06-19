@@ -1,0 +1,1495 @@
+---
+# system-insights-grafana-dashboard.yaml — Rich system telemetry dashboard.
+#
+# Displays comprehensive node-exporter metrics organised by subsystem:
+# system info, CPU, memory, network, storage, ZFS, and ZRAM.
+#
+# All queries use the `node` label (populated from
+# __meta_kubernetes_pod_node_name) for node-aware filtering.
+# The $node template variable auto-discovers all k3s nodes.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: system-insights-grafana-dashboard
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+    app.kubernetes.io/name: system-insights
+    app.kubernetes.io/component: dashboard
+    app.kubernetes.io/part-of: victoria-metrics-k8s-stack
+    app.kubernetes.io/managed-by: kustomize
+  annotations:
+    grafana_folder: "Infrastructure"
+data:
+  system-insights-dashboard.json: |
+    {
+      "annotations": { "list": [] },
+      "description": "Rich system telemetry across all k3s nodes: CPU, memory, network, storage, ZFS, and ZRAM. Filter by node name via the $node template variable.",
+      "editable": true,
+      "fiscalYearStartMonth": 0,
+      "graphTooltip": 1,
+      "links": [],
+      "panels": [
+        {
+          "id": 1,
+          "title": "System Info",
+          "type": "row",
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+          "collapsed": false,
+          "panels": []
+        },
+        {
+          "id": 2,
+          "title": "Uptime",
+          "description": "Node uptime in days.",
+          "type": "stat",
+          "gridPos": { "h": 3, "w": 3, "x": 0, "y": 1 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "node_time_seconds{node=~\"$node\"} - node_boot_time_seconds{node=~\"$node\"}",
+              "legendFormat": "{{ node }}",
+              "instant": true,
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "s",
+              "decimals": 0,
+              "thresholds": { "mode": "absolute", "steps": [ { "value": null, "color": "green" } ] }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "graphMode": "none",
+            "colorMode": "value",
+            "textMode": "auto",
+            "orientation": "auto"
+          }
+        },
+        {
+          "id": 3,
+          "title": "Load Average",
+          "description": "1 / 5 / 15 minute load averages.",
+          "type": "stat",
+          "gridPos": { "h": 3, "w": 3, "x": 3, "y": 1 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "node_load1{node=~\"$node\"} or node_load15{node=~\"$node\"}",
+              "legendFormat": "{{ node }}",
+              "instant": true,
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": { "decimals": 2, "thresholds": { "mode": "absolute", "steps": [ { "value": null, "color": "green" } ] } },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "graphMode": "none",
+            "colorMode": "value",
+            "textMode": "auto",
+            "orientation": "auto"
+          }
+        },
+        {
+          "id": 4,
+          "title": "Processes",
+          "description": "Total number of processes running.",
+          "type": "stat",
+          "gridPos": { "h": 3, "w": 3, "x": 6, "y": 1 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "node_processes_running{node=~\"$node\"}",
+              "legendFormat": "{{ node }}",
+              "instant": true,
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": { "thresholds": { "mode": "absolute", "steps": [ { "value": null, "color": "green" } ] } },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "graphMode": "none",
+            "colorMode": "value",
+            "textMode": "auto",
+            "orientation": "auto"
+          }
+        },
+        {
+          "id": 5,
+          "title": "Blocked Procs",
+          "description": "Number of processes in uninterruptible sleep (blocked on I/O). Non-zero indicates I/O pressure.",
+          "type": "stat",
+          "gridPos": { "h": 3, "w": 3, "x": 9, "y": 1 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "node_processes_blocked{node=~\"$node\"}",
+              "legendFormat": "{{ node }}",
+              "instant": true,
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "thresholds": { "mode": "absolute", "steps": [ { "value": null, "color": "green" }, { "value": 1, "color": "orange" }, { "value": 5, "color": "red" } ] }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "graphMode": "none",
+            "colorMode": "background",
+            "textMode": "auto",
+            "orientation": "auto"
+          }
+        },
+        {
+          "id": 6,
+          "title": "Context Switches",
+          "description": "Rate of context switches per second.",
+          "type": "stat",
+          "gridPos": { "h": 3, "w": 3, "x": 12, "y": 1 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "rate(node_context_switches_total{node=~\"$node\"}[5m])",
+              "legendFormat": "{{ node }}",
+              "instant": true,
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": { "unit": "ops", "decimals": 0, "thresholds": { "mode": "absolute", "steps": [ { "value": null, "color": "green" } ] } },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "graphMode": "none",
+            "colorMode": "value",
+            "textMode": "auto",
+            "orientation": "auto"
+          }
+        },
+        {
+          "id": 7,
+          "title": "CPU Cores",
+          "description": "Number of CPU cores available on each node.",
+          "type": "stat",
+          "gridPos": { "h": 3, "w": 3, "x": 15, "y": 1 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "count(node_cpu_seconds_total{mode=\"idle\",node=~\"$node\"}) by (node)",
+              "legendFormat": "{{ node }}",
+              "instant": true,
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": { "thresholds": { "mode": "absolute", "steps": [ { "value": null, "color": "green" } ] } },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "graphMode": "none",
+            "colorMode": "value",
+            "textMode": "auto",
+            "orientation": "auto"
+          }
+        },
+        {
+          "id": 8,
+          "title": "Total Memory",
+          "description": "Total physical memory per node.",
+          "type": "stat",
+          "gridPos": { "h": 3, "w": 3, "x": 18, "y": 1 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "node_memory_MemTotal_bytes{node=~\"$node\"}",
+              "legendFormat": "{{ node }}",
+              "instant": true,
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": { "unit": "bytes", "thresholds": { "mode": "absolute", "steps": [ { "value": null, "color": "blue" } ] } },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "graphMode": "none",
+            "colorMode": "value",
+            "textMode": "auto",
+            "orientation": "auto"
+          }
+        },
+        {
+          "id": 9,
+          "title": "Swap Total",
+          "description": "Total swap space per node.",
+          "type": "stat",
+          "gridPos": { "h": 3, "w": 3, "x": 21, "y": 1 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "node_memory_SwapTotal_bytes{node=~\"$node\"}",
+              "legendFormat": "{{ node }}",
+              "instant": true,
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": { "unit": "bytes", "thresholds": { "mode": "absolute", "steps": [ { "value": null, "color": "blue" } ] } },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "graphMode": "none",
+            "colorMode": "value",
+            "textMode": "auto",
+            "orientation": "auto"
+          }
+        },
+        {
+          "id": 10,
+          "title": "CPU",
+          "type": "row",
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 4 },
+          "collapsed": false,
+          "panels": []
+        },
+        {
+          "id": 11,
+          "title": "CPU Usage by Mode",
+          "description": "CPU time breakdown by mode (user, system, iowait, softirq, steal). Stacked area shows how CPU cycles are spent.",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 5 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "avg by (node, mode) (rate(node_cpu_seconds_total{node=~\"$node\",mode!=\"idle\"}[5m])) * 100",
+              "legendFormat": "{{ node }} {{ mode }}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "min": 0,
+              "max": 100,
+              "custom": { "fillOpacity": 20, "lineWidth": 1, "stacking": { "mode": "normal" }, "thresholdsStyle": { "mode": "line" } },
+              "thresholds": { "mode": "absolute", "steps": [ { "value": null, "color": "green" } ] }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom", "calcs": ["mean", "max"] },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          }
+        },
+        {
+          "id": 12,
+          "title": "CPU Usage %",
+          "description": "Per-node total CPU usage. Green < 80%, orange 80-95%, red > 95%.",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 6, "x": 12, "y": 5 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "100 - (avg by (node) (rate(node_cpu_seconds_total{mode=\"idle\",node=~\"$node\"}[5m])) * 100)",
+              "legendFormat": "{{ node }}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "min": 0,
+              "max": 100,
+              "custom": { "fillOpacity": 10, "lineWidth": 2, "thresholdsStyle": { "mode": "line" } },
+              "thresholds": { "mode": "absolute", "steps": [ { "value": null, "color": "green" }, { "value": 80, "color": "orange" }, { "value": 95, "color": "red" } ] }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom", "calcs": ["mean", "max"] },
+            "tooltip": { "mode": "multi", "sort": "none" }
+          }
+        },
+        {
+          "id": 13,
+          "title": "Load Average",
+          "description": "1-minute load average per node. Normalised to per-core (load / ncpu) so 1.0 = fully saturated.",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 6, "x": 18, "y": 5 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "node_load1{node=~\"$node\"} / count(node_cpu_seconds_total{mode=\"idle\",node=~\"$node\"}) by (node)",
+              "legendFormat": "{{ node }}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "custom": { "fillOpacity": 10, "lineWidth": 2, "thresholdsStyle": { "mode": "dashed" } },
+              "thresholds": { "mode": "absolute", "steps": [ { "value": null, "color": "green" }, { "value": 0.7, "color": "orange" }, { "value": 1.0, "color": "red" } ] }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom", "calcs": ["mean", "max"] },
+            "tooltip": { "mode": "multi", "sort": "none" }
+          }
+        },
+        {
+          "id": 14,
+          "title": "IOWait & Steal",
+          "description": "CPU time spent waiting on I/O (iowait) and stolen by the hypervisor (steal). Non-zero iowait indicates storage pressure.",
+          "type": "timeseries",
+          "gridPos": { "h": 7, "w": 8, "x": 0, "y": 13 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "avg by (node) (rate(node_cpu_seconds_total{mode=\"iowait\",node=~\"$node\"}[5m])) * 100",
+              "legendFormat": "{{ node }} iowait",
+              "refId": "A"
+            },
+            {
+              "expr": "avg by (node) (rate(node_cpu_seconds_total{mode=\"steal\",node=~\"$node\"}[5m])) * 100",
+              "legendFormat": "{{ node }} steal",
+              "refId": "B"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "min": 0,
+              "custom": { "fillOpacity": 10, "lineWidth": 2, "thresholdsStyle": { "mode": "dashed" } },
+              "thresholds": { "mode": "absolute", "steps": [ { "value": null, "color": "green" }, { "value": 5, "color": "orange" }, { "value": 10, "color": "red" } ] }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom", "calcs": ["mean", "max"] },
+            "tooltip": { "mode": "multi", "sort": "none" }
+          }
+        },
+        {
+          "id": 15,
+          "title": "Context Switches /s",
+          "description": "Rate of context switches per second. Spikes may indicate thread contention.",
+          "type": "timeseries",
+          "gridPos": { "h": 7, "w": 8, "x": 8, "y": 13 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "rate(node_context_switches_total{node=~\"$node\"}[5m])",
+              "legendFormat": "{{ node }}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "ops",
+              "custom": { "fillOpacity": 10, "lineWidth": 2 },
+              "thresholds": { "mode": "absolute", "steps": [ { "value": null, "color": "green" } ] }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom", "calcs": ["mean", "max"] },
+            "tooltip": { "mode": "multi", "sort": "none" }
+          }
+        },
+        {
+          "id": 16,
+          "title": "Running vs Blocked",
+          "description": "Running processes (blue) vs blocked on I/O (red). Blocked should stay near zero.",
+          "type": "timeseries",
+          "gridPos": { "h": 7, "w": 8, "x": 16, "y": 13 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "node_processes_running{node=~\"$node\"}",
+              "legendFormat": "{{ node }} running",
+              "refId": "A"
+            },
+            {
+              "expr": "node_processes_blocked{node=~\"$node\"}",
+              "legendFormat": "{{ node }} blocked",
+              "refId": "B"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "custom": { "fillOpacity": 10, "lineWidth": 2 },
+              "thresholds": { "mode": "absolute", "steps": [ { "value": null, "color": "green" } ] }
+            },
+            "overrides": [
+              {
+                "matcher": { "id": "byFrameRefID", "options": "B" },
+                "properties": [ { "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } } ]
+              }
+            ]
+          },
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom", "calcs": ["mean", "max"] },
+            "tooltip": { "mode": "multi", "sort": "none" }
+          }
+        },
+        {
+          "id": 17,
+          "title": "Memory",
+          "type": "row",
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 20 },
+          "collapsed": false,
+          "panels": []
+        },
+        {
+          "id": 18,
+          "title": "Memory Breakdown",
+          "description": "Memory usage breakdown per node: used, buffers/cache, slab, available. Stacked area shows how memory is distributed.",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 21 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "node_memory_MemTotal_bytes{node=~\"$node\"} - node_memory_MemAvailable_bytes{node=~\"$node\"} - node_memory_Buffers_bytes{node=~\"$node\"} - node_memory_Cached_bytes{node=~\"$node\"} - node_memory_Slab_bytes{node=~\"$node\"}",
+              "legendFormat": "{{ node }} kernel/anon",
+              "refId": "A"
+            },
+            {
+              "expr": "node_memory_Buffers_bytes{node=~\"$node\"} + node_memory_Cached_bytes{node=~\"$node\"}",
+              "legendFormat": "{{ node }} buffers/cache",
+              "refId": "B"
+            },
+            {
+              "expr": "node_memory_Slab_bytes{node=~\"$node\"}",
+              "legendFormat": "{{ node }} slab",
+              "refId": "C"
+            },
+            {
+              "expr": "node_memory_MemAvailable_bytes{node=~\"$node\"}",
+              "legendFormat": "{{ node }} available",
+              "refId": "D"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "bytes",
+              "custom": { "fillOpacity": 20, "lineWidth": 1, "stacking": { "mode": "normal" } },
+              "thresholds": { "mode": "absolute", "steps": [ { "value": null, "color": "green" } ] }
+            },
+            "overrides": [
+              {
+                "matcher": { "id": "byFrameRefID", "options": "D" },
+                "properties": [ { "id": "custom.fillOpacity", "value": 5 }, { "id": "custom.lineWidth", "value": 2 }, { "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } } ]
+              }
+            ]
+          },
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom", "calcs": ["mean", "max"] },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          }
+        },
+        {
+          "id": 19,
+          "title": "Memory Usage %",
+          "description": "Per-node memory usage percentage (1 - available/total). Green < 75%, orange 75-90%, red > 90%.",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 6, "x": 12, "y": 21 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "(1 - node_memory_MemAvailable_bytes{node=~\"$node\"} / node_memory_MemTotal_bytes{node=~\"$node\"}) * 100",
+              "legendFormat": "{{ node }}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "min": 0,
+              "max": 100,
+              "custom": { "fillOpacity": 10, "lineWidth": 2, "thresholdsStyle": { "mode": "line" } },
+              "thresholds": { "mode": "absolute", "steps": [ { "value": null, "color": "green" }, { "value": 75, "color": "orange" }, { "value": 90, "color": "red" } ] }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom", "calcs": ["mean", "max"] },
+            "tooltip": { "mode": "multi", "sort": "none" }
+          }
+        },
+        {
+          "id": 20,
+          "title": "Swap Usage",
+          "description": "Swap usage per node. Non-zero swap on a server with ZRAM may indicate ZRAM is full and spilling to disk/zvol.",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 6, "x": 18, "y": 21 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "node_memory_SwapTotal_bytes{node=~\"$node\"} - node_memory_SwapFree_bytes{node=~\"$node\"}",
+              "legendFormat": "{{ node }} swap used",
+              "refId": "A"
+            },
+            {
+              "expr": "rate(node_vmstat_pswpin{node=~\"$node\"}[5m])",
+              "legendFormat": "{{ node }} pages in/s",
+              "refId": "B"
+            },
+            {
+              "expr": "rate(node_vmstat_pswpout{node=~\"$node\"}[5m])",
+              "legendFormat": "{{ node }} pages out/s",
+              "refId": "C"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "bytes",
+              "custom": { "fillOpacity": 10, "lineWidth": 2 },
+              "thresholds": { "mode": "absolute", "steps": [ { "value": null, "color": "green" }, { "value": 0, "color": "orange" } ] }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom", "calcs": ["mean", "max"] },
+            "tooltip": { "mode": "multi", "sort": "none" }
+          }
+        },
+        {
+          "id": 21,
+          "title": "Slab Breakdown",
+          "description": "Kernel slab allocations: reclaimable (dentry, inode caches) vs unreclaimable. High unreclaimable may indicate a memory leak in kernel space.",
+          "type": "timeseries",
+          "gridPos": { "h": 7, "w": 8, "x": 0, "y": 29 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "node_memory_Slab_bytes{node=~\"$node\"}",
+              "legendFormat": "{{ node }} slab total",
+              "refId": "A"
+            },
+            {
+              "expr": "node_memory_SReclaimable_bytes{node=~\"$node\"}",
+              "legendFormat": "{{ node }} reclaimable",
+              "refId": "B"
+            },
+            {
+              "expr": "node_memory_SUnreclaim_bytes{node=~\"$node\"}",
+              "legendFormat": "{{ node }} unreclaimable",
+              "refId": "C"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "bytes",
+              "custom": { "fillOpacity": 10, "lineWidth": 2 },
+              "thresholds": { "mode": "absolute", "steps": [ { "value": null, "color": "green" } ] }
+            },
+            "overrides": [
+              {
+                "matcher": { "id": "byFrameRefID", "options": "C" },
+                "properties": [ { "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } } ]
+              }
+            ]
+          },
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom", "calcs": ["mean", "max"] },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          }
+        },
+        {
+          "id": 22,
+          "title": "Dirty & Writeback",
+          "description": "Memory waiting to be written to disk (dirty) and currently being written (writeback). Persistent high writeback may indicate slow storage.",
+          "type": "timeseries",
+          "gridPos": { "h": 7, "w": 8, "x": 8, "y": 29 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "node_memory_Dirty_bytes{node=~\"$node\"}",
+              "legendFormat": "{{ node }} dirty",
+              "refId": "A"
+            },
+            {
+              "expr": "node_memory_Writeback_bytes{node=~\"$node\"}",
+              "legendFormat": "{{ node }} writeback",
+              "refId": "B"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "bytes",
+              "custom": { "fillOpacity": 10, "lineWidth": 2 },
+              "thresholds": { "mode": "absolute", "steps": [ { "value": null, "color": "green" } ] }
+            },
+            "overrides": [
+              {
+                "matcher": { "id": "byFrameRefID", "options": "B" },
+                "properties": [ { "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } } ]
+              }
+            ]
+          },
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom", "calcs": ["mean", "max"] },
+            "tooltip": { "mode": "multi", "sort": "none" }
+          }
+        },
+        {
+          "id": 23,
+          "title": "NUMA & HugePages",
+          "description": "Transparent HugePages usage. THP can cause latency spikes during defragmentation on memory-pressure scenarios.",
+          "type": "timeseries",
+          "gridPos": { "h": 7, "w": 8, "x": 16, "y": 29 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "node_memory_TransparentHugePages_enabled{node=~\"$node\"}",
+              "legendFormat": "{{ node }} THP enabled",
+              "refId": "A"
+            },
+            {
+              "expr": "node_memory_HugePages_Total{node=~\"$node\"}",
+              "legendFormat": "{{ node }} hugepages",
+              "refId": "B"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "custom": { "fillOpacity": 10, "lineWidth": 2 },
+              "thresholds": { "mode": "absolute", "steps": [ { "value": null, "color": "green" } ] }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom", "calcs": ["mean", "max"] },
+            "tooltip": { "mode": "multi", "sort": "none" }
+          }
+        },
+        {
+          "id": 24,
+          "title": "Network",
+          "type": "row",
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 36 },
+          "collapsed": false,
+          "panels": []
+        },
+        {
+          "id": 25,
+          "title": "Network Throughput",
+          "description": "Per-node network receive and transmit throughput. Excludes loopback and virtual interfaces.",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 37 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "sum by (node) (rate(node_network_receive_bytes_total{node=~\"$node\",device!~\"lo|veth.*|cni.*|flannel.*\"}[5m]))",
+              "legendFormat": "{{ node }} rx",
+              "refId": "A"
+            },
+            {
+              "expr": "-sum by (node) (rate(node_network_transmit_bytes_total{node=~\"$node\",device!~\"lo|veth.*|cni.*|flannel.*\"}[5m]))",
+              "legendFormat": "{{ node }} tx",
+              "refId": "B"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "Bps",
+              "custom": { "fillOpacity": 10, "lineWidth": 2 },
+              "thresholds": { "mode": "absolute", "steps": [ { "value": null, "color": "green" } ] }
+            },
+            "overrides": [
+              {
+                "matcher": { "id": "byFrameRefID", "options": "B" },
+                "properties": [ { "id": "custom.transform", "value": "negative-Y" } ]
+              }
+            ]
+          },
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom", "calcs": ["mean", "max"] },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          }
+        },
+        {
+          "id": 26,
+          "title": "Network Errors & Dropped",
+          "description": "Per-node network error and dropped packet rates. Non-zero indicates interface or link issues.",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 6, "x": 12, "y": 37 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "sum by (node) (rate(node_network_receive_errors_total{node=~\"$node\",device!~\"lo|veth.*|cni.*|flannel.*\"}[5m]))",
+              "legendFormat": "{{ node }} rx errors",
+              "refId": "A"
+            },
+            {
+              "expr": "sum by (node) (rate(node_network_transmit_errors_total{node=~\"$node\",device!~\"lo|veth.*|cni.*|flannel.*\"}[5m]))",
+              "legendFormat": "{{ node }} tx errors",
+              "refId": "B"
+            },
+            {
+              "expr": "sum by (node) (rate(node_network_receive_drop_total{node=~\"$node\",device!~\"lo|veth.*|cni.*|flannel.*\"}[5m]))",
+              "legendFormat": "{{ node }} rx dropped",
+              "refId": "C"
+            },
+            {
+              "expr": "sum by (node) (rate(node_network_transmit_drop_total{node=~\"$node\",device!~\"lo|veth.*|cni.*|flannel.*\"}[5m]))",
+              "legendFormat": "{{ node }} tx dropped",
+              "refId": "D"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "ops",
+              "custom": { "fillOpacity": 10, "lineWidth": 2 },
+              "thresholds": { "mode": "absolute", "steps": [ { "value": null, "color": "green" } ] }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom", "calcs": ["mean", "max"] },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          }
+        },
+        {
+          "id": 27,
+          "title": "TCP Connections by State",
+          "description": "TCP connection count by state (established, time-wait, close-wait, etc.). High TIME_WAIT may indicate short-lived connections.",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 6, "x": 18, "y": 37 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "node_netstat_Tcp_CurrEstab{node=~\"$node\"}",
+              "legendFormat": "{{ node }} established",
+              "refId": "A"
+            },
+            {
+              "expr": "node_sockstat_TCP_tw{node=~\"$node\"}",
+              "legendFormat": "{{ node }} time-wait",
+              "refId": "B"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "custom": { "fillOpacity": 10, "lineWidth": 2 },
+              "thresholds": { "mode": "absolute", "steps": [ { "value": null, "color": "green" } ] }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom", "calcs": ["mean", "max"] },
+            "tooltip": { "mode": "multi", "sort": "none" }
+          }
+        },
+        {
+          "id": 28,
+          "title": "Storage",
+          "type": "row",
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 45 },
+          "collapsed": false,
+          "panels": []
+        },
+        {
+          "id": 29,
+          "title": "Filesystem Usage",
+          "description": "Filesystem usage percentage per mount point across all nodes. Green < 80%, orange 80-90%, red > 90%.",
+          "type": "bargauge",
+          "gridPos": { "h": 7, "w": 12, "x": 0, "y": 46 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "(node_filesystem_size_bytes{node=~\"$node\",device!~\"tmpfs|overlay|shm|devpts\",mountpoint!~\".*pods.*\"} - node_filesystem_free_bytes{node=~\"$node\",device!~\"tmpfs|overlay|shm|devpts\",mountpoint!~\".*pods.*\"}) / node_filesystem_size_bytes{node=~\"$node\",device!~\"tmpfs|overlay|shm|devpts\",mountpoint!~\".*pods.*\"} * 100",
+              "legendFormat": "{{ node }} {{ mountpoint }}",
+              "instant": true,
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "min": 0,
+              "max": 100,
+              "thresholds": { "mode": "absolute", "steps": [ { "value": null, "color": "green" }, { "value": 80, "color": "orange" }, { "value": 90, "color": "red" } ] }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "orientation": "horizontal",
+            "displayMode": "gradient",
+            "showUnfilled": true
+          }
+        },
+        {
+          "id": 30,
+          "title": "Disk I/O Throughput",
+          "description": "Per-device disk read/write throughput.",
+          "type": "timeseries",
+          "gridPos": { "h": 7, "w": 6, "x": 12, "y": 46 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "sum by (node, device) (rate(node_disk_read_bytes_total{node=~\"$node\",device!~\"loop.*|dm-.*|zram.*\"}[5m]))",
+              "legendFormat": "{{ node }} {{ device }} r",
+              "refId": "A"
+            },
+            {
+              "expr": "sum by (node, device) (rate(node_disk_written_bytes_total{node=~\"$node\",device!~\"loop.*|dm-.*|zram.*\"}[5m]))",
+              "legendFormat": "{{ node }} {{ device }} w",
+              "refId": "B"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "Bps",
+              "custom": { "fillOpacity": 10, "lineWidth": 2 },
+              "thresholds": { "mode": "absolute", "steps": [ { "value": null, "color": "green" } ] }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom", "calcs": ["mean", "max"] },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          }
+        },
+        {
+          "id": 31,
+          "title": "Disk I/O Ops",
+          "description": "Per-device disk read/write operation rate (IOPS).",
+          "type": "timeseries",
+          "gridPos": { "h": 7, "w": 6, "x": 18, "y": 46 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "sum by (node, device) (rate(node_disk_reads_completed_total{node=~\"$node\",device!~\"loop.*|dm-.*|zram.*\"}[5m]))",
+              "legendFormat": "{{ node }} {{ device }} reads/s",
+              "refId": "A"
+            },
+            {
+              "expr": "sum by (node, device) (rate(node_disk_writes_completed_total{node=~\"$node\",device!~\"loop.*|dm-.*|zram.*\"}[5m]))",
+              "legendFormat": "{{ node }} {{ device }} writes/s",
+              "refId": "B"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "iops",
+              "custom": { "fillOpacity": 10, "lineWidth": 2 },
+              "thresholds": { "mode": "absolute", "steps": [ { "value": null, "color": "green" } ] }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom", "calcs": ["mean", "max"] },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          }
+        },
+        {
+          "id": 32,
+          "title": "Disk I/O Latency",
+          "description": "Average I/O latency (time spent per I/O operation). High values indicate storage bottleneck.",
+          "type": "timeseries",
+          "gridPos": { "h": 7, "w": 8, "x": 0, "y": 53 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "rate(node_disk_io_time_weighted_seconds_total{node=~\"$node\",device!~\"loop.*|dm-.*|zram.*\"}[5m]) / rate(node_disk_reads_completed_total{node=~\"$node\",device!~\"loop.*|dm-.*|zram.*\"}[5m] + node_disk_writes_completed_total{node=~\"$node\",device!~\"loop.*|dm-.*|zram.*\"}[5m])",
+              "legendFormat": "{{ node }} {{ device }} avg latency",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "s",
+              "custom": { "fillOpacity": 10, "lineWidth": 2 },
+              "thresholds": { "mode": "absolute", "steps": [ { "value": null, "color": "green" }, { "value": 0.01, "color": "orange" }, { "value": 0.1, "color": "red" } ] }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom", "calcs": ["mean", "max"] },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          }
+        },
+        {
+          "id": 33,
+          "title": "Disk IO Queue Depth",
+          "description": "Average disk I/O queue depth. Higher values indicate more I/O pressure on the storage subsystem.",
+          "type": "timeseries",
+          "gridPos": { "h": 7, "w": 8, "x": 8, "y": 53 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "avg by (node, device) (rate(node_disk_io_time_weighted_seconds_total{node=~\"$node\",device!~\"loop.*|dm-.*|zram.*\"}[5m]))",
+              "legendFormat": "{{ node }} {{ device }} avg queue",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "custom": { "fillOpacity": 10, "lineWidth": 2 },
+              "thresholds": { "mode": "absolute", "steps": [ { "value": null, "color": "green" }, { "value": 1, "color": "orange" }, { "value": 5, "color": "red" } ] }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom", "calcs": ["mean", "max"] },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          }
+        },
+        {
+          "id": 34,
+          "title": "Disk Space by Mount",
+          "description": "Available filesystem space per mount point. Provides a quick overview of disk headroom.",
+          "type": "timeseries",
+          "gridPos": { "h": 7, "w": 8, "x": 16, "y": 53 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "node_filesystem_avail_bytes{node=~\"$node\",device!~\"tmpfs|overlay|shm|devpts\",mountpoint!~\".*pods.*\"}",
+              "legendFormat": "{{ node }} {{ mountpoint }}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "bytes",
+              "custom": { "fillOpacity": 10, "lineWidth": 2 },
+              "thresholds": { "mode": "absolute", "steps": [ { "value": null, "color": "green" } ] }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom", "calcs": ["mean", "max"] },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          }
+        },
+        {
+          "id": 35,
+          "title": "ZFS",
+          "type": "row",
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 60 },
+          "collapsed": false,
+          "panels": []
+        },
+        {
+          "id": 36,
+          "title": "ZFS Pool State",
+          "description": "Current state of all ZFS pools across nodes.",
+          "type": "table",
+          "gridPos": { "h": 5, "w": 24, "x": 0, "y": 61 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "node_zfs_zpool_state == 1",
+              "format": "table",
+              "instant": true,
+              "refId": "A"
+            }
+          ],
+          "transformations": [
+            {
+              "id": "organize",
+              "options": {
+                "excludeByName": { "Time": true, "Value": true, "__name__": true, "job": true },
+                "renameByName": { "zpool": "Pool", "state": "State", "node": "Node" }
+              }
+            }
+          ],
+          "fieldConfig": {
+            "defaults": { "custom": { "align": "auto" } },
+            "overrides": [
+              {
+                "matcher": { "id": "byName", "options": "State" },
+                "properties": [
+                  {
+                    "id": "mappings",
+                    "value": [
+                      { "type": "value", "options": { "online": { "text": "Online", "color": "green" } } },
+                      { "type": "value", "options": { "degraded": { "text": "Degraded", "color": "orange" } } },
+                      { "type": "value", "options": { "faulted": { "text": "Faulted", "color": "red" } } }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": 37,
+          "title": "ARC Hit Ratio",
+          "description": "ZFS ARC hit ratio per node. Green > 80%, orange 50-80%, red < 50%.",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 8, "x": 0, "y": 66 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "rate(node_zfs_arc_hits{node=~\"$node\"}[5m]) / (rate(node_zfs_arc_hits{node=~\"$node\"}[5m]) + rate(node_zfs_arc_misses{node=~\"$node\"}[5m])) * 100",
+              "legendFormat": "{{ node }}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "min": 0,
+              "max": 100,
+              "custom": { "fillOpacity": 10, "lineWidth": 2, "thresholdsStyle": { "mode": "line" } },
+              "thresholds": { "mode": "absolute", "steps": [ { "value": null, "color": "red" }, { "value": 50, "color": "orange" }, { "value": 80, "color": "green" } ] }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom", "calcs": ["mean", "max"] },
+            "tooltip": { "mode": "multi", "sort": "none" }
+          }
+        },
+        {
+          "id": 38,
+          "title": "ARC Size vs Target",
+          "description": "ARC current size vs c_max (target maximum) and c_min (target minimum).",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 8, "x": 8, "y": 66 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "node_zfs_arc_size{node=~\"$node\"}",
+              "legendFormat": "{{ node }} size",
+              "refId": "A"
+            },
+            {
+              "expr": "node_zfs_arc_c_max{node=~\"$node\"}",
+              "legendFormat": "{{ node }} c_max",
+              "refId": "B"
+            },
+            {
+              "expr": "node_zfs_arc_c_min{node=~\"$node\"}",
+              "legendFormat": "{{ node }} c_min",
+              "refId": "C"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "bytes",
+              "custom": { "fillOpacity": 5, "lineWidth": 2 },
+              "thresholds": { "mode": "absolute", "steps": [ { "value": null, "color": "green" } ] }
+            },
+            "overrides": [
+              {
+                "matcher": { "id": "byFrameRefID", "options": "B" },
+                "properties": [ { "id": "custom.lineStyle", "value": { "fill": "dash", "dash": [10, 5] } } ]
+              },
+              {
+                "matcher": { "id": "byFrameRefID", "options": "C" },
+                "properties": [ { "id": "custom.lineStyle", "value": { "fill": "dash", "dash": [5, 5] } } ]
+              }
+            ]
+          },
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom", "calcs": ["mean", "max"] },
+            "tooltip": { "mode": "multi", "sort": "none" }
+          }
+        },
+        {
+          "id": 39,
+          "title": "ARC Hits & Misses",
+          "description": "Rate of ARC cache hits and misses per second.",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 8, "x": 16, "y": 66 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "rate(node_zfs_arc_hits{node=~\"$node\"}[5m])",
+              "legendFormat": "{{ node }} hits/s",
+              "refId": "A"
+            },
+            {
+              "expr": "rate(node_zfs_arc_misses{node=~\"$node\"}[5m])",
+              "legendFormat": "{{ node }} misses/s",
+              "refId": "B"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "ops",
+              "custom": { "fillOpacity": 10, "lineWidth": 2 },
+              "thresholds": { "mode": "absolute", "steps": [ { "value": null, "color": "green" } ] }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom", "calcs": ["mean", "max"] },
+            "tooltip": { "mode": "multi", "sort": "none" }
+          }
+        },
+        {
+          "id": 40,
+          "title": "ARC Evictions",
+          "description": "ARC eviction rates: L2-eligible vs L2-ineligible. High eviction rates may indicate ARC is too small.",
+          "type": "timeseries",
+          "gridPos": { "h": 7, "w": 8, "x": 0, "y": 74 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "rate(node_zfs_arc_evict_l2_eligible{node=~\"$node\"}[5m])",
+              "legendFormat": "{{ node }} L2-eligible evictions/s",
+              "refId": "A"
+            },
+            {
+              "expr": "rate(node_zfs_arc_evict_l2_ineligible{node=~\"$node\"}[5m])",
+              "legendFormat": "{{ node }} L2-ineligible evictions/s",
+              "refId": "B"
+            },
+            {
+              "expr": "rate(node_zfs_arc_evict_not_enough{node=~\"$node\"}[5m])",
+              "legendFormat": "{{ node }} not-enough evictions/s",
+              "refId": "C"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "ops",
+              "custom": { "fillOpacity": 10, "lineWidth": 2, "stacking": { "mode": "normal" } },
+              "thresholds": { "mode": "absolute", "steps": [ { "value": null, "color": "green" } ] }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom", "calcs": ["mean", "max"] },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          }
+        },
+        {
+          "id": 41,
+          "title": "Pool IO (Throughput)",
+          "description": "Per-pool read/write throughput in bytes per second.",
+          "type": "timeseries",
+          "gridPos": { "h": 7, "w": 8, "x": 8, "y": 74 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "rate(node_zfs_zpool_nread{node=~\"$node\"}[5m])",
+              "legendFormat": "{{ node }} {{ zpool }} read",
+              "refId": "A"
+            },
+            {
+              "expr": "rate(node_zfs_zpool_nwritten{node=~\"$node\"}[5m])",
+              "legendFormat": "{{ node }} {{ zpool }} write",
+              "refId": "B"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "Bps",
+              "custom": { "fillOpacity": 10, "lineWidth": 2 },
+              "thresholds": { "mode": "absolute", "steps": [ { "value": null, "color": "green" } ] }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom", "calcs": ["mean", "max"] },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          }
+        },
+        {
+          "id": 42,
+          "title": "Pool IO (IOPS)",
+          "description": "Per-pool read/write operations per second.",
+          "type": "timeseries",
+          "gridPos": { "h": 7, "w": 8, "x": 16, "y": 74 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "rate(node_zfs_zpool_reads{node=~\"$node\"}[5m])",
+              "legendFormat": "{{ node }} {{ zpool }} reads/s",
+              "refId": "A"
+            },
+            {
+              "expr": "rate(node_zfs_zpool_writes{node=~\"$node\"}[5m])",
+              "legendFormat": "{{ node }} {{ zpool }} writes/s",
+              "refId": "B"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "iops",
+              "custom": { "fillOpacity": 10, "lineWidth": 2 },
+              "thresholds": { "mode": "absolute", "steps": [ { "value": null, "color": "green" } ] }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom", "calcs": ["mean", "max"] },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          }
+        },
+        {
+          "id": 43,
+          "title": "ZIL Commit Rate",
+          "description": "ZFS Intent Log commit and ITX rates per node. High values indicate synchronous write workload.",
+          "type": "timeseries",
+          "gridPos": { "h": 7, "w": 8, "x": 0, "y": 81 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "rate(node_zfs_zil_zil_commit_count{node=~\"$node\"}[5m])",
+              "legendFormat": "{{ node }} commits/s",
+              "refId": "A"
+            },
+            {
+              "expr": "rate(node_zfs_zil_zil_itx_count{node=~\"$node\"}[5m])",
+              "legendFormat": "{{ node }} itx/s",
+              "refId": "B"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "ops",
+              "custom": { "fillOpacity": 10, "lineWidth": 2 },
+              "thresholds": { "mode": "absolute", "steps": [ { "value": null, "color": "green" } ] }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom", "calcs": ["mean", "max"] },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          }
+        },
+        {
+          "id": 44,
+          "title": "DMU Transaction Rate",
+          "description": "DMU transaction assignment and group commit rates per node.",
+          "type": "timeseries",
+          "gridPos": { "h": 7, "w": 8, "x": 8, "y": 81 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "rate(node_zfs_dmu_tx_dmu_tx_assigned{node=~\"$node\"}[5m])",
+              "legendFormat": "{{ node }} assigned/s",
+              "refId": "A"
+            },
+            {
+              "expr": "rate(node_zfs_dmu_tx_dmu_tx_group{node=~\"$node\"}[5m])",
+              "legendFormat": "{{ node }} group/s",
+              "refId": "B"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "ops",
+              "custom": { "fillOpacity": 10, "lineWidth": 2 },
+              "thresholds": { "mode": "absolute", "steps": [ { "value": null, "color": "green" } ] }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom", "calcs": ["mean", "max"] },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          }
+        },
+        {
+          "id": 45,
+          "title": "ARC Evictions by Demand",
+          "description": "ARC demand data vs metadata eviction rates. Metadata evictions hurt performance more than data evictions.",
+          "type": "timeseries",
+          "gridPos": { "h": 7, "w": 8, "x": 16, "y": 81 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "rate(node_zfs_arc_demand_data_hits{node=~\"$node\"}[5m])",
+              "legendFormat": "{{ node }} demand-data hits/s",
+              "refId": "A"
+            },
+            {
+              "expr": "rate(node_zfs_arc_demand_metadata_hits{node=~\"$node\"}[5m])",
+              "legendFormat": "{{ node }} demand-metadata hits/s",
+              "refId": "B"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "ops",
+              "custom": { "fillOpacity": 10, "lineWidth": 2 },
+              "thresholds": { "mode": "absolute", "steps": [ { "value": null, "color": "green" } ] }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom", "calcs": ["mean", "max"] },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          }
+        },
+        {
+          "id": 46,
+          "title": "ZRAM",
+          "type": "row",
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 88 },
+          "collapsed": false,
+          "panels": []
+        },
+        {
+          "id": 47,
+          "title": "ZRAM Usage",
+          "description": "Per-device ZRAM usage percentage. When this approaches 100%, swap spills to disk/zvol causing latency spikes. Orange at 60%, red at 80%.",
+          "type": "timeseries",
+          "gridPos": { "h": 7, "w": 8, "x": 0, "y": 89 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "(node_zram_compr_data_size{node=~\"$node\"} / node_zram_disksize{node=~\"$node\"}) * 100",
+              "legendFormat": "{{ node }} {{ device }}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "min": 0,
+              "max": 100,
+              "custom": { "fillOpacity": 10, "lineWidth": 2, "thresholdsStyle": { "mode": "line" } },
+              "thresholds": { "mode": "absolute", "steps": [ { "value": null, "color": "green" }, { "value": 60, "color": "orange" }, { "value": 80, "color": "red" } ] }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom", "calcs": ["mean", "max"] },
+            "tooltip": { "mode": "multi", "sort": "none" }
+          }
+        },
+        {
+          "id": 48,
+          "title": "ZRAM Compression Ratio",
+          "description": "Per-device compression ratio (orig / compr). zstd achieves 3-5x on swap. Below 2x suggests incompressible data.",
+          "type": "timeseries",
+          "gridPos": { "h": 7, "w": 8, "x": 8, "y": 89 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "node_zram_orig_data_size{node=~\"$node\"} / node_zram_compr_data_size{node=~\"$node\"}",
+              "legendFormat": "{{ node }} {{ device }}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "decimals": 1,
+              "min": 0,
+              "max": 10,
+              "custom": { "fillOpacity": 10, "lineWidth": 2, "thresholdsStyle": { "mode": "line" } },
+              "thresholds": { "mode": "absolute", "steps": [ { "value": null, "color": "red" }, { "value": 2, "color": "orange" }, { "value": 3, "color": "green" } ] }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom", "calcs": ["mean", "max"] },
+            "tooltip": { "mode": "multi", "sort": "none" }
+          }
+        },
+        {
+          "id": 49,
+          "title": "ZRAM I/O",
+          "description": "Per-device ZRAM read/write operation rates.",
+          "type": "timeseries",
+          "gridPos": { "h": 7, "w": 8, "x": 16, "y": 89 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "rate(node_zram_num_reads_total{node=~\"$node\"}[5m])",
+              "legendFormat": "{{ node }} {{ device }} reads/s",
+              "refId": "A"
+            },
+            {
+              "expr": "rate(node_zram_num_writes_total{node=~\"$node\"}[5m])",
+              "legendFormat": "{{ node }} {{ device }} writes/s",
+              "refId": "B"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "iops",
+              "custom": { "fillOpacity": 10, "lineWidth": 2 },
+              "thresholds": { "mode": "absolute", "steps": [ { "value": null, "color": "green" } ] }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom", "calcs": ["mean", "max"] },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          }
+        },
+        {
+          "id": 50,
+          "title": "ZRAM Efficiency",
+          "description": "Zero-page ratio (zero-filled pages / total stored pages). High zero-page ratio is efficient — ZRAM stores empty pages with almost no space.",
+          "type": "timeseries",
+          "gridPos": { "h": 7, "w": 8, "x": 0, "y": 96 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "node_zram_zero_pages{node=~\"$node\"} / (node_zram_orig_data_size{node=~\"$node\"} / 4096)",
+              "legendFormat": "{{ node }} {{ device }}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percentunit",
+              "min": 0,
+              "custom": { "fillOpacity": 10, "lineWidth": 2 },
+              "thresholds": { "mode": "absolute", "steps": [ { "value": null, "color": "green" } ] }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom", "calcs": ["mean", "max"] },
+            "tooltip": { "mode": "multi", "sort": "none" }
+          }
+        }
+      ],
+      "refresh": "30s",
+      "schemaVersion": 39,
+      "style": "dark",
+      "tags": ["infrastructure", "node-exporter", "system"],
+      "templating": {
+        "list": [
+          {
+            "name": "datasource",
+            "type": "datasource",
+            "query": "prometheus",
+            "current": { "selected": true, "text": "VictoriaMetrics", "value": "VictoriaMetrics" }
+          },
+          {
+            "name": "node",
+            "type": "query",
+            "datasource": { "type": "prometheus", "uid": "${datasource}" },
+            "query": "label_values(node_boot_time_seconds, node)",
+            "refresh": 2,
+            "includeAll": true,
+            "allValue": ".*",
+            "multi": true,
+            "current": { "selected": true, "text": "All", "value": "$__all" }
+          }
+        ]
+      },
+      "time": { "from": "now-3h", "to": "now" },
+      "timezone": "browser",
+      "title": "System Insights",
+      "uid": "system-insights",
+      "version": 1
+    }

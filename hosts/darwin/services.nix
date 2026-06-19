@@ -13,27 +13,16 @@
     #
     # tailscale = { enable = true; package = pkgs.tailscale; };
 
+    # OmniWM is used instead of AeroSpace + AeroHUD.
+    # See https://github.com/BarutSRB/OmniWM
+    # Installed via homebrew cask: packages/darwin/homebrew.nix
+
     aerohud = {
-      enable = true;
-      # 5 columns to match the 10 persistent workspaces (2 rows x 5 cols)
-      cols = 5;
-      layout = [
-        "1"
-        "2"
-        "3"
-        "4"
-        "5"
-        "6"
-        "7"
-        "8"
-        "9"
-        "10"
-      ];
-      keybinding = "alt-space";
+      enable = false;
     };
 
     aerospace = {
-      enable = true;
+      enable = false;
       settings = {
         # Config version 2 — required for persistent-workspaces and latest features.
         config-version = 2;

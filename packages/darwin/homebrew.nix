@@ -8,6 +8,7 @@
       "minio/stable"
       "rockymadden/rockymadden"
       "koekeishiya/formulae"
+      "BarutSRB/tap"
     ];
     brews = [
       "mactop"
@@ -28,6 +29,7 @@
     };
 
     casks = [
+      "omniwm"
       "cyberduck"
       "caffeine"
       "gimp"
@@ -57,9 +59,13 @@
     ];
 
     onActivation = {
-      autoUpdate = true;
+      # autoUpdate triggers `brew update` which git-pulls into the nix-store-backed
+      # brew installation, causing corruption and "Failed to fetch" on brew bundle.
+      # Keep brew fresh via `nix flake update` instead — it's pinned to 6.0.1 already.
+      autoUpdate = false;
       upgrade = true;
-      cleanup = "uninstall";
+      # --cleanup is deprecated in modern Homebrew; leave it to default behavior.
+      cleanup = "none";
     };
   };
 }

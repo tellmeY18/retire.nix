@@ -3,11 +3,12 @@
 # via Tailscale Funnel for frontend blob access.
 #
 # Traffic path (public internet):
-#   browser (Cloudflare Pages frontend)
-#     → https://s3.<tailnet>.ts.net        (Tailscale Funnel, TLS terminated)
+#   browser
+#     → https://s3-1.tail477f2f.ts.net     (Tailscale Funnel, TLS terminated)
 #     → ts-proxy pod                        (Ingress-managed, tailscale serve)
 #     → rustfs-s3-internal ClusterIP        (port 9000)
-#     → RustFS StatefulSet pods             (port 9000, S3 API)
+#     → nginx S3 failover proxy             (label s3-failover)
+#     → rustfs-chopper:9000 (primary) or rustfs-c3po:9000 (backup)
 #
 # Prerequisites:
 #   - Tailscale Kubernetes operator installed.
@@ -19,14 +20,14 @@ metadata:
   name: rustfs-s3-internal
   namespace: rustfs-clusters
   labels:
-    app.kubernetes.io/name: rustfs
+    app.kubernetes.io/name: s3-failover
     app.kubernetes.io/component: s3-internal
     app.kubernetes.io/part-of: rustfs
     app.kubernetes.io/managed-by: kustomize
 spec:
   type: ClusterIP
   selector:
-    app.kubernetes.io/name: rustfs
+    app.kubernetes.io/name: s3-failover
   ports:
     - name: s3-api
       protocol: TCP
@@ -39,7 +40,7 @@ metadata:
   name: s3-funnel
   namespace: rustfs-clusters
   labels:
-    app.kubernetes.io/name: rustfs
+    app.kubernetes.io/name: s3-failover
     app.kubernetes.io/component: s3-funnel
     app.kubernetes.io/part-of: rustfs
     app.kubernetes.io/managed-by: kustomize

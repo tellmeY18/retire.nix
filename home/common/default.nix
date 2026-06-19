@@ -14,5 +14,6 @@
     ./fzf/default.nix
     ./programs/nix.nix
     ./kitty/default.nix
+    ./opencode/default.nix
   ];
 }

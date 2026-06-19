@@ -52,7 +52,6 @@ nodes are present; the Tailscale `pg-rw` MagicDNS endpoint stays stable.
 | `mysql-ghost` | `mysql-ghost/namespace.yaml` (kustomize) | MGR member StatefulSets (`mysql-ghost-a/b/c`), `proxysql-ghost` Deployment, hourly backup `CronJob`, `NetworkPolicy`, sops `Secret`s |
 | `mysql-mediawiki` | `mysql-mediawiki/namespace.yaml` (kustomize) | Standalone Percona Server StatefulSet (single node, kenobi hostPath), hourly backup `CronJob`, `NetworkPolicy`, sops `Secret`s |
 | `rustfs-clusters` | `rustfs/namespace.yaml` (kustomize) | Standalone RustFS `StatefulSet` (single pod), its PVC, credentials `Secret`, `NetworkPolicy`, Tailscale `Service` |
-| `changala` | `changala/namespace.yaml` (kustomize) | Changala Ring server `Deployment`, `ConfigMap` (atrg.toml), credentials `Secret` (sops), `NetworkPolicy`, Tailscale `Service` |
 | `monitoring` | `monitoring/namespace.yaml` (kustomize) | VMSingle, VMAgent, VMAlert, VMAlertmanager, Grafana, node-exporter, kube-state-metrics, Grafana Tailscale Service |
 
 The `cnpg-clusters` namespace carries `pod-security.kubernetes.io/enforce=restricted`
@@ -113,10 +112,7 @@ just k8s::apply
 2. `helmfile sync` — installs/upgrades all operators (VM stack, CNPG,
    RustFS) and the Postgres workloads. helm-secrets decrypts each
    `secrets.yaml` inline and merges it on top of the corresponding `values.yaml`.
-3. RustFS credentials Secret — sops-decrypted and applied (must exist before
-   the Tenant CR so the operator can validate immediately).
-4. RustFS Tenant CR — applied now that the CRD + credentials both exist.
-5. `kubectl apply -k monitoring` — applies VMRules, VMServiceScrapes, and
+3. `kubectl apply -k monitoring` — applies VMRules, VMServiceScrapes, and
    Grafana dashboards (requires VM operator CRDs from step 2).
 
 ### Preview before applying

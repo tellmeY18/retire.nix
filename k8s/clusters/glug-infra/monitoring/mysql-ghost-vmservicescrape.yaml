@@ -1,0 +1,35 @@
+---
+# mysql-ghost-vmservicescrape.yaml — VMServiceScrape for MGR members.
+#
+# Scrapes the mysqld-exporter sidecar (port 9104) on each MGR member.
+# Each member (a/b/c) has its own headless Service with labels
+# app=mysql-ghost and member=a/b/c. We use the member-specific Service
+# for a stable scrape target per pod.
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMServiceScrape
+metadata:
+  name: mysql-ghost-members
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: mysql-ghost
+    app.kubernetes.io/component: database
+    app.kubernetes.io/part-of: victoria-metrics-k8s-stack
+    app.kubernetes.io/managed-by: kustomize
+spec:
+  namespaceSelector:
+    matchNames:
+      - mysql-ghost
+  selector:
+    matchLabels:
+      app: mysql-ghost
+  endpoints:
+    - port: metrics
+      targetPort: 9104
+      interval: 30s
+      relabelConfigs:
+        - sourceLabels: [__meta_kubernetes_service_label_member]
+          targetLabel: member
+          action: replace
+        - sourceLabels: [__meta_kubernetes_pod_node_name]
+          targetLabel: node
+          action: replace

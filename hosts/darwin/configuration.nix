@@ -27,6 +27,14 @@
 
     };
     activationScripts = {
+      # Runs before the `homebrew` activation script alphabetically.
+      # Trusts 3rd-party taps so brew bundle doesn't refuse to load their casks.
+      brewTrust = {
+        text = ''
+          echo "trusting 3rd-party brew taps..." >&2
+          sudo -u mathewalex --set-home /opt/homebrew/bin/brew trust barutsrb/tap 2>/dev/null || true
+        '';
+      };
       applications = {
         text =
           let

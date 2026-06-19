@@ -214,10 +214,7 @@ in
       script = ''
         mkdir -p /etc/rancher/k3s
         cat > /etc/rancher/k3s/registries.yaml <<'EOF'
-        mirrors:
-          "nixery.tail477f2f.ts.net:8080":
-            endpoint:
-              - "http://nixery.tail477f2f.ts.net:8080"
+        mirrors: {}
         EOF
       '';
     };

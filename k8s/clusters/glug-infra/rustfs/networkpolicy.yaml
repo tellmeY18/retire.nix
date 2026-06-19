@@ -5,12 +5,12 @@
 # Defense in depth: even though the cluster is reachable only over the
 # tailnet, NetworkPolicies prevent unauthorised intra-cluster traffic.
 #
-# Standalone (single pod) topology — no inter-pod erasure traffic.
-#
 # Rules:
 #   1. Default-deny ingress for the namespace.
-#   2. Allow ingress to the RustFS pod on 9000 (S3 API) from the tailscale
-#      operator, monitoring, and the consuming app namespaces.
+#   2. Allow ingress to either RustFS pod (chopper + c3po) on port 9000 from
+#      tailscale, monitoring, consuming apps, and the nginx proxy (same ns).
+#   3. Allow ingress to the nginx proxy pod (s3-failover) on port 9000 from
+#      the tailscale operator, funnel ingress, and consuming app namespaces.
 
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -40,7 +40,6 @@ spec:
   policyTypes:
     - Ingress
   ingress:
-    # S3 API (9000) from tailscale, monitoring, and every consuming namespace.
     - from:
         - namespaceSelector:
             matchLabels:
@@ -48,10 +47,6 @@ spec:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: monitoring
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: changala
-        # Ghost CMS + ActivityPub both live in the `ghost` namespace.
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: ghost
@@ -63,11 +58,94 @@ spec:
               kubernetes.io/metadata.name: mediawiki
         - namespaceSelector:
             matchLabels:
-              kubernetes.io/metadata.name: penpot
+              kubernetes.io/metadata.name: mysql-ghost
         - namespaceSelector:
             matchLabels:
-              kubernetes.io/metadata.name: nixery
-        # MySQL backup CronJobs push dumps to the mysql-backups bucket.
+              kubernetes.io/metadata.name: mysql-mediawiki
+        # nginx failover proxy runs in the same namespace.
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: rustfs-clusters
+      ports:
+        - protocol: TCP
+          port: 9000
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-rustfs-c3po-ingress
+  namespace: rustfs-clusters
+  labels:
+    app.kubernetes.io/part-of: rustfs
+    app.kubernetes.io/managed-by: kustomize
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: rustfs
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: tailscale
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ghost
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: answer
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: mediawiki
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: mysql-ghost
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: mysql-mediawiki
+        # nginx failover proxy runs in the same namespace.
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: rustfs-clusters
+      ports:
+        - protocol: TCP
+          port: 9000
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-proxy-ingress
+  namespace: rustfs-clusters
+  labels:
+    app.kubernetes.io/part-of: rustfs
+    app.kubernetes.io/managed-by: kustomize
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: s3-failover
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: tailscale
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ghost
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: answer
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: mediawiki
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: mysql-ghost

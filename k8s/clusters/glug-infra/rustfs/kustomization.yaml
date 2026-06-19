@@ -3,21 +3,22 @@
 #
 # `kubectl apply -k k8s/clusters/glug-infra/rustfs`
 #
-# Standalone, operator-free object storage: a single RustFS StatefulSet (one
-# pod, one ZFS-backed PVC, no erasure coding, no Tenant CRD). See
-# statefulset.yaml for the rationale.
+# Active-passive HA object storage: two standalone RustFS instances (chopper as
+# primary, c3po as warm replica), async mirrored via mc mirror, fronted by an
+# nginx failover proxy on kenobi. No erasure coding, no operator, no Tenant CRD.
 #
 # What lives here (all core Kubernetes types — NO CRDs, NO operator):
 #   - The `rustfs-clusters` Namespace (with PodSecurity labels).
 #   - NetworkPolicies guarding the namespace.
-#   - The standalone RustFS StatefulSet + its Services (rustfs-hl headless and
-#     rustfs-storage-io ClusterIP — the stable S3 endpoint apps point at).
-#   - The Tailscale LoadBalancer Service that exposes the S3 API
-#     as `s3.<tailnet>.ts.net:9000`.
+#   - Two standalone RustFS StatefulSets (chopper + c3po) + their Services.
+#   - nginx failover proxy Deployment + ConfigMap (selects s3-failover label).
+#   - mc mirror Deployment for async primary→replica replication.
+#   - The Tailscale LoadBalancer Service exposing S3 as `s3.<tailnet>.ts.net:9000`.
+#   - The Tailscale Funnel Ingress for public internet access to S3.
 #
 # Applied separately (not a plain manifest):
 #   - credentials Secret (sops-encrypted) — `just k8s::rustfs-apply-secret`.
-#     The StatefulSet needs it to start, so apply the secret first.
+#     The StatefulSets need it to start, so apply the secret first.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
@@ -33,6 +34,10 @@ resources:
   - namespace.yaml
   - networkpolicy.yaml
   - statefulset.yaml
+  - statefulset-c3po.yaml
   - service.yaml
+  - nginx-s3-proxy-configmap.yaml
+  - nginx-s3-proxy-deployment.yaml
+  - mc-mirror-deployment.yaml
   - tailscale-s3-service.yaml
   - tailscale-s3-funnel.yaml

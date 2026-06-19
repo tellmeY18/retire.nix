@@ -6,8 +6,8 @@
 #   webservice / client
 #     → s3.<tailnet>.ts.net:9000          (Tailscale MagicDNS)
 #     → ts-proxy pod                       (this Service, ts-managed)
-#     → RustFS IO Service                  (operator-created, port 9000)
-#     → RustFS StatefulSet pods            (erasure-coded cluster)
+#     → nginx S3 failover proxy            (label s3-failover)
+#     → rustfs-chopper:9000 (primary) or rustfs-c3po:9000 (backup)
 #
 # The Tailscale operator watches Services with `spec.loadBalancerClass:
 # tailscale` and provisions a ts-proxy StatefulSet that registers a device
@@ -24,7 +24,7 @@ metadata:
   name: s3-tailscale
   namespace: rustfs-clusters
   labels:
-    app.kubernetes.io/name: rustfs
+    app.kubernetes.io/name: s3-failover
     app.kubernetes.io/component: tailnet-frontend
     app.kubernetes.io/part-of: rustfs
     app.kubernetes.io/managed-by: kustomize
@@ -36,9 +36,9 @@ spec:
   type: LoadBalancer
   loadBalancerClass: tailscale
 
-  # Select the standalone RustFS StatefulSet pod for the S3 API.
+  # Select the nginx failover proxy pods for the S3 API.
   selector:
-    app.kubernetes.io/name: rustfs
+    app.kubernetes.io/name: s3-failover
 
   ports:
     - name: s3-api

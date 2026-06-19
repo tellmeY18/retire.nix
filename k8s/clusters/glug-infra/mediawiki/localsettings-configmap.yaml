@@ -231,6 +231,8 @@ data:
     $wgGroupPermissions['sysop']['checkuser-log'] = true;
     $wgGroupPermissions['sysop']['abusefilter-modify'] = true;
     $wgGroupPermissions['sysop']['abusefilter-log-detail'] = true;
+    $wgGroupPermissions['wiki-admins']['editprotected'] = true;
+    $wgGroupPermissions['wiki-admins']['editinterface'] = true;
 
     ## Skins
     wfLoadSkin( 'Vector' );

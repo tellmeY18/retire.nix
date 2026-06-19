@@ -11,7 +11,9 @@
 #                                        → VMAlertmanager (:9093)
 #
 #   VMAgent (:8429) → scrapes → kube-state-metrics, node-exporter,
-#                                CNPG pods (via VMPodScrape), PXC (via VMServiceScrape)
+#                                CNPG pods (via VMPodScrape),
+#                                mysql-ghost (via VMServiceScrape),
+#                                mysql-mediawiki (via VMServiceScrape)
 #   VMAgent → writes → VMSingle (:8428)
 #   VMAlert (:8080) → reads → VMSingle (:8428)
 #   VMAlert → pushes → VMAlertmanager (:9093)

@@ -8,14 +8,14 @@
 # you're done — close the tab.
 #
 # The Active Alerts table (Row 1) is the core dynamic priority mechanism.
-# It surfaces whatever is currently broken — battery, PVC, Galera, ZFS,
+# It surfaces whatever is currently broken — battery, PVC, MySQL, ZFS,
 # replication lag — without needing separate sections for each failure
 # mode. The stat panels above give instant status; the table tells you
 # *why* something is red.
 #
 # All queries are fully node-agnostic and auto-discover new nodes,
 # namespaces, PVCs, and database instances. Adding a k3s node or a new
-# CNPG/PXC cluster requires zero changes to this dashboard.
+# database cluster requires zero changes to this dashboard.
 #
 # Metric sources:
 #   - kube-state-metrics:   kube_node_*, kube_pod_*, kubelet_volume_stats_*
@@ -23,8 +23,8 @@
 #                           node_zram_* (textfile), node_power_supply_*
 #   - cnpg:                 cnpg_collector_up, cnpg_pg_replication_lag,
 #                           cnpg_backends_total
-#   - percona/mysqld_exporter: mysql_global_status_wsrep_*,
-#                              mysql_global_status_threads_connected
+#   - mysqld_exporter:      mysql_global_status_*, mysql_up,
+#                           mysql_perf_schema_*
 #   - prometheus:           ALERTS{alertstate="firing"}
 
 apiVersion: v1
@@ -575,15 +575,15 @@ data:
         },
         {
           "id": 16,
-          "title": "MySQL Galera Ready",
-          "description": "Galera cluster readiness status. Uses min() so if ANY PXC node is not ready, this turns red.",
+          "title": "MGR Primary",
+          "description": "Whether an MGR primary is elected and ONLINE. 1 = primary present (green), 0 = no primary (red).",
           "type": "stat",
           "gridPos": { "h": 4, "w": 4, "x": 12, "y": 13 },
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
           "targets": [
             {
-              "expr": "min(mysql_global_status_wsrep_ready) or vector(0)",
-              "legendFormat": "Galera Ready",
+              "expr": "count(mysql_perf_schema_replication_group_member_stats{member_role=\"PRIMARY\",member_state=\"ONLINE\"}) or vector(0)",
+              "legendFormat": "MGR Primary",
               "instant": true,
               "refId": "A"
             }
@@ -594,8 +594,8 @@ data:
                 {
                   "type": "value",
                   "options": {
-                    "1": { "text": "Ready \u2713", "color": "green" },
-                    "0": { "text": "NOT READY \u26a0", "color": "red" }
+                    "1": { "text": "Elected \u2713", "color": "green" },
+                    "0": { "text": "NO PRIMARY \u26a0", "color": "red" }
                   }
                 }
               ],
@@ -620,15 +620,15 @@ data:
         },
         {
           "id": 17,
-          "title": "Galera Cluster Size",
-          "description": "Minimum reported Galera cluster size. Red if 0, orange if less than 3 (expected quorum size), green at 3+.",
+          "title": "MGR Group Size",
+          "description": "Number of MGR members in ONLINE state. Red if below 3 (quorum at risk), orange at 2, green at 3.",
           "type": "stat",
           "gridPos": { "h": 4, "w": 4, "x": 16, "y": 13 },
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
           "targets": [
             {
-              "expr": "min(mysql_global_status_wsrep_cluster_size) or vector(0)",
-              "legendFormat": "Cluster Size",
+              "expr": "count(mysql_perf_schema_replication_group_member_stats{member_state=\"ONLINE\"}) or vector(0)",
+              "legendFormat": "Group Size",
               "instant": true,
               "refId": "A"
             }
@@ -639,7 +639,7 @@ data:
                 "mode": "absolute",
                 "steps": [
                   { "value": null, "color": "red" },
-                  { "value": 1, "color": "orange" },
+                  { "value": 2, "color": "orange" },
                   { "value": 3, "color": "green" }
                 ]
               }
@@ -658,13 +658,13 @@ data:
         {
           "id": 18,
           "title": "MySQL Connections",
-          "description": "Total connected MySQL threads across all PXC nodes. Orange at 150, red at 190.",
+          "description": "Total connected MySQL threads across all mysql-ghost members. Orange at 150, red at 190.",
           "type": "stat",
           "gridPos": { "h": 4, "w": 4, "x": 20, "y": 13 },
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
           "targets": [
             {
-              "expr": "sum(mysql_global_status_threads_connected) or vector(0)",
+              "expr": "sum(mysql_global_status_threads_connected{app=\"mysql-ghost\"}) or vector(0)",
               "legendFormat": "MySQL Threads",
               "instant": true,
               "refId": "A"

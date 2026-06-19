@@ -1,0 +1,26 @@
+---
+# proxysql-ghost-vmservicescrape.yaml — VMServiceScrape for ProxySQL metrics.
+#
+# Scrapes the ProxySQL built-in Prometheus exporter (port 6070) exposing
+# routing and connection pool metrics.
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMServiceScrape
+metadata:
+  name: proxysql-ghost-scrape
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: proxysql-ghost
+    app.kubernetes.io/component: proxy
+    app.kubernetes.io/part-of: victoria-metrics-k8s-stack
+    app.kubernetes.io/managed-by: kustomize
+spec:
+  namespaceSelector:
+    matchNames:
+      - mysql-ghost
+  selector:
+    matchLabels:
+      app: proxysql-ghost
+  endpoints:
+    - port: metrics
+      targetPort: 6070
+      interval: 30s

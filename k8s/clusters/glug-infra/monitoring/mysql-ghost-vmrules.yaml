@@ -1,0 +1,107 @@
+---
+# mysql-ghost-vmrules.yaml — VMRule for MySQL Group Replication health.
+#
+# Replaces the old PXC/Galera alert rules. MGR metrics come from the
+# standard mysqld_exporter with performance_schema collectors enabled.
+#
+# Key metrics:
+#   mysql_perf_schema_replication_group_member_stats_*
+#     — group-wide transaction stats per member
+#   mysql_global_status_*
+#     — general MySQL health (connections, threads, queries)
+#   mysql_slave_status_seconds_behind_master
+#     — replication lag (secondary members report this)
+#
+# Node-agnostic: fires on any MGR member across all nodes.
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMRule
+metadata:
+  name: mysql-ghost-alerts
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: mysql-ghost
+    app.kubernetes.io/component: alerting
+    app.kubernetes.io/part-of: victoria-metrics-k8s-stack
+    app.kubernetes.io/managed-by: kustomize
+spec:
+  groups:
+    - name: mysql-ghost-health
+      rules:
+        - alert: MysqlGhostMemberDown
+          annotations:
+            description: >-
+              MGR member {{ $labels.member }} on node {{ $labels.node }}
+              is not reachable by mysqld_exporter. Check the MySQL pod
+              status in namespace mysql-ghost.
+            summary: A mysql-ghost MGR member is down.
+          expr: |
+            mysql_up{app="mysql-ghost"} == 0
+          for: 1m
+          labels:
+            severity: critical
+
+        - alert: MysqlGhostLowAvailability
+          annotations:
+            description: >-
+              Only {{ $value }} MGR members are ONLINE (expected 3).
+              The group cannot tolerate further failures.
+            summary: MGR group size is below 3.
+          expr: |
+            count(mysql_perf_schema_replication_group_member_stats{member_state="ONLINE"}) < 2
+          for: 1m
+          labels:
+            severity: critical
+
+        - alert: MysqlGhostPrimaryChanged
+          annotations:
+            description: >-
+              MGR primary role has changed. The previous primary on
+              {{ $labels.node }} may have failed or been demoted.
+              Verify ProxySQL routing is tracking the new primary.
+            summary: MGR primary member changed.
+          expr: |
+            changes(mysql_perf_schema_replication_group_member_stats{member_role="PRIMARY"}[5m]) > 1
+          for: 1m
+          labels:
+            severity: warning
+
+        - alert: MysqlGhostTransactionsQueued
+          annotations:
+            description: >-
+              MGR member {{ $labels.member }} on {{ $labels.node }}
+              has {{ $value }} transactions queued for certification.
+              This indicates replication backpressure.
+            summary: MGR member has queued transactions.
+          expr: |
+            mysql_perf_schema_replication_group_member_stats_count_transactions_remote_in_applier_queue > 100
+          for: 5m
+          labels:
+            severity: warning
+
+    - name: mysql-ghost-resources
+      rules:
+        - alert: MysqlGhostHighConnections
+          annotations:
+            description: >-
+              MySQL connection count on {{ $labels.node }} is
+              {{ $value }} (threshold: 150). Consider tuning
+              max_connections or investigating connection leaks.
+            summary: High connection count on mysql-ghost member.
+          expr: |
+            mysql_global_status_threads_connected{app="mysql-ghost"} > 150
+          for: 5m
+          labels:
+            severity: warning
+
+        - alert: MysqlGhostHighConnectionsCritical
+          annotations:
+            description: >-
+              MySQL connection count on {{ $labels.node }} is
+              {{ $value }} (threshold: 190). Connections are
+              approaching max_connections (200).
+            summary: Critical connection count on mysql-ghost member.
+          expr: |
+            mysql_global_status_threads_connected{app="mysql-ghost"} > 190
+          for: 2m
+          labels:
+            severity: critical

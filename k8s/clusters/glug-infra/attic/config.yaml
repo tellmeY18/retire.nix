@@ -24,9 +24,9 @@ data:
     # S3-compatible object storage (Cloudflare R2)
     [storage]
     type = "s3"
-    endpoint = "https://fa427b086660f6a7b9a42ae386a2273a.r2.cloudflarestorage.com"
+    endpoint = "https://fa427b086660f6a7b9a42ae386a2273a.r2.cloudflarestorage.com/"
     bucket = "attic-cache"
-    region = "auto"
+    region = "APAC"
 
     # Content-addressed chunking for deduplication.
     # R2 has low latency vs the old RustFS backend, so smaller chunks are

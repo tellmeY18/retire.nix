@@ -399,7 +399,11 @@ prometheus-node-exporter:
     enabled: true
     spec:
       endpoints:
-        - metricRelabelConfigs:
+        - relabelConfigs:
+            - sourceLabels: [__meta_kubernetes_pod_node_name]
+              targetLabel: node
+              action: replace
+          metricRelabelConfigs:
             - action: drop
               regex: /var/lib/kubelet/pods.+
               source_labels:

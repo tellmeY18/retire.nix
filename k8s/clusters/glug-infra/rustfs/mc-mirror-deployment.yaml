@@ -1,0 +1,94 @@
+---
+# mc-mirror-deployment.yaml — Async object replication: chopper → c3po.
+#
+# Runs `mc mirror --watch` to continuously replicate all buckets/objects from
+# the primary RustFS (chopper) to the warm replica (c3po).
+#
+# The mirror is ASYNCHRONOUS: replica may lag behind primary by seconds/minutes
+# depending on object size and queue depth. This is acceptable because:
+#   - Objects are content-addressed or unique-keyed, so last-writer-wins is safe.
+#   - Durability is from ZFS + off-site backups, not from the mirror.
+#   - Availability from the nginx failover proxy serves the replica when
+#     primary is down (with a slightly stale dataset).
+#
+# Scheduled on kenobi (coordinator node, not a storage node) — the mirror
+# traffic goes kenobi → chopper (read) and kenobi → c3po (write), which
+# adds network overhead but keeps the mirror off the storage nodes' CPU.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mc-mirror
+  namespace: rustfs-clusters
+  labels:
+    app.kubernetes.io/name: mc-mirror
+    app.kubernetes.io/component: s3-mirror
+    app.kubernetes.io/part-of: rustfs
+    app.kubernetes.io/managed-by: kustomize
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: mc-mirror
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: mc-mirror
+        app.kubernetes.io/component: s3-mirror
+        app.kubernetes.io/part-of: rustfs
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: kenobi
+      tolerations:
+        - effect: NoSchedule
+          key: node-role.glug.infra/storage
+          operator: Exists
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: mc
+          image: minio/mc:latest
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              # Wait for both upstreams to be reachable
+              until mc alias set primary http://rustfs-chopper.rustfs-clusters.svc:9000 "$ACCESS_KEY" "$SECRET_KEY" 2>/dev/null; do
+                echo "waiting for rustfs-chopper..."
+                sleep 2
+              done
+              until mc alias set replica http://rustfs-c3po.rustfs-clusters.svc:9000 "$ACCESS_KEY" "$SECRET_KEY" 2>/dev/null; do
+                echo "waiting for rustfs-c3po..."
+                sleep 2
+              done
+              echo "Both upstreams reachable — starting continuous mirror primary→replica"
+              exec mc mirror --watch --overwrite --remove primary replica
+          env:
+            - name: HOME
+              value: /tmp
+            - name: ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: rustfs-credentials
+                  key: accesskey
+            - name: SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: rustfs-credentials
+                  key: secretkey
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
