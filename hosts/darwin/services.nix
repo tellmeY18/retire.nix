@@ -28,6 +28,10 @@
           hotkeysEnabled = true;
           animationsEnabled = true;
           spacesTrackingEnabled = true;
+          # Use the key name OmniWM expects — otherwise the entire
+          # [general] section falls into recovery mode and defaults
+          # override everything including ipcEnabled.
+          hyperTrigger = "none";
         };
 
         appearance = {

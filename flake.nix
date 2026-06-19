@@ -46,7 +46,7 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
     nix-darwin-aerohud = {
-      url = "github:tellmeY18/nix-darwin/534c8dd2835889972cbec0d7f27e78aee19159b6";
+      url = "github:tellmeY18/nix-darwin/1e84c84407eb1ed5d3c6442d947179c47389f83b";
       inputs.nixpkgs.follows = "nixpkgs";
     };
   };
