@@ -1,3 +1,4 @@
 .direnv/*
 *tar.gz
 /result
+/nix.conf
