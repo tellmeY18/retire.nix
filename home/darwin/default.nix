@@ -10,6 +10,7 @@
     ./zsh/default.nix
     ./emacs/default.nix
     ./pulse/default.nix
+    ../../hosts/darwin/omniwm/default.nix
 
     ../common/packages/dev-k8s.nix
   ];
