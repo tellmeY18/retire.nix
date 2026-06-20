@@ -84,7 +84,7 @@ OmniWM is a macOS tiling window manager with two layout engines: **Niri** (scrol
 
 | Action | Shortcut |
 |---|---|
-| Toggle Quake terminal | `Opt + \`` (backtick) |
+| Toggle Quake terminal | `Opt + Return` |
 | New tab | `Cmd + T` |
 | Close tab | `Cmd + W` |
 | Next / previous tab | `Cmd + Shift + ]` / `[` |

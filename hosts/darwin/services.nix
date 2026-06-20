@@ -173,6 +173,7 @@
           animationDuration = 0.2;
           opacity = 1.0;
           monitorMode = "focusedWindow";
+          command = "/Applications/Ghostty.app/Contents/MacOS/ghostty";
         };
 
         # ── Hotkeys (migrated from AeroSpace) ──────────────────────
