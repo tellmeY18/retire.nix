@@ -234,6 +234,10 @@ data:
     $wgGroupPermissions['wiki-admins']['editprotected'] = true;
     $wgGroupPermissions['wiki-admins']['editinterface'] = true;
 
+    # Cargo admins — create/recreate Cargo tables, but NOT delete/drop them.
+    # Assign users to this group via Special:UserRights on the wiki.
+    $wgGroupPermissions['cargo-admins']['recreatecargodata'] = true;
+
     ## Skins
     wfLoadSkin( 'Vector' );
     wfLoadSkin( 'MinervaNeue' );

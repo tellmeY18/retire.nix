@@ -31,8 +31,6 @@ spec:
           labels:
             app: mysql-ghost-backup
         spec:
-          nodeSelector:
-            kubernetes.io/hostname: kenobi
           restartPolicy: OnFailure
           containers:
             - name: backup
@@ -67,7 +65,17 @@ spec:
 
                   echo "[$(date)] Uploaded to s3://${S3_BUCKET}/ghost/${DATE}/${TIMESTAMP}.sql.gz (${SIZE})"
 
-                  rm -f "${DUMP_FILE}" /tmp/mc
+                  rm -f "${DUMP_FILE}"
+                  echo "[$(date)] Pruning backups older than 7 days..."
+                  PRUNE_BEFORE=$(date -d "7 days ago" +%Y-%m-%d)
+                  for DIR in $(/tmp/mc ls "backup/${S3_BUCKET}/ghost/" 2>/dev/null | awk '{print $NF}'); do
+                    DIR_DATE="${DIR%/}"
+                    if [ -n "$DIR_DATE" ] && [ "$DIR_DATE" != "$DATE" ] && [ "$DIR_DATE" \< "$PRUNE_BEFORE" ]; then
+                      /tmp/mc rm --force --recursive "backup/${S3_BUCKET}/ghost/${DIR}" 2>/dev/null
+                      echo "[$(date)] Pruned: ${DIR}"
+                    fi
+                  done
+                  rm -f /tmp/mc
                   echo "[$(date)] Backup complete."
               env:
                 - name: MYSQL_ROOT_PASSWORD
