@@ -6,18 +6,18 @@
 #
 # Traffic flow:
 #   Wikipedia app → https://wiki.fosscell.org/api/rest_v1/page/summary/Main_Page
-#   → Traefik (this IngressRoute)
+#   → Traefik (this IngressRoute, rewrite to /wiki.fosscell.org/v1/page/summary/Main_Page)
 #   → mobileapps-svc:8888
 #   → fetches from wiki.fosscell.org/api.php and /api/rest_v1/ (Parsoid)
 apiVersion: traefik.io/v1alpha1
 kind: Middleware
 metadata:
-  name: mobileapps-stripprefix
+  name: mobileapps-rewrite
   namespace: mobileapps
 spec:
-  stripPrefix:
-    prefixes:
-      - /api/rest_v1
+  replacePathRegex:
+    regex: ^/api/rest_v1/(.*)
+    replacement: /wiki.fosscell.org/v1/$1
 ---
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
@@ -34,7 +34,7 @@ spec:
     - match: Host(`wiki.fosscell.org`) && PathPrefix(`/api/rest_v1/`)
       kind: Rule
       middlewares:
-        - name: mobileapps-stripprefix
+        - name: mobileapps-rewrite
           namespace: mobileapps
       services:
         - name: mobileapps-svc

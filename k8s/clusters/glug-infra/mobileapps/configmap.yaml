@@ -58,7 +58,7 @@ data:
           user_agent: FOSSCELL Mobile Content Service (wiki.fosscell.org)
 
           # REST API base URIs — point at wiki.fosscell.org
-          use_request_host: false
+          use_request_host: true
           mobileapps_uri: https://wiki.fosscell.org
           restbase_req:
             method: get
