@@ -71,3 +71,6 @@ data:
           mobile_html_rest_api_base_uri: https://wiki.fosscell.org/api/
           mobile_html_local_rest_api_base_uri_template: https://wiki.fosscell.org/api/rest_v1/
           parsoid_uri: https://wiki.fosscell.org/api/rest_v1/
+
+          # Disable domain restrictions for non-Wikimedia wikis
+          restrict_domains: false
