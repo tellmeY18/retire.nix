@@ -60,7 +60,7 @@ spec:
             - name: S3_BUCKET_NAME
               value: "activitypub"
             - name: S3_PUBLIC_HOSTING_URL
-              value: "https://s3-1.tail477f2f.ts.net/activitypub"
+              value: "https://s3.tellmey.fyi/activitypub"
             - name: S3_REGION
               value: "us-east-1"
             # Fedify KV store: uses MySQL by default (no FEDIFY_KV_STORE_TYPE set)

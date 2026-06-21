@@ -36,8 +36,9 @@ resources:
   - statefulset.yaml
   - statefulset-c3po.yaml
   - service.yaml
+  - mc-mirror-deployment.yaml
   - nginx-s3-proxy-configmap.yaml
   - nginx-s3-proxy-deployment.yaml
-  - mc-mirror-deployment.yaml
   - tailscale-s3-service.yaml
   - tailscale-s3-funnel.yaml
+  - ingress-traefik-s3.yaml

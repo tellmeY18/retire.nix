@@ -207,8 +207,11 @@ data:
     $wgFileBackends['s3']['use_path_style_endpoint'] = true;
     $wgAWSUseHTTPS = false;
 
-    # Public URL for images — $1 is replaced with bucket name
-    $wgAWSBucketDomain = 's3-1.tail477f2f.ts.net/$1';
+    # Public URL for images — Traefik serves this over HTTPS to the internet.
+    # Migrated from Tailscale Funnel (s3-1.tail477f2f.ts.net) to Traefik
+    # for better performance (direct to kenobi public IP, no relay).
+    # $1 is replaced with the bucket name.
+    $wgAWSBucketDomain = 'https://s3.tellmey.fyi/$1';
 
     ## Permissions
     $wgGroupPermissions['*']['edit'] = false;
@@ -456,7 +459,7 @@ data:
     $wgPopupsOptInDefaultState = '1'; # Enable page previews by default
     $wgPopupsReferencePreviewsBetaFeature = false;
     $wgHitcounterUpdateFreq = 1;
-    $wgCommentsDefaultAvatar = 'https://s3-1.tail477f2f.ts.net/mediawiki/avatars/default.png';
+    $wgCommentsDefaultAvatar = 'https://s3.tellmey.fyi/mediawiki/avatars/default.png';
 
     ## VisualEditor / Parsoid
     # Force the main stash (used by Parsoid HTML stash, edit tokens, etc.)

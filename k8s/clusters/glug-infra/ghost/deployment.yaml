@@ -75,8 +75,9 @@ spec:
               value: "ghost"
 
             # S3 Storage — colinmeinke/ghost-storage-adapter-s3
-            # Images are served DIRECTLY from assetHost (public RustFS Funnel).
-            # Ghost never proxies image reads.
+            # Images are served DIRECTLY from assetHost (public Traefik ingress).
+            # Ghost never proxies image reads. Migrated from Tailscale Funnel
+            # to Traefik for better performance (direct to kenobi, no relay).
             - name: storage__active
               value: "s3"
             - name: storage__s3__endpoint
@@ -88,7 +89,7 @@ spec:
             - name: storage__s3__forcePathStyle
               value: "true"
             - name: storage__s3__assetHost
-              value: "https://s3-1.tail477f2f.ts.net/ghost"
+              value: "https://s3.tellmey.fyi/ghost"
             - name: storage__s3__pathPrefix
               value: ""
             - name: storage__s3__acl
