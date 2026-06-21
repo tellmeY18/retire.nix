@@ -74,12 +74,15 @@
       formatter = myLib.forAllSystems ({ pkgs, ... }: pkgs.nixpkgs-fmt);
 
       packages = myLib.forAllSystems (
-        { system, ... }:
+        { pkgs, system, ... }:
         {
           default = fenix.packages.${system}.minimal.toolchain;
           # Expose deploy-rs so `nix run .#deploy-rs` works outside the devshell.
           # Used by the Justfile `deploy` / `deploy-dry` recipes.
           deploy-rs = deploy-rs.packages.${system}.default;
+          # Tailscale-aware kexec tarball for nixos-anywhere.
+          # Build: nix build .#packages.<system>.kexec-image
+          kexec-image = pkgs.callPackage ./packages/kexec-image.nix { };
         }
       );
 
@@ -170,6 +173,11 @@
           ];
           c3po = [
             ./hosts/c3po/disko-config.nix
+            sops-nix.nixosModules.sops
+            disko.nixosModules.disko
+          ];
+          r2d2 = [
+            ./hosts/r2d2/disko-config.nix
             sops-nix.nixosModules.sops
             disko.nixosModules.disko
           ];

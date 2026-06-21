@@ -89,7 +89,7 @@ eval host:
 eval-all:
     #!/usr/bin/env bash
     set -euo pipefail
-    for host in chopper c3po kenobi; do
+    for host in chopper c3po kenobi r2d2; do
       echo "Evaluating $host..."
       nix eval .#nixosConfigurations.$host.config.system.build.toplevel.drvPath
       echo "  ✓ $host OK"
@@ -120,9 +120,14 @@ build-mac:
 build-home-mac:
     nix build .#homeConfigurations."mathewalex@Vysakhs-MacBook-Pro".activationPackage
 
+# Build r2d2 NixOS configuration.
+[doc('Build r2d2 NixOS config')]
+build-r2d2:
+    nix build .#nixosConfigurations.r2d2.config.system.build.toplevel
+
 # Build all configurations.
 [doc('Build everything (all hosts + HM)')]
-build-all: build-chopper build-c3po build-kenobi build-mac build-home-mac
+build-all: build-chopper build-c3po build-kenobi build-r2d2 build-mac build-home-mac
 
 # ═══════════════════════════════════════════════════════════════════════════
 #  LINT / CHECK — code quality
@@ -208,6 +213,7 @@ ssh host:
       chopper) ssh root@100.107.213.17 ;;
       c3po)    ssh root@100.109.132.76 ;;
       kenobi)  ssh root@100.73.101.89 ;;
+      r2d2)    ssh root@100.82.170.61 ;;
       *)       echo "Unknown host: {{ host }}"; exit 1 ;;
     esac
 
@@ -217,7 +223,7 @@ closure-sizes:
     #!/usr/bin/env bash
     set -euo pipefail
     echo "=== Closure Sizes ==="
-    for pair in "chopper:100.107.213.17" "c3po:100.109.132.76" "kenobi:100.73.101.89"; do
+    for pair in "chopper:100.107.213.17" "c3po:100.109.132.76" "kenobi:100.73.101.89" "r2d2:100.82.170.61"; do
       name="${pair%%:*}"
       ip="${pair##*:}"
       size=$(ssh -o ConnectTimeout=5 root@$ip \
@@ -234,12 +240,13 @@ gc host:
       chopper) ssh root@100.107.213.17 "nix-collect-garbage -d && nix-store --optimise" ;;
       c3po)    ssh root@100.109.132.76 "nix-collect-garbage -d && nix-store --optimise" ;;
       kenobi)  ssh root@100.73.101.89 "nix-collect-garbage -d && nix-store --optimise" ;;
+      r2d2)    ssh root@100.82.170.61 "nix-collect-garbage -d && nix-store --optimise" ;;
       *)       echo "Unknown host: {{ host }}"; exit 1 ;;
     esac
 
 # Garbage-collect all hosts.
 [doc('Garbage-collect all hosts')]
-gc-all: (gc "chopper") (gc "c3po") (gc "kenobi")
+gc-all: (gc "chopper") (gc "c3po") (gc "kenobi") (gc "r2d2")
 
 # Collect local garbage.
 [doc('Garbage-collect the local Mac nix store')]
