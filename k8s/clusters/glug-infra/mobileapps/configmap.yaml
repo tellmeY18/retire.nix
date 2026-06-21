@@ -84,6 +84,15 @@ data:
             headers: '{{request.headers}}'
             body: '{{request.body}}'
 
+          # ResourceLoader template (default uses /w/load.php; our wiki uses /load.php)
+          mw_resource_loader_req:
+            method: post
+            uri: https://{{domain}}/load.php
+            headers:
+              user-agent: '{{user-agent}}'
+              content-type: application/x-www-form-urlencoded
+            body: '{{ default(request.query, {}) }}'
+
           # RESTBase integration disabled - MobileApps talks directly to MediaWiki
           # For third-party wikis, RESTBase adds complexity without much benefit.
 
