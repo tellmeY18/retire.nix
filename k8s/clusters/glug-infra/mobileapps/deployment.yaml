@@ -42,6 +42,15 @@ spec:
           # Use build-tagged image for version control
           # Update to :build-N when deploying a new version
           image: ghcr.io/tellmey18/mobileapps:build-7
+          # Patch: fix Wikidata getCentralDescription crashing on non-Wikimedia wikis.
+          # Empty languages array [] is truthy in JS, so the Wikidata call fires even
+          # when there are no language variants. Add .catch() + length check.
+          # TODO: remove command override once image is rebuilt with the patched Dockerfile.
+          command: ["sh", "-c"]
+          args:
+            - |
+              sed -i 's/languages ? mwapi\.getCentralDescription(req, site, languages) : BBPromise\.resolve({})/languages \&\& languages.length ? mwapi.getCentralDescription(req, site, languages).catch(function() { return {}; }) : BBPromise.resolve({})/g' /app/lib/mwapi.js
+              exec node server.js -c /etc/mobileapps/config.yaml
           ports:
             - name: http
               containerPort: 8888

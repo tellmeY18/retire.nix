@@ -51,3 +51,11 @@ spec:
     - ports:
         - port: 80
           protocol: TCP
+    # Allow to RESTBase namespace (port 7231)
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: restbase
+      ports:
+        - port: 7231
+          protocol: TCP

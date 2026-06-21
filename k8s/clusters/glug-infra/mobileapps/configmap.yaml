@@ -57,6 +57,9 @@ data:
           # User agent for requests to MediaWiki
           user_agent: FOSSCELL Mobile Content Service (wiki.fosscell.org)
 
+          # Wiki languages that require MW mobile view for language variant support
+          mobile_view_languages: []
+
           # REST API base URIs — point at wiki.fosscell.org
           use_request_host: true
           mobileapps_uri: https://wiki.fosscell.org
@@ -64,19 +67,31 @@ data:
           # MediaWiki API template
           mwapi_req:
             method: post
-            uri: https://{{domain}}/w/api.php
+            uri: https://{{domain}}/api.php
             headers:
               host: '{{request.params.domain}}'
               user-agent: '{{user-agent}}'
-            body: '{{ default(request.body, {}) }}'
+              accept-language: '{{accept-language}}'
+              content-type: application/x-www-form-urlencoded
+            body: '{{ default(request.query, {}) }}'
 
-          # Point at MediaWiki core REST API (not RESTBase, not self)
+          # RESTBase-shaped template pointing at MW core REST API
+          # (for endpoints that haven't migrated to core-api-compat yet)
           restbase_req:
             method: '{{request.method}}'
             uri: https://{{domain}}/rest.php/v1/{+path}
             query: '{{ default(request.query, {}) }}'
             headers: '{{request.headers}}'
             body: '{{request.body}}'
+
+          # RESTBase integration disabled - MobileApps talks directly to MediaWiki
+          # For third-party wikis, RESTBase adds complexity without much benefit.
+          # restbase_req:
+          #   method: '{{request.method}}'
+          #   uri: http://restbase-svc.restbase.svc.cluster.local:7231/{{domain}}/v1/{+path}
+          #   query: '{{ default(request.query, {}) }}'
+          #   headers: '{{request.headers}}'
+          #   body: '{{request.body}}'
 
           # Use core Parsoid endpoint (MW 1.45+)
           use_coreparsoid_endpoint: true
@@ -86,5 +101,36 @@ data:
           mobile_html_local_rest_api_base_uri_template: https://wiki.fosscell.org/rest.php/v1/
           parsoid_uri: https://wiki.fosscell.org/rest.php/v1/
 
+          # Core Parsoid templates (overrides built-in defaults that use /w/rest.php)
+          corepagehtml_req:
+            method: GET
+            uri: https://{{domain}}/rest.php/v1/page/{{title}}/with_html
+            query: '{{ default(request.query, {}) }}'
+            headers: '{{request.headers}}'
+
+          corerevisionhtml_req:
+            method: GET
+            uri: https://{{domain}}/rest.php/v1/revision/{{revision}}/with_html
+            query: '{{ default(request.query, {}) }}'
+            headers: '{{request.headers}}'
+
           # Disable domain restrictions for non-Wikimedia wikis
           restrict_domains: false
+
+          # Redirect handling (PCS = Page Content Service compatibility)
+          pcs_handles_redirects: false
+
+          # Caching configuration (Cassandra-based, disabled for now)
+          caching:
+            enabled: false
+            ttl: 0
+            maxJitter: 0
+            event:
+              stream:
+                change: resource_change
+                purge: resource_purge
+            excludedUserAgents:
+              - RESTBase/WMF
+            cassandra:
+              keyspace: mobileapps
+              storageTable: storage
