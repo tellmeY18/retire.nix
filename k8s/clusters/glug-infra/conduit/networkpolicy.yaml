@@ -10,7 +10,7 @@ spec:
   policyTypes:
     - Ingress
 ---
-# Allow ingress to Conduit from Traefik + Tailscale proxy.
+# Allow ingress to Tuwunel from Traefik + Tailscale proxy.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -24,7 +24,7 @@ spec:
     - Ingress
   ingress:
     - ports:
-        - port: 6167
+        - port: 8008
           protocol: TCP
 ---
 # Allow egress: federation (HTTPS), RustFS S3, DNS.
@@ -53,4 +53,6 @@ spec:
     # Federation — HTTPS to other Matrix servers
     - ports:
         - port: 443
+          protocol: TCP
+        - port: 8448
           protocol: TCP

@@ -1,11 +1,13 @@
 ---
-# statefulset.yaml — Conduit Matrix homeserver.
+# statefulset.yaml — Tuwunel Matrix homeserver.
 #
-# Conduit uses RocksDB for its database, which requires
-# persistent local storage. PVC is backed by zfs-localpv
-# (restricted to storage nodes via StorageClass topology).
+# Replaces the original Conduit deployment. Tuwunel is the Construct
+# fork of Conduit / conduwuit with MSC3967 support and many fixes.
 #
-# Media files (user uploads) are stored in RustFS S3.
+# RocksDB database on zfs-localpv PVC (pinned to storage nodes).
+# Media stored on local filesystem (under database_path/media/).
+# TODO: configure S3 storage provider via ConfigMap once Tuwunel's
+# nested TOML env var syntax supports the storage_provider section.
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
@@ -42,39 +44,27 @@ spec:
           type: RuntimeDefault
 
       containers:
-        - name: conduit
-          image: docker.io/matrixconduit/matrix-conduit:latest
+        - name: tuwunel
+          image: ghcr.io/matrix-construct/tuwunel:latest
           ports:
             - name: matrix
-              containerPort: 6167
+              containerPort: 8008
               protocol: TCP
 
-          envFrom:
-            - secretRef:
-                name: conduit-credentials
-
           env:
-            # Config via env only (no config file needed)
-            - name: CONDUIT_CONFIG
-              value: ""
-
             # Server identity
             - name: CONDUIT_SERVER_NAME
               value: "chat.tellmey.fyi"
             - name: CONDUIT_ADDRESS
               value: "0.0.0.0"
             - name: CONDUIT_PORT
-              value: "6167"
+              value: "8008"
 
             # Database (RocksDB on PVC)
-            - name: CONDUIT_DATABASE_BACKEND
-              value: "rocksdb"
             - name: CONDUIT_DATABASE_PATH
               value: "/var/lib/matrix-conduit/"
-            - name: CONDUIT_DB_CACHE_CAPACITY_MB
-              value: "300.0"
 
-            # Registration & access — admin-only via token from credentials Secret
+            # Registration & access
             - name: CONDUIT_ALLOW_REGISTRATION
               value: "false"
             - name: CONDUIT_ALLOW_FEDERATION
@@ -83,16 +73,15 @@ spec:
               value: "true"
             - name: CONDUIT_ALLOW_ROOM_CREATION
               value: "true"
-            - name: CONDUIT_ALLOW_UNSTABLE_ROOM_VERSIONS
-              value: "false"
             - name: CONDUIT_DEFAULT_ROOM_VERSION
               value: '"10"'
 
-            # Federation — well-known delegation
-            - name: CONDUIT_WELL_KNOWN_SERVER
-              value: "chat.tellmey.fyi:443"
-            - name: CONDUIT_WELL_KNOWN_CLIENT
+            # Federation — well-known delegation (TUWUNEL_ prefix
+            # for nested TOML: [global.well_known])
+            - name: TUWUNEL_WELL_KNOWN__CLIENT
               value: "https://chat.tellmey.fyi"
+            - name: TUWUNEL_WELL_KNOWN__SERVER
+              value: "chat.tellmey.fyi:443"
 
             # Federation key trust
             - name: CONDUIT_TRUSTED_SERVERS
@@ -101,18 +90,13 @@ spec:
             # Performance
             - name: CONDUIT_MAX_REQUEST_SIZE
               value: "20000000"
-            - name: CONDUIT_MAX_CONCURRENT_REQUESTS
-              value: "100"
 
-            # S3 media backend (RustFS)
-            - name: CONDUIT_GLOBAL_MEDIA_BACKEND
-              value: "s3"
-            - name: CONDUIT_GLOBAL_MEDIA_ENDPOINT
-              value: "http://rustfs-storage-io.rustfs-clusters.svc:9000"
-            - name: CONDUIT_GLOBAL_MEDIA_BUCKET
-              value: "conduit"
-            - name: CONDUIT_GLOBAL_MEDIA_REGION
-              value: "us-east-1"
+            # Registration token (from existing sops-encrypted secret)
+            - name: TUWUNEL_REGISTRATION_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: conduit-credentials
+                  key: CONDUIT_REGISTRATION_TOKEN
 
           volumeMounts:
             - name: data
@@ -135,14 +119,14 @@ spec:
 
           livenessProbe:
             tcpSocket:
-              port: 6167
+              port: 8008
             initialDelaySeconds: 30
             periodSeconds: 30
 
           readinessProbe:
             httpGet:
               path: /_matrix/client/versions
-              port: 6167
+              port: 8008
             initialDelaySeconds: 15
             periodSeconds: 10
 
@@ -167,6 +151,6 @@ spec:
     app.kubernetes.io/name: conduit
   ports:
     - name: matrix
-      port: 6167
-      targetPort: 6167
+      port: 8008
+      targetPort: 8008
       protocol: TCP

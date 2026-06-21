@@ -569,34 +569,36 @@ answer-apply-secret:
     sops --decrypt clusters/glug-infra/answer/credentials-secret.enc.yaml | kubectl apply -f -
 
 # ---------------------------------------------------------------------------
-# Conduit (Matrix homeserver) day-2 helpers
+# Tuwunel (Matrix homeserver) day-2 helpers
 # ---------------------------------------------------------------------------
 
-# Show Conduit StatefulSet + pod status.
-[doc('Show Conduit StatefulSet + pod status')]
+# Show Tuwunel StatefulSet + pod status.
+[doc('Show Tuwunel StatefulSet + pod status')]
 conduit-status:
     kubectl get statefulset,pods,svc,ingress -n conduit -o wide
 
-# Tail Conduit logs.
-[doc('Tail Conduit logs')]
+# Tail Tuwunel logs.
+[doc('Tail Tuwunel logs')]
 conduit-logs:
     kubectl logs -n conduit -l app.kubernetes.io/name=conduit -f --tail=200
 
-# Port-forward Conduit to localhost:6167.
-[doc('Port-forward Conduit to localhost:6167 (for testing)')]
+# Port-forward Tuwunel to localhost:8008.
+[doc('Port-forward Tuwunel to localhost:8008 (for testing)')]
 conduit-port-forward:
-    kubectl -n conduit port-forward svc/conduit-svc 6167:6167
+    kubectl -n conduit port-forward svc/conduit-svc 8008:8008
 
-# Create the first admin user in Conduit.
+# Create the first admin user in Tuwunel.
 # Usage: just k8s::conduit-create-admin <username> <password>
-[doc('Create Conduit admin user: <username> <password>')]
+[doc('Create Tuwunel admin user: <username> <password>')]
 conduit-create-admin username password:
-    kubectl exec -n conduit conduit-0 -- sh -c \
-      'curl -X POST -d "{\"username\":\"{{ username }}\",\"password\":\"{{ password }}\",\"admin\":true}" \
-      "http://localhost:6167/_matrix/client/v3/register?kind=user"'
+    kubectl -n conduit port-forward svc/conduit-svc 8008:8008 &
+    sleep 2; curl -s -X POST -H "Content-Type: application/json" \
+      -d '{"username":"{{ username }}","password":"{{ password }}","admin":true}' \
+      "http://localhost:8008/_matrix/client/v3/register"; \
+    kill %1 2>/dev/null
 
-# Apply Conduit credentials Secret (sops-decrypt).
-[doc('Apply Conduit credentials Secret (sops-decrypt)')]
+# Apply Tuwunel credentials Secret (sops-decrypt).
+[doc('Apply Tuwunel credentials Secret (sops-decrypt)')]
 conduit-apply-secret:
-    @echo "Decrypting and applying Conduit credentials..."
+    @echo "Decrypting and applying Tuwunel credentials..."
     sops --decrypt clusters/glug-infra/conduit/credentials-secret.enc.yaml | kubectl apply -f -

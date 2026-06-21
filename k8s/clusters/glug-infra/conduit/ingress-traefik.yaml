@@ -1,10 +1,10 @@
 ---
-# Traefik IngressRoute for Conduit Matrix homeserver.
+# Traefik IngressRoute for Tuwunel Matrix homeserver.
 # Public URL: https://chat.tellmey.fyi
 # TLS: Let's Encrypt via Traefik ACME.
 #
 # Routes all Matrix API paths and well-known delegation
-# to Conduit on the same port 443.
+# to Tuwunel on port 8008.
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:
@@ -18,11 +18,11 @@ spec:
       kind: Rule
       services:
         - name: conduit-svc
-          port: 6167
+          port: 8008
   tls:
     certResolver: letsencrypt
 ---
-# HTTP → HTTPS redirect for Conduit.
+# HTTP → HTTPS redirect for Tuwunel.
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:
@@ -39,4 +39,4 @@ spec:
           namespace: traefik-system
       services:
         - name: conduit-svc
-          port: 6167
+          port: 8008

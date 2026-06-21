@@ -1,7 +1,7 @@
 ---
-# kustomization.yaml — Conduit Matrix homeserver (stateful, RocksDB + S3).
+# kustomization.yaml — Tuwunel Matrix homeserver (stateful, RocksDB + S3).
 #
-# Deploys Conduit with:
+# Deploys Tuwunel (Construct fork of Conduit) with:
 #   - RocksDB database on zfs-localpv PVC (pinned to storage nodes)
 #   - S3 media storage via RustFS bucket
 #   - Tailscale ingress (tailnet access) + Traefik ingress (public)
