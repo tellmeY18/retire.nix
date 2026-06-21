@@ -41,7 +41,7 @@ spec:
         - name: mobileapps
           # Use build-tagged image for version control
           # Update to :build-N when deploying a new version
-          image: ghcr.io/tellmey18/mobileapps:build-3
+          image: ghcr.io/tellmey18/mobileapps:build-5
           ports:
             - name: http
               containerPort: 8888
