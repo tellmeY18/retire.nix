@@ -9,8 +9,8 @@ RUN apk add --no-cache git && \
     git clone --depth 1 https://github.com/wikimedia/mediawiki-services-mobileapps.git /app && \
     apk del git
 
-# Install dependencies
-RUN npm install --production
+# Install ALL dependencies (not just production)
+RUN npm install
 
 # Remove config.yaml (will be mounted from ConfigMap)
 RUN rm -f /app/config.yaml

@@ -31,6 +31,12 @@ spec:
                   matchLabels:
                     app.kubernetes.io/name: mobileapps
                 topologyKey: kubernetes.io/hostname
+      # Tolerate storage node taint so we can run on chopper/c3po
+      tolerations:
+        - key: node-role.glug.infra/storage
+          operator: Equal
+          value: "true"
+          effect: NoSchedule
       containers:
         - name: mobileapps
           image: ghcr.io/tellmey18/mobileapps:latest
