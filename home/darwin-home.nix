@@ -18,6 +18,9 @@
   # Let Home Manager install and manage itself
   programs.home-manager.enable = true;
 
+  # gomuks Matrix client (Darwin-only)
+  programs.gomuks.enable = true;
+
   # XDG directories
   xdg.enable = true;
 
