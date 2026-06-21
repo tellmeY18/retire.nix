@@ -20,12 +20,28 @@ data:
         - type: stdout
           named_levels: true
 
+    # Metrics reporter (statsd) - disabled for now
+    metrics:
+      type: statsd
+      host: localhost
+      port: 8125
+
     services:
       - name: service-mobileapp-node
         module: ./app.js
         conf:
           port: 8888
           cors: "*"
+
+          # Security headers
+          security_headers:
+            x_frame_options: SAMEORIGIN
+            x_content_type_options: nosniff
+            x_xss_protection: 1; mode=block
+
+          # RESTBase compatibility layer
+          restbase_compatibility:
+            security_headers: true
 
           # CSP for mobile-html
           mobile_html_csp: "default-src 'none';
@@ -53,4 +69,5 @@ data:
 
           # Point at your MediaWiki's Parsoid endpoint
           mobile_html_rest_api_base_uri: https://wiki.fosscell.org/api/
+          mobile_html_local_rest_api_base_uri_template: https://wiki.fosscell.org/api/rest_v1/
           parsoid_uri: https://wiki.fosscell.org/api/rest_v1/
