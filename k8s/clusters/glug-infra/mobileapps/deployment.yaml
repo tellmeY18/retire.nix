@@ -21,6 +21,16 @@ spec:
       labels:
         app.kubernetes.io/name: mobileapps
     spec:
+      # Spread replicas across different nodes for HA (prefer, not require)
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: mobileapps
+                topologyKey: kubernetes.io/hostname
       containers:
         - name: mobileapps
           image: ghcr.io/tellmey18/mobileapps:latest
