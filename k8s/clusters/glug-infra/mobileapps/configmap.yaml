@@ -86,12 +86,6 @@ data:
 
           # RESTBase integration disabled - MobileApps talks directly to MediaWiki
           # For third-party wikis, RESTBase adds complexity without much benefit.
-          # restbase_req:
-          #   method: '{{request.method}}'
-          #   uri: http://restbase-svc.restbase.svc.cluster.local:7231/{{domain}}/v1/{+path}
-          #   query: '{{ default(request.query, {}) }}'
-          #   headers: '{{request.headers}}'
-          #   body: '{{request.body}}'
 
           # Use core Parsoid endpoint (MW 1.45+)
           use_coreparsoid_endpoint: true
