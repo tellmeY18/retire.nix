@@ -66,15 +66,17 @@ data:
             method: post
             uri: https://{{domain}}/w/api.php
             headers:
-              user-agent: '{{user-agent}}'
-            body: '{{ default(request.query, {}) }}'
-
-          restbase_req:
-            method: get
-            uri: https://wiki.fosscell.org/api/rest_v1/{domain}/v3/{request.params.path}
-            headers:
               host: '{{request.params.domain}}'
               user-agent: '{{user-agent}}'
+            body: '{{ default(request.body, {}) }}'
+
+          # Point at MediaWiki core REST API (not RESTBase, not self)
+          restbase_req:
+            method: '{{request.method}}'
+            uri: https://{{domain}}/rest.php/v1/{+path}
+            query: '{{ default(request.query, {}) }}'
+            headers: '{{request.headers}}'
+            body: '{{request.body}}'
 
           # Point at your MediaWiki's Parsoid endpoint (MW 1.45 uses /rest.php/v1/)
           mobile_html_rest_api_base_uri: https://wiki.fosscell.org/rest.php/
