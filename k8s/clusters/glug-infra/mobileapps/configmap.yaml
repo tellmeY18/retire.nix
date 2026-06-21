@@ -60,6 +60,15 @@ data:
           # REST API base URIs — point at wiki.fosscell.org
           use_request_host: true
           mobileapps_uri: https://wiki.fosscell.org
+
+          # MediaWiki API template
+          mwapi_req:
+            method: post
+            uri: https://{{domain}}/w/api.php
+            headers:
+              user-agent: '{{user-agent}}'
+            body: '{{ default(request.query, {}) }}'
+
           restbase_req:
             method: get
             uri: https://wiki.fosscell.org/api/rest_v1/{domain}/v3/{request.params.path}
@@ -67,10 +76,10 @@ data:
               host: '{{request.params.domain}}'
               user-agent: '{{user-agent}}'
 
-          # Point at your MediaWiki's Parsoid endpoint
-          mobile_html_rest_api_base_uri: https://wiki.fosscell.org/api/
-          mobile_html_local_rest_api_base_uri_template: https://wiki.fosscell.org/api/rest_v1/
-          parsoid_uri: https://wiki.fosscell.org/api/rest_v1/
+          # Point at your MediaWiki's Parsoid endpoint (MW 1.45 uses /rest.php/v1/)
+          mobile_html_rest_api_base_uri: https://wiki.fosscell.org/rest.php/
+          mobile_html_local_rest_api_base_uri_template: https://wiki.fosscell.org/rest.php/v1/
+          parsoid_uri: https://wiki.fosscell.org/rest.php/v1/
 
           # Disable domain restrictions for non-Wikimedia wikis
           restrict_domains: false
