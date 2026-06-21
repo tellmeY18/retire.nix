@@ -32,5 +32,8 @@
 
     # Additional development tools
     nix-index # Locate packages providing a file
+
+    # Matrix client (pure Go, no libolm dependency)
+    gomuks
   ];
 }

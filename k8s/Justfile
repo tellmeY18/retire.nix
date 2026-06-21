@@ -119,6 +119,9 @@ apply:
     @echo "Applying MediaWiki standalone MySQL secrets (sops-decrypt), then the cluster..."
     sops --decrypt clusters/glug-infra/mysql-mediawiki/credentials-secret.enc.yaml | kubectl apply -f -
     kubectl apply -k clusters/glug-infra/mysql-mediawiki
+    @echo "Applying Conduit (sops-decrypt credentials first)..."
+    kubectl apply -k clusters/glug-infra/conduit
+    sops --decrypt clusters/glug-infra/conduit/credentials-secret.enc.yaml | kubectl apply -f -
     kubectl apply -k clusters/glug-infra/monitoring
 
 # Preview k8s changes without applying.
@@ -128,6 +131,7 @@ diff:
     kubectl diff -k clusters/glug-infra/rustfs || true
     kubectl diff -k clusters/glug-infra/mysql-ghost || true
     kubectl diff -k clusters/glug-infra/mysql-mediawiki || true
+    kubectl diff -k clusters/glug-infra/conduit || true
     kubectl diff -k clusters/glug-infra/monitoring || true
     helmfile diff
 
@@ -563,3 +567,36 @@ answer-extract-config:
 answer-apply-secret:
     @echo "Decrypting and applying Answer credentials..."
     sops --decrypt clusters/glug-infra/answer/credentials-secret.enc.yaml | kubectl apply -f -
+
+# ---------------------------------------------------------------------------
+# Conduit (Matrix homeserver) day-2 helpers
+# ---------------------------------------------------------------------------
+
+# Show Conduit StatefulSet + pod status.
+[doc('Show Conduit StatefulSet + pod status')]
+conduit-status:
+    kubectl get statefulset,pods,svc,ingress -n conduit -o wide
+
+# Tail Conduit logs.
+[doc('Tail Conduit logs')]
+conduit-logs:
+    kubectl logs -n conduit -l app.kubernetes.io/name=conduit -f --tail=200
+
+# Port-forward Conduit to localhost:6167.
+[doc('Port-forward Conduit to localhost:6167 (for testing)')]
+conduit-port-forward:
+    kubectl -n conduit port-forward svc/conduit-svc 6167:6167
+
+# Create the first admin user in Conduit.
+# Usage: just k8s::conduit-create-admin <username> <password>
+[doc('Create Conduit admin user: <username> <password>')]
+conduit-create-admin username password:
+    kubectl exec -n conduit conduit-0 -- sh -c \
+      'curl -X POST -d "{\"username\":\"{{ username }}\",\"password\":\"{{ password }}\",\"admin\":true}" \
+      "http://localhost:6167/_matrix/client/v3/register?kind=user"'
+
+# Apply Conduit credentials Secret (sops-decrypt).
+[doc('Apply Conduit credentials Secret (sops-decrypt)')]
+conduit-apply-secret:
+    @echo "Decrypting and applying Conduit credentials..."
+    sops --decrypt clusters/glug-infra/conduit/credentials-secret.enc.yaml | kubectl apply -f -

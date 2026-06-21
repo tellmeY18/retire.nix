@@ -133,6 +133,7 @@
               nixpkgs.overlays = [
                 fenix.overlays.default
                 nix-darwin-aerohud.overlays.default
+                self.overlays.custom-packages
               ];
             }
             # aerohud module from the nix-darwin fork (tellmeY18)

@@ -6,7 +6,6 @@
     ../../modules/zfs.nix
     ../../modules/nextcloud.nix
     ../../modules/care.nix
-    ../../modules/conduit.nix
     ../../modules/arr.nix
     ../../modules/neondb.nix
     ../../modules/services/cloudflared-bootstrap.nix
@@ -33,12 +32,6 @@
   };
   nixpkgs.config = {
     allowUnfree = true;
-    # conduwuit 0.4.6 is flagged insecure upstream but is the latest available.
-    # Track upgrade: https://github.com/girlbossceo/conduwuit
-    # TODO: Remove once a non-insecure version is packaged in nixpkgs.
-    permittedInsecurePackages = [
-      "conduwuit-0.4.6"
-    ];
   };
   nix = {
     settings = {

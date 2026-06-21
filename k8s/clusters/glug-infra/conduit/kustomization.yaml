@@ -1,0 +1,30 @@
+---
+# kustomization.yaml — Conduit Matrix homeserver (stateful, RocksDB + S3).
+#
+# Deploys Conduit with:
+#   - RocksDB database on zfs-localpv PVC (pinned to storage nodes)
+#   - S3 media storage via RustFS bucket
+#   - Tailscale ingress (tailnet access) + Traefik ingress (public)
+#
+# First-time setup:
+#   1. Create the S3 bucket: just k8s::create-bucket conduit
+#   2. Edit credentials-secret.enc.yaml with the S3 keys
+#   3. just k8s::apply
+#   4. Register first admin user: just k8s::conduit-create-admin <username> <password>
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: conduit
+
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: conduit
+      app.kubernetes.io/managed-by: kustomize
+    includeSelectors: false
+
+resources:
+  - namespace.yaml
+  - networkpolicy.yaml
+  - statefulset.yaml
+  - tailscale-service.yaml
+  - ingress-traefik.yaml

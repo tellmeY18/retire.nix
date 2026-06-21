@@ -10,5 +10,6 @@
   # Custom packages overlay — adds our own derivations to nixpkgs
   custom-packages = final: _prev: {
     neondb = final.callPackage ../packages/neondb/default.nix { };
+    gomuks = final.callPackage ../packages/gomuks/default.nix { };
   };
 }

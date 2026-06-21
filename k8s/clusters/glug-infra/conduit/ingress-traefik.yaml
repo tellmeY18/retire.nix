@@ -1,0 +1,42 @@
+---
+# Traefik IngressRoute for Conduit Matrix homeserver.
+# Public URL: https://chat.tellmey.fyi
+# TLS: Let's Encrypt via Traefik ACME.
+#
+# Routes all Matrix API paths and well-known delegation
+# to Conduit on the same port 443.
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: conduit-traefik
+  namespace: conduit
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`chat.tellmey.fyi`)
+      kind: Rule
+      services:
+        - name: conduit-svc
+          port: 6167
+  tls:
+    certResolver: letsencrypt
+---
+# HTTP → HTTPS redirect for Conduit.
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: conduit-traefik-redirect
+  namespace: conduit
+spec:
+  entryPoints:
+    - web
+  routes:
+    - match: Host(`chat.tellmey.fyi`)
+      kind: Rule
+      middlewares:
+        - name: redirect-to-https
+          namespace: traefik-system
+      services:
+        - name: conduit-svc
+          port: 6167

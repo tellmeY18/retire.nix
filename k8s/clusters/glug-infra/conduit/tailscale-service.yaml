@@ -1,0 +1,20 @@
+---
+# Tailscale — exposes Conduit on the tailnet.
+# Tailnet URL: https://conduit.<tailnet>.ts.net
+#
+# Matrix clients on the tailnet connect here.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: conduit-tailscale
+  namespace: conduit
+spec:
+  ingressClassName: tailscale
+  defaultBackend:
+    service:
+      name: conduit-svc
+      port:
+        number: 6167
+  tls:
+    - hosts:
+        - conduit
