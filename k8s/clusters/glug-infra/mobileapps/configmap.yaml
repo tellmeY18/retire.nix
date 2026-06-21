@@ -1,0 +1,56 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mobileapps-config
+  namespace: mobileapps
+data:
+  config.yaml: |
+    # Number of worker processes to spawn.
+    num_workers: 0
+
+    # Log error messages and gracefully restart a worker if v8 reports that it
+    # uses more heap (note: not RSS) than this many mb.
+    worker_heap_limit_mb: 250
+
+    # Logger info
+    logging:
+      level: info
+      streams:
+        - type: stdout
+          named_levels: true
+
+    services:
+      - name: service-mobileapp-node
+        module: ./app.js
+        conf:
+          port: 8888
+          cors: "*"
+
+          # CSP for mobile-html
+          mobile_html_csp: "default-src 'none';
+            connect-src https://wiki.fosscell.org https://s3.tellmey.fyi 'self';
+            media-src https://s3.tellmey.fyi https://wiki.fosscell.org 'self';
+            img-src https://s3.tellmey.fyi https://wiki.fosscell.org 'self' data:;
+            object-src 'none';
+            script-src 'self' 'unsafe-inline';
+            style-src https://wiki.fosscell.org 'self' 'unsafe-inline';
+            frame-ancestors 'self'
+            "
+
+          # User agent for requests to MediaWiki
+          user_agent: FOSSCELL Mobile Content Service (wiki.fosscell.org)
+
+          # REST API base URIs — point at wiki.fosscell.org
+          use_request_host: false
+          mobileapps_uri: https://wiki.fosscell.org
+          restbase_req:
+            method: get
+            uri: https://wiki.fosscell.org/api/rest_v1/{domain}/v3/{request.params.path}
+            headers:
+              host: '{{request.params.domain}}'
+              user-agent: '{{user-agent}}'
+
+          # Point at your MediaWiki's Parsoid endpoint
+          mobile_html_rest_api_base_uri: https://wiki.fosscell.org/api/
+          parsoid_uri: https://wiki.fosscell.org/api/rest_v1/

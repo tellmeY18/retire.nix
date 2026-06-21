@@ -1,0 +1,43 @@
+---
+# ingress-traefik.yaml — Proxy /api/rest_v1/ from wiki.fosscell.org to mobileapps service.
+#
+# The Wikipedia mobile app expects /api/rest_v1/ endpoints on the wiki domain.
+# This routes those requests to the mobileapps Node.js service.
+#
+# Traffic flow:
+#   Wikipedia app → https://wiki.fosscell.org/api/rest_v1/page/summary/Main_Page
+#   → Traefik (this IngressRoute)
+#   → mobileapps-svc:8888
+#   → fetches from wiki.fosscell.org/api.php and /api/rest_v1/ (Parsoid)
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: mobileapps-stripprefix
+  namespace: mobileapps
+spec:
+  stripPrefix:
+    prefixes:
+      - /api/rest_v1
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: mobileapps-traefik
+  namespace: mobileapps
+  labels:
+    app.kubernetes.io/name: mobileapps
+    app.kubernetes.io/part-of: mediawiki
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`wiki.fosscell.org`) && PathPrefix(`/api/rest_v1/`)
+      kind: Rule
+      middlewares:
+        - name: mobileapps-stripprefix
+          namespace: mobileapps
+      services:
+        - name: mobileapps-svc
+          port: 8888
+  tls:
+    certResolver: letsencrypt
