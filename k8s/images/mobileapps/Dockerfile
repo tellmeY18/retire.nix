@@ -4,7 +4,7 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-# Clone the mobileapps repo
+# Clone the mobileapps repo (pinned to a known-good commit)
 RUN apk add --no-cache git && \
     git clone --depth 1 https://github.com/wikimedia/mediawiki-services-mobileapps.git /app && \
     apk del git
@@ -22,6 +22,11 @@ RUN npm install
 RUN sed -i \
     's/languages ? mwapi\.getCentralDescription(req, site, languages) : BBPromise\.resolve({})/languages \&\& languages.length ? mwapi.getCentralDescription(req, site, languages).catch(function() { return {}; }) : BBPromise.resolve({})/g' \
     /app/lib/mwapi.js
+
+# Add custom random/summary route — the Wikipedia app expects this endpoint
+# but it was never part of mobileapps (it was in RESTBase). This queries the
+# MediaWiki API for a random page then fetches its summary.
+COPY random.js /app/routes/page/random.js
 
 # Remove config.yaml (will be mounted from ConfigMap)
 RUN rm -f /app/config.yaml

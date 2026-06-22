@@ -20,12 +20,6 @@ data:
         - type: stdout
           named_levels: true
 
-    # Metrics reporter (statsd) - disabled for now
-    metrics:
-      type: statsd
-      host: localhost
-      port: 8125
-
     services:
       - name: service-mobileapp-node
         module: ./app.js
@@ -39,7 +33,7 @@ data:
             x_content_type_options: nosniff
             x_xss_protection: 1; mode=block
 
-          # RESTBase compatibility layer
+          # RESTBase compatibility (required by app.js middleware)
           restbase_compatibility:
             security_headers: true
 
@@ -75,8 +69,7 @@ data:
               content-type: application/x-www-form-urlencoded
             body: '{{ default(request.query, {}) }}'
 
-          # RESTBase-shaped template pointing at MW core REST API
-          # (for endpoints that haven't migrated to core-api-compat yet)
+          # REST API template — proxies to MW core REST API
           restbase_req:
             method: '{{request.method}}'
             uri: https://{{domain}}/rest.php/v1/{+path}
@@ -84,7 +77,7 @@ data:
             headers: '{{request.headers}}'
             body: '{{request.body}}'
 
-          # ResourceLoader template (default uses /w/load.php; our wiki uses /load.php)
+          # ResourceLoader template (our wiki uses /load.php not /w/load.php)
           mw_resource_loader_req:
             method: post
             uri: https://{{domain}}/load.php
@@ -93,13 +86,10 @@ data:
               content-type: application/x-www-form-urlencoded
             body: '{{ default(request.query, {}) }}'
 
-          # RESTBase integration disabled - MobileApps talks directly to MediaWiki
-          # For third-party wikis, RESTBase adds complexity without much benefit.
-
           # Use core Parsoid endpoint (MW 1.45+)
           use_coreparsoid_endpoint: true
 
-          # Point at your MediaWiki's Parsoid endpoint (MW 1.45 uses /rest.php/v1/)
+          # Point at MediaWiki's Parsoid endpoint (MW 1.45 uses /rest.php/v1/)
           mobile_html_rest_api_base_uri: https://wiki.fosscell.org/rest.php/
           mobile_html_local_rest_api_base_uri_template: https://wiki.fosscell.org/rest.php/v1/
           parsoid_uri: https://wiki.fosscell.org/rest.php/v1/
@@ -122,18 +112,3 @@ data:
 
           # Redirect handling (PCS = Page Content Service compatibility)
           pcs_handles_redirects: false
-
-          # Caching configuration (Cassandra-based, disabled for now)
-          caching:
-            enabled: false
-            ttl: 0
-            maxJitter: 0
-            event:
-              stream:
-                change: resource_change
-                purge: resource_purge
-            excludedUserAgents:
-              - RESTBase/WMF
-            cassandra:
-              keyspace: mobileapps
-              storageTable: storage
