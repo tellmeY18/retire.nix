@@ -1,23 +1,22 @@
-# hosts/kenobi/parts/k3s.nix — k3s server (HA) configuration for kenobi.
+# hosts/kenobi/parts/k3s.nix — k3s single control plane for kenobi.
 #
-# kenobi is being promoted from agent to server to form a 2-node HA
-# control plane with chopper. As an OCI cloud VM, kenobi has better
-# uptime guarantees than chopper (a laptop subject to power outages).
+# kenobi is the sole control plane node with embedded etcd.
+# c3po and chopper are agents (workers).
+#
+# After a 2026-06-22 etcd defrag storm that took down the 3-node HA
+# cluster, the architecture was simplified to single-CP to eliminate
+# etcd quorum/snapshot issues on slow hardware.
 #
 # Tailscale IP: 100.73.101.89
-#
-# WARNING: 2-node etcd has NO fault tolerance (need 2/2 for quorum).
-# Promote c3po to server as well for true HA (3 voters, tolerates 1 failure).
 { config, ... }:
 {
   services.k3s-cluster = {
     enable = true;
 
-    # Server — joins existing etcd cluster (chopper is server-init).
-    role = "server";
+    # Single control plane — owns the etcd cluster.
+    role = "server-init";
 
-    # Join the existing cluster via chopper's apiserver.
-    serverAddr = "https://100.107.213.17:6443";
+    # No serverAddr — this IS the server.
 
     # Same join token — sops-nix decrypts at activation.
     tokenFile = config.sops.secrets.k3s-token.path;
@@ -35,6 +34,13 @@
       # Same as chopper — all servers must serve the same shared endpoint.
       "--tls-san=k3s-cp"
       "--tls-san=k3s-cp.tail477f2f.ts.net"
+
+      # ── etcd maintenance ──
+      # Auto-compact every hour to prevent unbounded DB growth.
+      # Without this, the DB grew from 75MB to 125MB in 30 minutes
+      # from MVCC history accumulation (caused the 2026-06-22 defrag storm).
+      "--etcd-arg=auto-compaction-mode=periodic"
+      "--etcd-arg=auto-compaction-retention=1h"
     ];
   };
 

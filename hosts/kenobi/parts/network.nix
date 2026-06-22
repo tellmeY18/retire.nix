@@ -61,6 +61,7 @@
       "tailscaled.service"
       "k3s.service"
     ];
+    bindsTo = [ "k3s.service" ];
     wants = [ "tailscaled.service" ];
     wantedBy = [ "multi-user.target" ];
     # iproute2 must be on PATH — the ExecStartPre/ExecStart use `ip`. Without
