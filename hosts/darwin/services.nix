@@ -173,7 +173,7 @@
           animationDuration = 0.2;
           opacity = 1.0;
           monitorMode = "focusedWindow";
-          command = "/Applications/Kitty.app/Contents/MacOS/kitty";
+          command = "/Users/mathew/.nix-profile/bin/kitty";
         };
 
         # ── Hotkeys (migrated from AeroSpace) ──────────────────────

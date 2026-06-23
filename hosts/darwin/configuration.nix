@@ -4,6 +4,28 @@
 , lib
 , ...
 }:
+
+let
+  # ── Replicate the omniwm module's filterNulls to compute the config file path ──
+  filterAttrsRecursive = pred: set:
+    lib.listToAttrs (
+      lib.concatMap (
+        name: let v = set.${name}; in
+          if pred v
+          then [ (lib.nameValuePair name (
+            if lib.isAttrs v then filterAttrsRecursive pred v
+            else if lib.isList v then
+              (map (i: if lib.isAttrs i then filterAttrsRecursive pred i else i) (lib.filter pred v))
+            else v
+          )) ]
+          else []
+      ) (lib.attrNames set)
+    );
+  filterNulls = filterAttrsRecursive (v: v != null);
+
+  omniwmFormat = pkgs.formats.toml { };
+  omniwmConfigFile = omniwmFormat.generate "settings.toml" (filterNulls config.services.omniwm.settings);
+in
 {
   nixpkgs = {
     config = {
@@ -114,6 +136,72 @@
       ts=/run/current-system/sw/bin/tailscale
       if [ -x "$ts" ] && "$ts" status >/dev/null 2>&1; then
         "$ts" set --accept-dns=false || true
+      fi
+    '';
+  };
+
+  # ── OmniWM config fix: restart OmniWM after Nix config is deployed ─────────
+  # The external nix-darwin-aerohud module writes the Nix settings.toml but
+  # OmniWM doesn't live-reload — it only reads the config at startup and
+  # writes its own defaults (Hyper+Grave quake terminal, etc.) over the file
+  # on every launch.  We override the launchd agent to also restart OmniWM
+  # after writing the Nix config, and add an activation script to handle
+  # darwin-rebuild switch without logging out.
+  launchd.user.agents.omniwmConfig.script = lib.mkForce ''
+    CONFIG_DIR="$HOME/.config/omniwm"
+    NIX_CONFIG="${omniwmConfigFile}"
+
+    # Wait for OmniWM to finish startup and write its defaults
+    sleep 4
+
+    if [ -f "$NIX_CONFIG" ]; then
+      mkdir -p "$CONFIG_DIR"
+
+      # If OmniWM is running, quit it first
+      if pgrep -x OmniWM > /dev/null 2>&1; then
+        osascript -e 'tell application "OmniWM" to quit'
+        sleep 2
+      fi
+
+      # Copy Nix config and lock it BEFORE starting OmniWM
+      install -m 644 "$NIX_CONFIG" "$CONFIG_DIR/settings.toml"
+      chflags uchg "$CONFIG_DIR/settings.toml"
+
+      # Now start OmniWM — it can't overwrite an immutable file
+      open -a OmniWM
+
+      echo "omniwmConfig: re-applied Nix config (immutable), started OmniWM" >&2
+    fi
+  '';
+
+  # Activation script: restart OmniWM after darwin-rebuild switch writes config.
+  # Runs alphabetically after omniwmConfig from the external module.
+  # Removes the immutable flag before the external module's install command runs,
+  # then re-locks after by depending on alphabetical ordering.
+  system.activationScripts.omniwmConfigPre = {
+    text = ''
+      CONFIG_DIR="$HOME/.config/omniwm"
+      if [ -f "$CONFIG_DIR/settings.toml" ]; then
+        chflags nouchg "$CONFIG_DIR/settings.toml" 2>/dev/null || true
+      fi
+    '';
+  };
+
+  # Locks the file after the external module's omniwmConfig writes it.
+  # Alphabetically: omniwmConfig < omniwmConfigPostLock (C < P)
+  system.activationScripts.omniwmConfigPostLock = {
+    text = ''
+      CONFIG_DIR="$HOME/.config/omniwm"
+      if [ -f "$CONFIG_DIR/settings.toml" ]; then
+        chflags uchg "$CONFIG_DIR/settings.toml" 2>/dev/null || true
+      fi
+
+      # Restart OmniWM so it picks up the locked config
+      if pgrep -x OmniWM > /dev/null 2>&1; then
+        echo "restarting OmniWM to apply updated config..." >&2
+        osascript -e 'tell application "OmniWM" to quit'
+        sleep 1
+        open -a OmniWM
       fi
     '';
   };
