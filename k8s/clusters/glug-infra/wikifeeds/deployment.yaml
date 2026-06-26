@@ -1,0 +1,90 @@
+---
+# deployment.yaml — Wikimedia wikifeeds service for Wikipedia mobile app feed support.
+#
+# Provides /api/rest_v1/feed/ endpoints that the Wikipedia mobile app uses to fetch
+# featured content, news, on-this-day, and other feed data.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wikifeeds
+  namespace: wikifeeds
+  labels:
+    app.kubernetes.io/name: wikifeeds
+    app.kubernetes.io/part-of: mediawiki
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: wikifeeds
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: wikifeeds
+    spec:
+      # Spread replicas across different nodes for HA
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: wikifeeds
+                topologyKey: kubernetes.io/hostname
+      # Tolerate storage node taint so we can run on chopper/c3po
+      tolerations:
+        - key: node-role.glug.infra/storage
+          operator: Equal
+          value: "true"
+          effect: NoSchedule
+      containers:
+        - name: wikifeeds
+          # Use build-tagged image for version control
+          image: ghcr.io/tellmey18/wikifeeds:build-1
+          ports:
+            - name: http
+              containerPort: 8889
+          volumeMounts:
+            - name: config
+              mountPath: /etc/wikifeeds
+              readOnly: true
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          livenessProbe:
+            httpGet:
+              path: /_info
+              port: 8889
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /_info
+              port: 8889
+            initialDelaySeconds: 10
+            periodSeconds: 10
+      volumes:
+        - name: config
+          configMap:
+            name: wikifeeds-config
+            items:
+              - key: config.yaml
+                path: config.yaml
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: wikifeeds-svc
+  namespace: wikifeeds
+spec:
+  selector:
+    app.kubernetes.io/name: wikifeeds
+  ports:
+    - port: 8889
+      targetPort: 8889
+      protocol: TCP
+      name: http

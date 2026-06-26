@@ -1,0 +1,73 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: wikifeeds-config
+  namespace: wikifeeds
+data:
+  config.yaml: |
+    # Number of worker processes to spawn.
+    num_workers: 0
+
+    # Log error messages and gracefully restart a worker if v8 reports that it
+    # uses more heap (note: not RSS) than this many mb.
+    worker_heap_limit_mb: 250
+
+    # Logger info
+    logging:
+      level: info
+      streams:
+        - type: stdout
+          named_levels: true
+
+    services:
+      - name: wikifeeds
+        module: ./app.js
+        conf:
+          port: 8889
+          cors: "*"
+
+          # User agent for requests to MediaWiki
+          user_agent: FOSSCELL Wikifeeds Service (wiki.fosscell.org)
+
+          # REST API base URIs — point at wiki.fosscell.org
+          use_request_host: true
+
+          # MediaWiki API template
+          mwapi_req:
+            method: get
+            uri: https://wiki.fosscell.org/w/api.php
+            headers:
+              user-agent: "{{user-agent}}"
+              accept-language: "{{accept-language}}"
+            query: "{{ default(request.query, {}) }}"
+
+          # RESTBase template — wikifeeds proxies to Parsoid for page HTML
+          restbase_req:
+            method: "{{request.method}}"
+            uri: https://wiki.fosscell.org/api/rest_v1/{+path}
+            query: "{{ default(request.query, {}) }}"
+            headers: "{{request.headers}}"
+            body: "{{request.body}}"
+
+          # REST Gateway template
+          rest_gateway_req:
+            method: "{{request.method}}"
+            uri: https://wiki.fosscell.org/api/rest_v1/{+path}
+            query: "{{ default(request.query, {}) }}"
+            headers: "{{request.headers}}"
+            body: "{{request.body}}"
+
+          # MediaWiki appserver template
+          mw_req:
+            method: get
+            uri: https://wiki.fosscell.org/w/index.php
+            query:
+              title: "{{request.params.title}}"
+            headers:
+              user-agent: "{{user-agent}}"
+              accept-language: "{{accept-language}}"
+
+          # Enable page HTML from core Parsoid (MW 1.45+)
+          usecorepagehtml: true
+          debug: false

@@ -137,6 +137,15 @@ RUN cd /var/www/html/extensions && \
     # Lingo — automatic glossary/terminology tooltips
     git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/Lingo
 
+# ─── Extensions: Mobile App Support ─────────────────────────────────
+RUN cd /var/www/html/extensions && \
+    # GeoData — provides geospatial search via geosearch API query
+    # Required by the Android app for the "nearby" / geosearch feature.
+    git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/GeoData && \
+    # GrowthExperiments — provides /rest.php/growthexperiments/user-impact endpoint
+    # Required by the Android app for the User Impact feature.
+    git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/GrowthExperiments
+
 # ─── Extensions: S3 Storage ──────────────────────────────────────────
 RUN cd /var/www/html/extensions && \
     # AWS — S3-compatible storage backend for file uploads
@@ -161,7 +170,8 @@ RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local
     cd /var/www/html/extensions/Elastica && composer install --no-dev --no-interaction && \
     cd /var/www/html/extensions/CirrusSearch && composer install --no-dev --no-interaction && \
     cd /var/www/html/extensions/Widgets && composer install --no-dev --no-interaction && \
-    cd /var/www/html/extensions/Translate && composer install --no-dev --no-interaction
+    cd /var/www/html/extensions/Translate && composer install --no-dev --no-interaction && \
+    cd /var/www/html/extensions/GrowthExperiments && composer install --no-dev --no-interaction
 
 # ─── Semantic MediaWiki (7.0-dev, supports MW 1.45) ──────────────────
 # Standard approach: add to composer.local.json then run update.
@@ -187,6 +197,22 @@ RUN cd /var/www/html && \
 
 # Lua for Scribunto
 RUN ln -sf /usr/bin/lua5.1 /usr/bin/lua || true
+
+# ─── Wikidiff2 (PHP C extension, >= 1.9.0) ───────────────────────────
+# C/PHP extension providing inline word-level diffs for the
+# /rest.php/v1/revision/{id}/compare/{id} endpoint. Not a MediaWiki
+# extension — compiled via phpize and installed as a system extension.
+RUN apk add --no-cache autoconf gcc g++ make php83-dev && \
+    cd /tmp && \
+    git clone --depth 1 -b v1.9.0 https://github.com/wikimedia/mediawiki-php-wikidiff2 /tmp/wikidiff2 && \
+    cd /tmp/wikidiff2 && \
+    phpize && \
+    ./configure && \
+    make -j"$(nproc)" && \
+    make install && \
+    docker-php-ext-enable wikidiff2 && \
+    cd / && rm -rf /tmp/wikidiff2 && \
+    apk del autoconf gcc g++ make php83-dev
 
 # Fix PHP 8.3 compatibility: MediaWiki Rest\StringStream must match PSR-7
 # StreamInterface return types (PHP 8.3 enforces these strictly).

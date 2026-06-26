@@ -334,6 +334,14 @@ data:
     wfLoadExtension( 'EmbedVideo' );
     # RSS: requires SimplePie (verify in build-32)
     wfLoadExtension( 'RSS' );
+    # GeoData — geographic coordinate storage and geospatial search
+    # Required by the Android app for the Geosearch feature.
+    # Creates its own DB table (geo_tags) on update.php.
+    wfLoadExtension( 'GeoData' );
+    # GrowthExperiments — new user onboarding and impact tracking
+    # Required by the Android app for the User Impact endpoint.
+    wfLoadExtension( 'GrowthExperiments' );
+
     # BlogPage + SocialProfile
     # SocialProfile DISABLED — hijacks User: page creation/editing flow.
     # Re-enable once we reconcile its UserWiki: namespace with our {{User Profile}} system.

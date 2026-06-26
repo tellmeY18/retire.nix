@@ -122,6 +122,10 @@ apply:
     @echo "Applying Conduit (sops-decrypt credentials first)..."
     kubectl apply -k clusters/glug-infra/conduit
     sops --decrypt clusters/glug-infra/conduit/credentials-secret.enc.yaml | kubectl apply -f -
+    @echo "Applying mobileapps..."
+    kubectl apply -k clusters/glug-infra/mobileapps
+    @echo "Applying wikifeeds..."
+    kubectl apply -k clusters/glug-infra/wikifeeds
     kubectl apply -k clusters/glug-infra/monitoring
 
 # Preview k8s changes without applying.
@@ -132,6 +136,8 @@ diff:
     kubectl diff -k clusters/glug-infra/mysql-ghost || true
     kubectl diff -k clusters/glug-infra/mysql-mediawiki || true
     kubectl diff -k clusters/glug-infra/conduit || true
+    kubectl diff -k clusters/glug-infra/mobileapps || true
+    kubectl diff -k clusters/glug-infra/wikifeeds || true
     kubectl diff -k clusters/glug-infra/monitoring || true
     helmfile diff
 

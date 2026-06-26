@@ -1,0 +1,47 @@
+---
+# ingress-traefik.yaml — Proxy /api/rest_v1/feed/ from wiki.fosscell.org to wikifeeds service.
+#
+# The Wikipedia mobile app expects /api/rest_v1/feed/ endpoints on the wiki domain.
+# This routes those requests to the wikifeeds Node.js service, which provides
+# featured content, news, on-this-day, and other feed data.
+#
+# Traefik's priority mechanism gives more specific PathPrefix rules higher priority,
+# so /api/rest_v1/feed/ will match BEFORE /api/rest_v1/ (mobileapps).
+#
+# Traffic flow:
+#   Wikipedia app → https://wiki.fosscell.org/api/rest_v1/feed/featured/2026/06/23
+#   → Traefik (this IngressRoute, rewrite to /wiki.fosscell.org/v1/feed/featured/2026/06/23)
+#   → wikifeeds-svc:8889
+#   → fetches from wiki.fosscell.org/w/api.php
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: wikifeeds-rewrite
+  namespace: wikifeeds
+spec:
+  replacePathRegex:
+    regex: ^/api/rest_v1/(.*)
+    replacement: /wiki.fosscell.org/v1/$1
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: wikifeeds-traefik
+  namespace: wikifeeds
+  labels:
+    app.kubernetes.io/name: wikifeeds
+    app.kubernetes.io/part-of: mediawiki
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`wiki.fosscell.org`) && PathPrefix(`/api/rest_v1/feed/`)
+      kind: Rule
+      middlewares:
+        - name: wikifeeds-rewrite
+          namespace: wikifeeds
+      services:
+        - name: wikifeeds-svc
+          port: 8889
+  tls:
+    certResolver: letsencrypt
