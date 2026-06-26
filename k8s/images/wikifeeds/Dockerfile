@@ -6,12 +6,12 @@ WORKDIR /app
 
 # Clone the fosscell branch of our fork — contains patches to support
 # wiki.fosscell.org as a non-Wikimedia wiki domain.
-# The on-this-day.languages.js regex patterns use ${ dashChars } interpolation
-# like all other language entries (not hardcoded Unicode escapes).
-# To sync with upstream: rebase fosscell on upstream/master and push.
-# The patches are documented in scripts/fosscell-patches.js.
+# Pin to a specific commit so the layer cache is naturally invalidated
+# when updating to a newer commit. To update: change WIKIFEEDS_COMMIT.
+ARG WIKIFEEDS_COMMIT=45cfcfc
 RUN apk add --no-cache git && \
-    git clone --depth 1 -b fosscell https://github.com/tellmeY18/mediawiki-services-wikifeeds.git /app && \
+    git clone https://github.com/tellmeY18/mediawiki-services-wikifeeds.git /app && \
+    git -C /app checkout "${WIKIFEEDS_COMMIT}" && \
     apk del git
 
 # Install ALL dependencies (not just production)
