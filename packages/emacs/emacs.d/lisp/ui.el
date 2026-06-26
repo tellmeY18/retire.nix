@@ -15,11 +15,6 @@
       scroll-margin 3
       scroll-step 1)
 
-(set-face-attribute 'default nil
-                    :font "BerkeleyMono Nerd Font"
-                    :height (if (eq system-type 'darwin) 150 180)
-                    :weight 'normal)
-
 (let ((lib (locate-library "kanagawa-themes" t)))
   (when lib
     (add-to-list 'custom-theme-load-path (file-name-directory lib))))

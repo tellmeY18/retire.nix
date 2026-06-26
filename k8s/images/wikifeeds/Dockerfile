@@ -4,9 +4,12 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-# Clone the wikifeeds repo
+# Clone the fosscell branch of our fork — contains patches to support
+# wiki.fosscell.org as a non-Wikimedia wiki domain.
+# To sync with upstream: rebase fosscell on upstream/master and push.
+# The patches are documented in scripts/fosscell-patches.js.
 RUN apk add --no-cache git && \
-    git clone --depth 1 https://github.com/wikimedia/mediawiki-services-wikifeeds.git /app && \
+    git clone --depth 1 -b fosscell https://github.com/tellmeY18/mediawiki-services-wikifeeds.git /app && \
     apk del git
 
 # Install ALL dependencies (not just production)

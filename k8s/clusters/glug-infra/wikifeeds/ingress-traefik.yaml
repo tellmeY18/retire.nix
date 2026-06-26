@@ -10,9 +10,26 @@
 #
 # Traffic flow:
 #   Wikipedia app → https://wiki.fosscell.org/api/rest_v1/feed/featured/2026/06/23
-#   → Traefik (this IngressRoute, rewrite to /wiki.fosscell.org/v1/feed/featured/2026/06/23)
+#   → wikifeeds-featured-fix (rewrites /feed/featured/ to /aggregated/featured/)
+#   → wikifeeds-rewrite (adds domain prefix)
 #   → wikifeeds-svc:8889
 #   → fetches from wiki.fosscell.org/w/api.php
+#
+# NOTE: The mobile app calls /feed/featured/ but wikifeeds serves aggregated
+# content at /aggregated/featured/. The first middleware normalises this.
+
+# Fix: map /feed/featured/ → /aggregated/featured/ (wikifeeds has no /feed/featured/ route)
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: wikifeeds-featured-fix
+  namespace: wikifeeds
+spec:
+  replacePathRegex:
+    regex: ^/api/rest_v1/feed/featured/(.*)
+    replacement: /api/rest_v1/aggregated/featured/$1
+---
+# General wikifeeds rewrite: add domain prefix
 apiVersion: traefik.io/v1alpha1
 kind: Middleware
 metadata:
@@ -38,6 +55,8 @@ spec:
     - match: Host(`wiki.fosscell.org`) && PathPrefix(`/api/rest_v1/feed/`)
       kind: Rule
       middlewares:
+        - name: wikifeeds-featured-fix
+          namespace: wikifeeds
         - name: wikifeeds-rewrite
           namespace: wikifeeds
       services:
