@@ -6,6 +6,8 @@ WORKDIR /app
 
 # Clone the fosscell branch of our fork — contains patches to support
 # wiki.fosscell.org as a non-Wikimedia wiki domain.
+# The on-this-day.languages.js regex patterns use ${ dashChars } interpolation
+# like all other language entries (not hardcoded Unicode escapes).
 # To sync with upstream: rebase fosscell on upstream/master and push.
 # The patches are documented in scripts/fosscell-patches.js.
 RUN apk add --no-cache git && \
