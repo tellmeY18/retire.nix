@@ -338,6 +338,8 @@ data:
     # Required by the Android app for the Geosearch feature.
     # Creates its own DB table (geo_tags) on update.php.
     wfLoadExtension( 'GeoData' );
+    # CommunityConfiguration — required by GrowthExperiments
+    wfLoadExtension( 'CommunityConfiguration' );
     # GrowthExperiments — new user onboarding and impact tracking
     # Required by the Android app for the User Impact endpoint.
     wfLoadExtension( 'GrowthExperiments' );

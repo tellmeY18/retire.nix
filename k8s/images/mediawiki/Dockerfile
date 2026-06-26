@@ -142,6 +142,8 @@ RUN cd /var/www/html/extensions && \
     # GeoData — provides geospatial search via geosearch API query
     # Required by the Android app for the "nearby" / geosearch feature.
     git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/GeoData && \
+    # CommunityConfiguration — required by GrowthExperiments
+    git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/CommunityConfiguration && \
     # GrowthExperiments — provides /rest.php/growthexperiments/user-impact endpoint
     # Required by the Android app for the User Impact feature.
     git clone --depth 1 -b REL1_45 https://gerrit.wikimedia.org/r/mediawiki/extensions/GrowthExperiments
@@ -171,6 +173,7 @@ RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local
     cd /var/www/html/extensions/CirrusSearch && composer install --no-dev --no-interaction && \
     cd /var/www/html/extensions/Widgets && composer install --no-dev --no-interaction && \
     cd /var/www/html/extensions/Translate && composer install --no-dev --no-interaction && \
+    cd /var/www/html/extensions/CommunityConfiguration && composer install --no-dev --no-interaction && \
     cd /var/www/html/extensions/GrowthExperiments && composer install --no-dev --no-interaction
 
 # ─── Semantic MediaWiki (7.0-dev, supports MW 1.45) ──────────────────
