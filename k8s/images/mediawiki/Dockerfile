@@ -202,7 +202,7 @@ RUN ln -sf /usr/bin/lua5.1 /usr/bin/lua || true
 # C/PHP extension providing inline word-level diffs for the
 # /rest.php/v1/revision/{id}/compare/{id} endpoint. Not a MediaWiki
 # extension — compiled via phpize and installed as a system extension.
-RUN apk add --no-cache autoconf gcc g++ make php83-dev && \
+RUN apk add --no-cache autoconf gcc g++ make php83-dev pkgconfig libthai-dev && \
     cd /tmp && \
     git clone --depth 1 -b 1.9.0 https://github.com/wikimedia/mediawiki-php-wikidiff2 /tmp/wikidiff2 && \
     cd /tmp/wikidiff2 && \
@@ -212,7 +212,7 @@ RUN apk add --no-cache autoconf gcc g++ make php83-dev && \
     make install && \
     docker-php-ext-enable wikidiff2 && \
     cd / && rm -rf /tmp/wikidiff2 && \
-    apk del autoconf gcc g++ make php83-dev
+    apk del autoconf gcc g++ make php83-dev pkgconfig libthai-dev
 
 # Fix PHP 8.3 compatibility: MediaWiki Rest\StringStream must match PSR-7
 # StreamInterface return types (PHP 8.3 enforces these strictly).
