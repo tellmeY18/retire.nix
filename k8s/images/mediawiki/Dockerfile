@@ -212,6 +212,9 @@ RUN apk add --no-cache autoconf gcc g++ make php83-dev pkgconfig libthai-dev && 
     make -j"$(nproc)" && \
     make install && \
     docker-php-ext-enable wikidiff2 && \
+    # Explicitly install libthai runtime BEFORE deleting dev package
+    # so libthai.so.0 stays available for the wikidiff2 shared library.
+    apk add --no-cache libthai && \
     cd / && rm -rf /tmp/wikidiff2 && \
     apk del autoconf gcc g++ make php83-dev pkgconfig libthai-dev
 
