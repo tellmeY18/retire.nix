@@ -198,13 +198,14 @@ RUN cd /var/www/html && \
 # Lua for Scribunto
 RUN ln -sf /usr/bin/lua5.1 /usr/bin/lua || true
 
-# ─── Wikidiff2 (PHP C extension, >= 1.9.0) ───────────────────────────
+# ─── Wikidiff2 (PHP C extension, >= 1.14.2) ──────────────────────────
 # C/PHP extension providing inline word-level diffs for the
 # /rest.php/v1/revision/{id}/compare/{id} endpoint. Not a MediaWiki
 # extension — compiled via phpize and installed as a system extension.
+# NOTE: v1.9.0 does not compile on PHP 8.3 (TSRMLS_CC removed).
 RUN apk add --no-cache autoconf gcc g++ make php83-dev pkgconfig libthai-dev && \
     cd /tmp && \
-    git clone --depth 1 -b 1.9.0 https://github.com/wikimedia/mediawiki-php-wikidiff2 /tmp/wikidiff2 && \
+    git clone --depth 1 -b 1.14.2 https://github.com/wikimedia/mediawiki-php-wikidiff2 /tmp/wikidiff2 && \
     cd /tmp/wikidiff2 && \
     phpize && \
     ./configure && \
