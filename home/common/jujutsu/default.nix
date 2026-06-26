@@ -14,9 +14,7 @@ in
   home.packages = with pkgs; [
     gnupg
     sops
-    lazyjj # TUI for jj (lazygit-style)
     jjui # TUI for jj (magit-style)
-    jj-fzf # fzf-powered interactive TUI
   ];
 
   programs.jujutsu = {
@@ -29,52 +27,13 @@ in
         email = "satanvysakh@riseup.net";
       };
 
-      # ── UI settings ────────────────────────────────────────────────
-      ui = {
-        default-command = "log";
-        diff-editor = "vimdiff";
-        pager = "less -FRX";
-        diff-view = "side-by-side";
-      };
-
-      # ── Core behaviours ────────────────────────────────────────────
-      core = {
-        autosquash = true;
-        allow-new-working-copy = true;
-        git-readonly = false;
-      };
-
-      # ── Git interop ────────────────────────────────────────────────
-      git = {
-        auto-local-bookmarks = true;
-        private-commits = "builtin()";
-      };
-
-      # ── Signing — dedicated GPG key for the satanvysakh identity ──
-      # Key is encrypted with sops in secrets/laptop/jj-gpg-key.asc
-      # and imported on home-manager activation (see activationScript).
       signing = {
         sign-all = true;
         backend = "gpg";
         key = jjGpgKeyId;
       };
 
-      # ── Revset aliases ─────────────────────────────────────────────
-      revset-aliases = {
-        log = "ancestors(HEAD)";
-        mine = "author(myself)";
-        conflicts = "conflicted()";
-        wip = "ancestors(HEAD) & ~visible_heads()";
-        recent = "latest(visible_heads(), 20)";
-        unstable = "visible_heads() ~ remote_heads()";
-        stack = "::(mine() & current)";
-      };
 
-      # ── Operation log ──────────────────────────────────────────────
-      operation.max-log-entries = 1000;
-
-      # ── Undo/redo ──────────────────────────────────────────────────
-      undo.limit = 100;
     };
   };
 

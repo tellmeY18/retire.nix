@@ -49,6 +49,10 @@
       url = "github:tellmeY18/nix-darwin/fcb6662388fd037ec686f49024462f359127df6f";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    emacs-overlay = {
+      url = "github:nix-community/emacs-overlay";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs =
@@ -61,6 +65,7 @@
     , sops-nix
     , deploy-rs
     , nix-darwin-aerohud
+    , emacs-overlay
     , ...
     }:
     let
@@ -137,6 +142,7 @@
                 fenix.overlays.default
                 nix-darwin-aerohud.overlays.default
                 self.overlays.custom-packages
+                emacs-overlay.overlays.default
               ];
             }
             # aerohud module from the nix-darwin fork (tellmeY18)

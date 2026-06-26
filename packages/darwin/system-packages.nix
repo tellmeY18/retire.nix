@@ -3,7 +3,7 @@
   environment.systemPackages = lib.optionals pkgs.stdenv.isDarwin [
     # Editors & Development
     pkgs.vim
-    #pkgs.neovim
+    pkgs.emacs-explore
 
     # Media & Graphics
     #pkgs.mpv

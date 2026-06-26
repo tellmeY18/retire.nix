@@ -11,5 +11,6 @@
   custom-packages = final: _prev: {
     neondb = final.callPackage ../packages/neondb/default.nix { };
     gomuks = final.callPackage ../packages/gomuks/default.nix { };
+    emacs-explore = final.callPackage ../packages/emacs/default.nix { };
   };
 }
