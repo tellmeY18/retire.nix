@@ -204,7 +204,7 @@ RUN ln -sf /usr/bin/lua5.1 /usr/bin/lua || true
 # extension — compiled via phpize and installed as a system extension.
 RUN apk add --no-cache autoconf gcc g++ make php83-dev && \
     cd /tmp && \
-    git clone --depth 1 -b v1.9.0 https://github.com/wikimedia/mediawiki-php-wikidiff2 /tmp/wikidiff2 && \
+    git clone --depth 1 -b 1.9.0 https://github.com/wikimedia/mediawiki-php-wikidiff2 /tmp/wikidiff2
     cd /tmp/wikidiff2 && \
     phpize && \
     ./configure && \
