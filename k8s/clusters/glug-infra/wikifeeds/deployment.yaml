@@ -40,7 +40,7 @@ spec:
       containers:
         - name: wikifeeds
           # Use build-tagged image for version control
-          image: ghcr.io/tellmey18/wikifeeds:build-3
+          image: ghcr.io/tellmey18/wikifeeds:build-5
           ports:
             - name: http
               containerPort: 8889

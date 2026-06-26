@@ -33,19 +33,19 @@ data:
           # REST API base URIs — point at wiki.fosscell.org
           use_request_host: true
 
-          # MediaWiki API template
+          # MediaWiki API template — wiki uses empty scriptpath, so /api.php not /w/api.php
           mwapi_req:
             method: get
-            uri: https://wiki.fosscell.org/w/api.php
+            uri: https://{{domain}}/api.php
             headers:
               user-agent: "{{user-agent}}"
               accept-language: "{{accept-language}}"
             query: "{{ default(request.query, {}) }}"
 
-          # RESTBase template — wikifeeds proxies to Parsoid for page HTML
+          # RESTBase template — used when usecorepagehtml is false (legacy path)
           restbase_req:
             method: "{{request.method}}"
-            uri: https://wiki.fosscell.org/api/rest_v1/{+path}
+            uri: https://{{domain}}/rest.php/v1/{+path}
             query: "{{ default(request.query, {}) }}"
             headers: "{{request.headers}}"
             body: "{{request.body}}"
@@ -53,15 +53,23 @@ data:
           # REST Gateway template
           rest_gateway_req:
             method: "{{request.method}}"
-            uri: https://wiki.fosscell.org/api/rest_v1/{+path}
+            uri: https://{{domain}}/rest.php/v1/{+path}
             query: "{{ default(request.query, {}) }}"
             headers: "{{request.headers}}"
             body: "{{request.body}}"
 
-          # MediaWiki appserver template
+          # MW REST API template — used when usecorepagehtml is true (getParsoidHtml
+          # calls mwCorePageHTMLGet which uses mwrestapi_tpl). Must match wiki's
+          # rest.php path (not /w/rest.php — wiki has empty scriptpath).
+          mwrestapi_req:
+            method: get
+            uri: https://{{domain}}/rest.php/v1/{+path}
+            headers: "{{request.headers}}"
+
+          # MediaWiki appserver template — wiki uses empty scriptpath, so /index.php
           mw_req:
             method: get
-            uri: https://wiki.fosscell.org/w/index.php
+            uri: https://{{domain}}/index.php
             query:
               title: "{{request.params.title}}"
             headers:

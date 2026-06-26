@@ -8,7 +8,7 @@ WORKDIR /app
 # wiki.fosscell.org as a non-Wikimedia wiki domain.
 # Pin to a specific commit so the layer cache is naturally invalidated
 # when updating to a newer commit. To update: change WIKIFEEDS_COMMIT.
-ARG WIKIFEEDS_COMMIT=45cfcfc
+ARG WIKIFEEDS_COMMIT=9f60cd8
 RUN apk add --no-cache git && \
     git clone https://github.com/tellmeY18/mediawiki-services-wikifeeds.git /app && \
     git -C /app checkout "${WIKIFEEDS_COMMIT}" && \
