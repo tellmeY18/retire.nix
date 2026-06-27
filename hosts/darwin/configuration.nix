@@ -99,7 +99,10 @@ in
   # Tailscale CLI — lets `tailscale` work in terminals while the macOS
   # Tailscale app (system extension) owns the actual tunnel + DNS injection.
   # Do NOT enable services.tailscale here; see services.nix for the rationale.
-  environment.systemPackages = [ pkgs.tailscale ];
+  environment.systemPackages = [
+    pkgs.firefox-bin
+    pkgs.tailscale
+  ];
 
   # MagicDNS resolver — macOS /etc/resolver/<domain> files are loaded by
   # mDNSResponder at startup and take precedence over scutil entries injected

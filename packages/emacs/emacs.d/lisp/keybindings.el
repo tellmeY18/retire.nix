@@ -27,6 +27,7 @@
   (kbd "<leader>xd")       #'flymake-show-buffer-diagnostics
   (kbd "<leader>xn")       #'flymake-goto-next-error
   (kbd "<leader>xp")       #'flymake-goto-prev-error
+  (kbd "<leader>wt")       #'my/toggle-title-bar
   (kbd "<leader>hf")       #'describe-function
   (kbd "<leader>hv")       #'describe-variable
   (kbd "<leader>hk")       #'describe-key)
@@ -74,6 +75,8 @@
     "SPC G d" "diff"
     "SPC x"   "diagnostics"
     "SPC h"   "help"
-    "SPC t"   "terminal"))
+    "SPC t"   "terminal"
+    "SPC w"   "window"
+    "SPC w t" "toggle title-bar")
 
 ;;; keybindings.el ends here

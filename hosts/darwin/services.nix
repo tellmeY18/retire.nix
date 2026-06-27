@@ -290,6 +290,12 @@
           { bundleId = "dev.zed.Zed"; minWidth = 360.0; minHeight = 240.0; }
           { bundleId = "com.mitchellh.ghostty"; minWidth = 90.0; minHeight = 48.0; }
           { bundleId = "com.apple.Safari"; minWidth = 574.0; minHeight = 220.0; }
+
+          # Emacs — floating rectangle, borderless via emacs-macport
+          # Title bar is hidden inside Emacs (mac-hide-title-bar t in ui.el);
+          # OmniWM floats it at a fixed size so it behaves like a focused
+          # writing/coding popout rather than a tiled pane.
+          { bundleId = "org.gnu.Emacs"; layout = "float"; minWidth = 1400.0; minHeight = 900.0; }
         ];
       };
     };
