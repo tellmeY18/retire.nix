@@ -162,38 +162,38 @@ jj bookmark delete <name>          # only if you accidentally created a local on
 
 ## Working with the Remote
 
+GitHub hosts the canonical `develop` branch. Locally we stay bookmark-free — the remote `develop` is only touched momentarily at push time.
+
 ```bash
-# Fetch all branches from origin
+# Fetch latest from remote
 jj git fetch
 
 # Fetch from a specific remote
 jj git fetch --remote origin
+```
 
-# Push a change (creates a remote branch automatically)
-jj git push --change <change-id>
+### Typical sync cycle (push to develop)
+
+```bash
+# 1. Rebase your work onto latest remote develop
+jj rebase -d develop@origin
+
+# 2. Point a local develop bookmark at your commit and push
+jj bookmark set develop -r @
+jj git push -b develop
+
+# 3. Forget the local bookmark — remote develop stays intact
+jj bookmark forget develop
 ```
 
 ### Before pushing
 
-1. Confirm you're pushing the right change:
+1. Confirm you're pushing the right commit:
    ```bash
-   jj --no-pager log -r <change-id>
+   jj --no-pager log -r @
    ```
 
 2. Ensure commits are atomic with clear messages.
-
-### Typical sync cycle
-
-```bash
-# Get latest from remote
-jj git fetch
-
-# Rebase your work onto latest trunk
-jj rebase -d main@origin
-
-# Push your change (no local bookmark needed)
-jj git push --change <change-id>
-```
 
 ## Handling Conflicts
 
