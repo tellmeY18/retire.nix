@@ -152,7 +152,7 @@
           animationDuration = 0.2;
           opacity = 1.0;
           monitorMode = "focusedWindow";
-          command = "/Applications/Ghostty.app/Contents/MacOS/ghostty";
+          command = "/Users/mathew/.nix-profile/bin/kitty";
         };
 
         # ── Hotkeys (migrated from AeroSpace) ──────────────────────
@@ -316,7 +316,7 @@
             command = "/Users/mathew/.nix-profile/bin/kitty";
           }
 
-          # Quake terminal (Ghostty dropdown via OmniWM)
+          # Quake terminal (Kitty dropdown via OmniWM)
           {
             id = "toggleQuakeTerminal";
             binding = "Option+Return";

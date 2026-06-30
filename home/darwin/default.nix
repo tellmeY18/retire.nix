@@ -1,7 +1,8 @@
-{ config
-, lib
-, pkgs
-, ...
+{
+  config,
+  lib,
+  pkgs,
+  ...
 }:
 
 {
@@ -11,6 +12,7 @@
     ./emacs/default.nix
     ./pulse/default.nix
     ./gomuks/default.nix
+    ./kitty-launcher/default.nix
     ../common/packages/dev-k8s.nix
   ];
 
