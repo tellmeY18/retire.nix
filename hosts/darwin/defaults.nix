@@ -468,7 +468,7 @@
         # Deployed by home-manager to ~/Library/Services/Launch Kitty.workflow/
         "com.apple.ServicesMenu" = {
           KeyboardShortcuts = {
-            "Launch Kitty" = "~$k"; # Opt+Shift+K
+            "Launch Kitty" = "~t"; # Opt+T
           };
         };
       };
