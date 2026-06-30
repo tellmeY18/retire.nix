@@ -45,10 +45,6 @@
       url = "github:serokell/deploy-rs";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-    nix-darwin-aerohud = {
-      url = "github:tellmeY18/nix-darwin/fcb6662388fd037ec686f49024462f359127df6f";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
     emacs-overlay = {
       url = "github:nix-community/emacs-overlay";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -56,17 +52,17 @@
   };
 
   outputs =
-    inputs@{ self
-    , nix-homebrew
-    , nix-index-database
-    , nixvim
-    , fenix
-    , disko
-    , sops-nix
-    , deploy-rs
-    , nix-darwin-aerohud
-    , emacs-overlay
-    , ...
+    inputs@{
+      self,
+      nix-homebrew,
+      nix-index-database,
+      nixvim,
+      fenix,
+      disko,
+      sops-nix,
+      deploy-rs,
+      emacs-overlay,
+      ...
     }:
     let
       myLib = import ./lib { inherit inputs; };
@@ -140,15 +136,10 @@
             {
               nixpkgs.overlays = [
                 fenix.overlays.default
-                nix-darwin-aerohud.overlays.default
                 self.overlays.custom-packages
                 emacs-overlay.overlays.default
               ];
             }
-            # aerohud module from the nix-darwin fork (tellmeY18)
-            "${nix-darwin-aerohud}/modules/services/aerohud"
-            # omniwm module from the same fork — manages ~/.config/omniwm/settings.toml
-            "${nix-darwin-aerohud}/modules/services/omniwm"
             ./modules/dev/rust.nix
             ./hosts/darwin/homebrew.nix
           ];

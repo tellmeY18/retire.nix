@@ -84,6 +84,7 @@
     pkgs.ghostscript
 
     # Applications
+    pkgs.kitty
     #pkgs.thunderbird-esr
 
     # Development Tools

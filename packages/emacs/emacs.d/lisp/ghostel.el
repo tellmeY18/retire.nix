@@ -59,9 +59,10 @@
       (user-error "System clipboard is empty"))))
 
 (with-eval-after-load 'evil-ghostel
-  (evil-define-key* 'insert evil-ghostel-mode-map
-                    (kbd "C-<escape>") #'evil-normal-state
-                    (kbd "C-c") #'ghostel-send-C-c
+  (evil-define-key* '(insert emacs) evil-ghostel-mode-map
+                      (kbd "C-<escape>") #'evil-normal-state
+                      (kbd "M-o")       #'ghostel-emacs-mode
+                      (kbd "C-c") #'ghostel-send-C-c
                     (kbd "C-x") (lambda () (interactive) (ghostel-send-key "x" "ctrl"))
                     (kbd "C-t") #'my/ghostel-fresh
                     (kbd "C-<tab>") #'ghostel-next

@@ -77,6 +77,6 @@
     "SPC h"   "help"
     "SPC t"   "terminal"
     "SPC w"   "window"
-    "SPC w t" "toggle title-bar")
+    "SPC w t" "toggle title-bar"))
 
 ;;; keybindings.el ends here

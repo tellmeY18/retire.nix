@@ -21,7 +21,7 @@
   # gomuks Matrix client (Darwin-only)
   programs.gomuks.enable = true;
 
-  # Ghostty terminal — quake terminal for OmniWM (darwin-only)
+  # Ghostty terminal (darwin-only)
   # Package is null because Ghostty is installed via Homebrew cask.
   # Config lives at ~/.config/ghostty/config, generated from Nix.
   programs.ghostty = {
@@ -45,22 +45,22 @@
       selection-background = "3a1a2a";
 
       palette = [
-        "0=#0a0a0f"   # black
-        "1=#c12127"   # red
-        "2=#4a9c6f"   # green
-        "3=#d4a84b"   # yellow
-        "4=#4a6a9c"   # blue
-        "5=#7a4a8a"   # magenta
-        "6=#4a9c9c"   # cyan
-        "7=#d4c5d4"   # white
-        "8=#14101a"   # bright black
-        "9=#e63946"   # bright red
-        "10=#5abc7f"  # bright green
-        "11=#e8c05b"  # bright yellow
-        "12=#5a8abe"  # bright blue
-        "13=#9a5aaa"  # bright magenta
-        "14=#5abeae"  # bright cyan
-        "15=#f0e0f0"  # bright white
+        "0=#0a0a0f" # black
+        "1=#c12127" # red
+        "2=#4a9c6f" # green
+        "3=#d4a84b" # yellow
+        "4=#4a6a9c" # blue
+        "5=#7a4a8a" # magenta
+        "6=#4a9c9c" # cyan
+        "7=#d4c5d4" # white
+        "8=#14101a" # bright black
+        "9=#e63946" # bright red
+        "10=#5abc7f" # bright green
+        "11=#e8c05b" # bright yellow
+        "12=#5a8abe" # bright blue
+        "13=#9a5aaa" # bright magenta
+        "14=#5abeae" # bright cyan
+        "15=#f0e0f0" # bright white
       ];
 
       # Window

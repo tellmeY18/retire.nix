@@ -30,7 +30,6 @@
     };
 
     casks = [
-      "omniwm"
       "cyberduck"
       "caffeine"
       "gimp"

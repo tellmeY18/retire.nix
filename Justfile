@@ -254,48 +254,6 @@ clean:
     nix-collect-garbage -d
 
 # ═══════════════════════════════════════════════════════════════════════════
-#  OMNIWM — window manager recovery
-# ═══════════════════════════════════════════════════════════════════════════
-
-# Restart OmniWM. Use this when keybinds randomly stop working and
-# characters (¡™£¢∞) appear instead. This kills OmniWM, re-applies the
-# Nix config, locks it, and starts OmniWM again.
-[doc('Restart OmniWM (fix: keybinds showing characters instead of actions)')]
-restart-omniwm:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    CONFIG_DIR="$HOME/.config/omniwm"
-    # Extract the Nix config store path from the currently-active launchd
-    # agent script (the plist points to a script that has the path baked in).
-    LAUNCHD_PLIST="$HOME/Library/LaunchAgents/org.nixos.omniwmConfig.plist"
-    if [ -f "$LAUNCHD_PLIST" ]; then
-      SCRIPT_PATH=$(grep -o '/nix/store/[a-z0-9]*-omniwmConfig-start' "$LAUNCHD_PLIST" | head -1)
-      if [ -n "$SCRIPT_PATH" ] && [ -f "$SCRIPT_PATH" ]; then
-        NIX_CONFIG=$(grep -o '/nix/store/[a-z0-9]*-settings\.toml' "$SCRIPT_PATH" | head -1)
-      fi
-    fi
-    # Fallback: pick the most recent settings.toml from the store
-    if [ -z "$NIX_CONFIG" ] || [ ! -f "$NIX_CONFIG" ]; then
-      NIX_CONFIG=$(find /nix/store -maxdepth 1 -name '*settings.toml' -type f 2>/dev/null \
-        | sort -r | head -1)
-    fi
-    if [ ! -f "$NIX_CONFIG" ]; then
-      echo "ERROR: Nix-generated config not found in /nix/store" >&2
-      exit 1
-    fi
-    echo "Quitting OmniWM..."
-    pgrep -x OmniWM > /dev/null 2>&1 && osascript -e 'tell app "OmniWM" to quit' || true
-    sleep 2
-    mkdir -p "$CONFIG_DIR"
-    if [ -f "$CONFIG_DIR/settings.toml" ]; then
-      chflags nouchg "$CONFIG_DIR/settings.toml" 2>/dev/null || true
-    fi
-    install -m 644 "$NIX_CONFIG" "$CONFIG_DIR/settings.toml"
-    chflags uchg "$CONFIG_DIR/settings.toml"
-    open -a OmniWM
-    echo "✓ OmniWM restarted with immutable Nix config"
-
-# ═══════════════════════════════════════════════════════════════════════════
 #  FLAKE — input management
 # ═══════════════════════════════════════════════════════════════════════════
 
