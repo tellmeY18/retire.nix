@@ -27,7 +27,10 @@
   (kbd "<leader>xd")       #'flymake-show-buffer-diagnostics
   (kbd "<leader>xn")       #'flymake-goto-next-error
   (kbd "<leader>xp")       #'flymake-goto-prev-error
-  (kbd "<leader>wt")       #'my/toggle-title-bar
+   (kbd "<leader>wn")       #'make-frame-command
+   (kbd "<leader>wd")       #'delete-frame
+   (kbd "<leader>wo")       #'other-frame
+   (kbd "<leader>wt")       #'my/toggle-title-bar
   (kbd "<leader>hf")       #'describe-function
   (kbd "<leader>hv")       #'describe-variable
   (kbd "<leader>hk")       #'describe-key)
@@ -77,6 +80,14 @@
     "SPC h"   "help"
     "SPC t"   "terminal"
     "SPC w"   "window"
+    "SPC w n" "new frame"
+    "SPC w d" "delete frame"
+    "SPC w o" "other frame"
     "SPC w t" "toggle title-bar"))
+
+(dotimes (n 9)
+  (which-key-add-key-based-replacements
+    (format "SPC %d" (1+ n))
+    (format "tab %d" (1+ n))))
 
 ;;; keybindings.el ends here

@@ -22,21 +22,17 @@ spec:
         app.kubernetes.io/component: federation
         app.kubernetes.io/part-of: ghost-activitypub
     spec:
+      # Schedule on storage nodes (chopper/c3po) with the fediverse services.
+      nodeSelector:
+        node-role.glug.infra/storage: "true"
       tolerations:
-        - key: node-role.glug.infra/storage
+        - effect: NoSchedule
+          key: node-role.glug.infra/storage
+          operator: Exists
+        - key: node-role.glug.infra/storage-only
           operator: Equal
           value: "true"
-          effect: NoSchedule
-      affinity:
-        nodeAffinity:
-          preferredDuringSchedulingIgnoredDuringExecution:
-            - weight: 100
-              preference:
-                matchExpressions:
-                  - key: node-role.glug.infra/storage
-                    operator: In
-                    values:
-                      - "true"
+          effect: PreferNoSchedule
       containers:
         - name: activitypub
           image: ghcr.io/tellmey18/activitypub:build-1

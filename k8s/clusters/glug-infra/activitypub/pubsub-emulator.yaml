@@ -20,21 +20,16 @@ spec:
         app.kubernetes.io/name: pubsub-ap
         app.kubernetes.io/part-of: ghost-activitypub
     spec:
+      nodeSelector:
+        node-role.glug.infra/storage: "true"
       tolerations:
-        - key: node-role.glug.infra/storage
+        - effect: NoSchedule
+          key: node-role.glug.infra/storage
+          operator: Exists
+        - key: node-role.glug.infra/storage-only
           operator: Equal
           value: "true"
-          effect: NoSchedule
-      affinity:
-        nodeAffinity:
-          preferredDuringSchedulingIgnoredDuringExecution:
-            - weight: 100
-              preference:
-                matchExpressions:
-                  - key: node-role.glug.infra/storage
-                    operator: In
-                    values:
-                      - "true"
+          effect: PreferNoSchedule
       containers:
         - name: pubsub
           image: gcr.io/google.com/cloudsdktool/google-cloud-cli:499.0.0-emulators

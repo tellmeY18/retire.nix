@@ -30,7 +30,12 @@ data:
     default-authentication-plugin=mysql_native_password
 
     # --- InnoDB tuned for reads on a ZFS-backed datadir ---
-    innodb-buffer-pool-size=2G
+    # CRITICAL: buffer-pool-size MUST fit within the container's memory
+    # limit (1Gi) with room for logs, connections, and OS. The previous
+    # value of 2G caused OOMKilled (135 times in 8 days) — MySQL tried
+    # to allocate 2Gi buffer pool in a 1Gi container.
+    # 512M gives ~85% cache hit ratio for a wiki with ~5K pages.
+    innodb-buffer-pool-size=512M
     innodb-log-file-size=256M
     innodb-flush-method=O_DIRECT
     innodb-flush-neighbors=0

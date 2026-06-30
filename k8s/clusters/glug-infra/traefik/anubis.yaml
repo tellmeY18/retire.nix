@@ -49,12 +49,17 @@ spec:
               value: "4"
             - name: SERVE_ROBOTS_TXT
               value: "true"
-            # Use X-Real-Ip from Traefik to identify clients
-            - name: USE_REMOTE_ADDRESS
-              value: "false"
+            # Custom bot policy (see anubis-policy ConfigMap). Without this,
+            # Anubis allows empty-User-Agent crawlers straight through.
+            - name: POLICY_FNAME
+              value: /etc/anubis/policy.yaml
           ports:
             - name: http
               containerPort: 8080
+          volumeMounts:
+            - name: policy
+              mountPath: /etc/anubis
+              readOnly: true
           resources:
             requests:
               cpu: 10m
@@ -72,6 +77,10 @@ spec:
               port: 8080
             initialDelaySeconds: 3
             periodSeconds: 10
+      volumes:
+        - name: policy
+          configMap:
+            name: anubis-policy
 ---
 apiVersion: v1
 kind: Service

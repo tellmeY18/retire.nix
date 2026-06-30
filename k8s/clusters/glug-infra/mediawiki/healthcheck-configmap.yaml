@@ -1,0 +1,24 @@
+---
+# Simplified healthcheck for Kubernetes liveness probes.
+# The full healthcheck.php (DB + Redis checks) caused cascading restarts:
+# when PHP-FPM workers are all busy serving user requests, the probe
+# can't get a worker, times out, and Kubernetes kills the pod.
+# This lightweight version just verifies PHP-FPM is responding.
+# The readiness probe still checks DB + Redis via api.php.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mediawiki-healthcheck
+  namespace: mediawiki
+data:
+  healthcheck.php: |
+    <?php
+    /**
+     * Lightweight liveness probe — PHP-FPM availability only.
+     * Do NOT add DB, Redis, or external service checks here.
+     * Those belong in the readiness probe (api.php).
+     * Returns HTTP 200 with {"status":"ok"} in <1ms.
+     */
+    http_response_code(200);
+    header("Content-Type: application/json");
+    echo json_encode(["status" => "ok", "php" => true]);

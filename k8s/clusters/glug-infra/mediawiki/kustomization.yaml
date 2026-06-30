@@ -15,6 +15,7 @@ resources:
   - networkpolicy.yaml
   - deployment.yaml
   - localsettings-configmap.yaml
+  - healthcheck-configmap.yaml
   - maintenance-jobs-configmap.yaml
   - cronjobs.yaml
   - tailscale-service.yaml
