@@ -49,17 +49,13 @@ in
   imports = [
     ../../profiles/base.nix
     ../../packages/darwin
+    ./defaults.nix
     ./programs.nix
     ./services.nix
     ./bar.nix
   ];
   system = {
-    defaults = {
-      loginwindow = {
-        LoginwindowText = "Declare Nix ! Not War";
-      };
-
-    };
+    defaults = { };
     activationScripts = {
       # Runs before the `homebrew` activation script alphabetically.
       # Trusts 3rd-party taps so brew bundle doesn't refuse to load their casks.
