@@ -1,30 +1,42 @@
-{ pkgs
-, config
-, self
-, lib
-, ...
+{
+  pkgs,
+  config,
+  self,
+  lib,
+  ...
 }:
 
 let
   # ── Replicate the omniwm module's filterNulls to compute the config file path ──
-  filterAttrsRecursive = pred: set:
+  filterAttrsRecursive =
+    pred: set:
     lib.listToAttrs (
       lib.concatMap (
-        name: let v = set.${name}; in
-          if pred v
-          then [ (lib.nameValuePair name (
-            if lib.isAttrs v then filterAttrsRecursive pred v
-            else if lib.isList v then
-              (map (i: if lib.isAttrs i then filterAttrsRecursive pred i else i) (lib.filter pred v))
-            else v
-          )) ]
-          else []
+        name:
+        let
+          v = set.${name};
+        in
+        if pred v then
+          [
+            (lib.nameValuePair name (
+              if lib.isAttrs v then
+                filterAttrsRecursive pred v
+              else if lib.isList v then
+                (map (i: if lib.isAttrs i then filterAttrsRecursive pred i else i) (lib.filter pred v))
+              else
+                v
+            ))
+          ]
+        else
+          [ ]
       ) (lib.attrNames set)
     );
   filterNulls = filterAttrsRecursive (v: v != null);
 
   omniwmFormat = pkgs.formats.toml { };
-  omniwmConfigFile = omniwmFormat.generate "settings.toml" (filterNulls config.services.omniwm.settings);
+  omniwmConfigFile = omniwmFormat.generate "settings.toml" (
+    filterNulls config.services.omniwm.settings
+  );
 in
 {
   nixpkgs = {
@@ -39,6 +51,7 @@ in
     ../../packages/darwin
     ./programs.nix
     ./services.nix
+    ./bar.nix
   ];
   system = {
     defaults = {
@@ -143,13 +156,58 @@ in
     '';
   };
 
-  # ── OmniWM config fix: restart OmniWM after Nix config is deployed ─────────
+  # ── OmniWM config + lifecycle ──────────────────────────────────────
+  #
   # The external nix-darwin-aerohud module writes the Nix settings.toml but
-  # OmniWM doesn't live-reload — it only reads the config at startup and
-  # writes its own defaults (Hyper+Grave quake terminal, etc.) over the file
-  # on every launch.  We override the launchd agent to also restart OmniWM
-  # after writing the Nix config, and add an activation script to handle
-  # darwin-rebuild switch without logging out.
+  # OmniWM doesn't live-reload — it only reads the config at startup, and
+  # writes its own defaults over the file on every launch. We override the
+  # activation script and launchd agent to:
+  #   1. Unlock the config (remove uchg)
+  #   2. Install the Nix-generated config
+  #   3. Lock the config (set uchg) so OmniWM can't overwrite it
+  #   4. Restart OmniWM so it picks up the locked config
+  #
+  # ═══════════════════════════════════════════════════════════════════════
+  # IMPORTANT ALPHABETICAL ORDERING NOTE
+  # ═══════════════════════════════════════════════════════════════════════
+  # Activation scripts are sorted by attribute name. A separate Pre script
+  # will NOT sort before "omniwmConfig" because "Pre" > "" (no suffix) in
+  # ASCII — the prefix without a suffix sorts FIRST. So we MUST override
+  # omniwmConfig itself with a single script that does unlock + install +
+  # lock + restart, rather than splitting into Pre/PostLock scripts.
+  # ═══════════════════════════════════════════════════════════════════════
+  system.activationScripts.omniwmConfig = lib.mkForce {
+    text = ''
+      CONFIG_DIR="$HOME/.config/omniwm"
+      NIX_CONFIG="${omniwmConfigFile}"
+
+      echo "omniwmConfig: deploying Nix config to $CONFIG_DIR/settings.toml" >&2
+      mkdir -p "$CONFIG_DIR"
+
+      # Remove immutable flag so install can write
+      if [ -f "$CONFIG_DIR/settings.toml" ]; then
+        chflags nouchg "$CONFIG_DIR/settings.toml" 2>/dev/null || true
+      fi
+
+      # Install the Nix-generated config
+      install -m 644 "$NIX_CONFIG" "$CONFIG_DIR/settings.toml"
+
+      # Lock it so OmniWM can't write its defaults over it
+      chflags uchg "$CONFIG_DIR/settings.toml"
+
+      # Restart OmniWM so it picks up the locked config
+      if pgrep -x OmniWM > /dev/null 2>&1; then
+        echo "omniwmConfig: restarting OmniWM to apply updated config..." >&2
+        osascript -e 'tell application "OmniWM" to quit'
+        sleep 1
+        open -a OmniWM
+      fi
+    '';
+  };
+
+  # Launchd agent: re-apply Nix config on every login.
+  # Overrides the external module's version to also lock the file and
+  # restart OmniWM (not just copy the config while OmniWM is running).
   launchd.user.agents.omniwmConfig.script = lib.mkForce ''
     CONFIG_DIR="$HOME/.config/omniwm"
     NIX_CONFIG="${omniwmConfigFile}"
@@ -176,38 +234,6 @@ in
       echo "omniwmConfig: re-applied Nix config (immutable), started OmniWM" >&2
     fi
   '';
-
-  # Activation script: restart OmniWM after darwin-rebuild switch writes config.
-  # Runs alphabetically after omniwmConfig from the external module.
-  # Removes the immutable flag before the external module's install command runs,
-  # then re-locks after by depending on alphabetical ordering.
-  system.activationScripts.omniwmConfigPre = {
-    text = ''
-      CONFIG_DIR="$HOME/.config/omniwm"
-      if [ -f "$CONFIG_DIR/settings.toml" ]; then
-        chflags nouchg "$CONFIG_DIR/settings.toml" 2>/dev/null || true
-      fi
-    '';
-  };
-
-  # Locks the file after the external module's omniwmConfig writes it.
-  # Alphabetically: omniwmConfig < omniwmConfigPostLock (C < P)
-  system.activationScripts.omniwmConfigPostLock = {
-    text = ''
-      CONFIG_DIR="$HOME/.config/omniwm"
-      if [ -f "$CONFIG_DIR/settings.toml" ]; then
-        chflags uchg "$CONFIG_DIR/settings.toml" 2>/dev/null || true
-      fi
-
-      # Restart OmniWM so it picks up the locked config
-      if pgrep -x OmniWM > /dev/null 2>&1; then
-        echo "restarting OmniWM to apply updated config..." >&2
-        osascript -e 'tell application "OmniWM" to quit'
-        sleep 1
-        open -a OmniWM
-      fi
-    '';
-  };
 
   # LaunchAgent — fixes DNS on every login:
   #   1. Disables Tailscale accept-dns (it conflicts with /etc/resolver)

@@ -15,6 +15,7 @@
       "gtk+3"
       "baresip"
       "dbus"
+      "mole"
       "bash"
       "adwaita-icon-theme"
       "hapi-fhir-cli"
