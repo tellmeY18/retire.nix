@@ -3,7 +3,7 @@
   environment.systemPackages = lib.optionals pkgs.stdenv.isDarwin [
     # Editors & Development
     pkgs.vim
-    pkgs.emacs-explore
+    pkgs.emacs-macport
 
     # Media & Graphics
     #pkgs.mpv
@@ -77,6 +77,7 @@
     pkgs.meson
     pkgs.ninja
     pkgs.gcc14
+    pkgs.zig          # straight.el needs zig to build ghostel's native module
 
     # Documentation & Text Processing
     pkgs.pandoc

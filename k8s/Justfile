@@ -107,8 +107,11 @@ apply:
     @echo "Applying RustFS credentials (sops-decrypt) before the StatefulSet..."
     sops --decrypt clusters/glug-infra/rustfs/credentials-secret.enc.yaml | kubectl apply -f -
     kubectl apply -k clusters/glug-infra/rustfs
+    kubectl apply -k clusters/glug-infra/attic
     kubectl apply -f clusters/glug-infra/monitoring/namespace.yaml
     helmfile sync
+    @echo "Applying Attic credentials (sops-decrypt)..."
+    sops --decrypt clusters/glug-infra/attic/credentials-secret.enc.yaml | kubectl apply -f -
     @echo "Applying Ghost MGR DB secrets (sops-decrypt), then the cluster..."
     sops --decrypt clusters/glug-infra/mysql-ghost/credentials-secret.enc.yaml | kubectl apply -f -
     sops --decrypt clusters/glug-infra/mysql-ghost/proxysql-ghost-config-secret.enc.yaml | kubectl apply -f -

@@ -554,6 +554,37 @@ data:
     # Don't run jobs on web requests — the sidecar handles them.
     $wgJobRunRate = 0;
 
+    ## Bot lockdown: block ALL Special: pages for anonymous users.
+    # During the active bot attack (scrapers saturating PHP-FPM via Special:Drilldown
+    # and Special:RecentChangesLinked), ALL Special: pages are restricted to
+    # logged-in users. Only the four pages needed to actually log in are accessible
+    # anonymously. This is enforced at three layers:
+    #   1. Anubis: DENY expensive Special: outright; CHALLENGE rest at difficulty 10
+    #   2. Traefik: 1 req/s + 3 concurrent InFlightReq cap per IP on /Special:
+    #   3. HERE: PHP-level block so nothing touches the DB unless authenticated
+    # To lift the lockdown: remove or expand $loginPages below.
+    $wgHooks['SpecialPageBeforeExecute'][] = function ( $special, $subPage ) {
+        static $loginPages = [
+            'UserLogin',     // login form (also 'Userlogin' alias)
+            'Userlogin',
+            'CreateAccount', // registration
+            'PasswordReset', // password recovery
+            'Userlogout',    // logout
+        ];
+        if (
+            !$special->getUser()->isRegistered()
+            && !in_array( $special->getName(), $loginPages, true )
+        ) {
+            $out = $special->getOutput();
+            $out->setPageTitle( wfMessage( 'accmailtitle' )->text() );
+            $out->showPermissionsErrorPage(
+                [ [ 'badaccess-groups', wfMessage( 'group-user-member' )->text(), 1 ] ]
+            );
+            return false;
+        }
+        return true;
+    };
+
     ## Misc
     $wgCachePages = true;
     $wgEnableMetaDescriptionFunctions = true;

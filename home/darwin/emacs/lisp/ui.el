@@ -37,9 +37,6 @@
 (add-to-list 'default-frame-alist '(left . 180))
 (add-to-list 'default-frame-alist '(top . 80))
 
-;; ── Full-screen workspace — Emacs IS the OS ──────────────────
-(add-to-list 'default-frame-alist '(fullscreen . fullboth))
-
 ;; ── Toggle title bar when borderless gets in the way ─────────
 (defun my/toggle-title-bar ()
   "Show or hide the Emacs title bar (emacs-macport).

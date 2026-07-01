@@ -1,0 +1,33 @@
+---
+# PHP-FPM pool override — mounted at /usr/local/etc/php-fpm.d/zz-pool-override.conf.
+# The zz- prefix ensures this loads last and overrides the image's default www.conf.
+#
+# Why max_children=40:
+#   With memory limit 4Gi, each PHP worker peaks at ~80MB under MW load.
+#   40 workers × 80MB = 3.2GB, leaving headroom for OS + OPcache + APC.
+#   Previously 20 workers — a burst of 20 concurrent Cargo/RCLinked requests
+#   saturated the pool and starved the liveness probe → crash loop.
+#
+# Why request_terminate_timeout=90:
+#   DB queryTimeout in LocalSettings.php is 30s per query.
+#   Complex SMW/Cargo pages may chain several queries, so 90s is safe
+#   but still kills truly stuck workers (e.g. a locked table) so they
+#   free up rather than blocking the pool indefinitely.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mediawiki-phpfpm-override
+  namespace: mediawiki
+  labels:
+    app.kubernetes.io/name: mediawiki
+    app.kubernetes.io/part-of: mediawiki
+data:
+  zzz-max-children.conf: |
+    [www]
+    pm = dynamic
+    pm.max_children = 40
+    pm.start_servers = 5
+    pm.min_spare_servers = 3
+    pm.max_spare_servers = 10
+    pm.max_requests = 500
+    request_terminate_timeout = 90

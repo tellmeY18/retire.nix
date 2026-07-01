@@ -12,9 +12,12 @@ metadata:
     app.kubernetes.io/name: mediawiki
     app.kubernetes.io/part-of: mediawiki
 spec:
-  replicas: 1
+  replicas: 2
   strategy:
-    type: Recreate
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
   selector:
     matchLabels:
       app.kubernetes.io/name: mediawiki
@@ -24,36 +27,30 @@ spec:
         app.kubernetes.io/name: mediawiki
         app.kubernetes.io/part-of: mediawiki
     spec:
-      # Hard-pinned to kenobi — single big pod, hostPath for SMW config
-      # requires all pods on the same node.
-      nodeSelector:
-        kubernetes.io/hostname: kenobi
+      # Pin to kenobi (cloud VM, always available). MediaWiki must never
+      # run on c3po/chopper which are laptops subject to power/network loss.
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: In
+                    values:
+                      - kenobi
       initContainers:
-        # Verifies DB connectivity and runs one-time SMW store bootstrap.
-        # NOTE: DB schema migrations (update.php) are NOT run here — they
-        # caused a fatal death spiral: update.php acquires table locks,
-        # blocking other pods' requests → probes fail → pods killed →
-        # their init containers also run update.php → more locks.
-        # Run migrations via: kubectl apply -f maintenance-job.yaml
-        # (only needed after deployments with schema changes).
+        # Runs DB migrations BEFORE web containers start.
+        # Ensures schema is always up-to-date on every deploy.
+        # Connects directly to primary MySQL (bypasses ProxySQL).
         - name: db-migrate
           image: ghcr.io/tellmey18/mediawiki:build-64
           command:
             - sh
             - -c
             - |
-              echo "=== DB connectivity check ==="
-              php -r '
-                try {
-                  $m = new mysqli(getenv("MW_DB_HOST") ?: "mysql-mediawiki-db.mysql-mediawiki.svc.cluster.local",
-                    "mediawiki", getenv("MW_DB_PASSWORD"), "mediawiki");
-                  echo "DB: OK (" . $m->stat() . ")\n";
-                  $m->close();
-                } catch (Throwable $e) {
-                  echo "DB: " . $e->getMessage() . "\n";
-                  exit(1);
-                }
-              '
+              echo "=== Running MediaWiki update.php ==="
+              timeout 60 php -d memory_limit=512M /var/www/html/maintenance/run.php update --quick 2>&1 | tail -10 || true
+              echo "=== Migrations complete ==="
               # One-time SMW store bootstrap. SMW 7.0 keeps its real setup
               # marker in the DATABASE (shared by all pods), so we gate on our
               # own sentinel file on the shared hostPath. setupStore runs ONLY
@@ -125,18 +122,15 @@ spec:
               subPath: LocalSettings.php
             - name: smw-config
               mountPath: /smw-config
-            # Override the image's healthcheck.php — the lightweight ConfigMap
-            # version avoids DB/Redis calls that can't get a worker during
-            # pool saturation, preventing cascading liveness failures.
-            - name: healthcheck
-              mountPath: /var/www/html/healthcheck.php
-              subPath: healthcheck.php
+            - name: phpfpm-override
+              mountPath: /usr/local/etc/php-fpm.d/zzz-max-children.conf
+              subPath: zzz-max-children.conf
           resources:
             requests:
-              cpu: 500m
+              cpu: 100m
               memory: 512Mi
             limits:
-              cpu: "4"
+              cpu: "2"
               memory: 4Gi
           livenessProbe:
             httpGet:
@@ -144,21 +138,15 @@ spec:
               port: 80
             initialDelaySeconds: 30
             periodSeconds: 30
-            # Increased from 5s — the old timeout was too tight during
-            # pool saturation. The new healthcheck is ~1ms, but K8s
-            # connection setup + pod CPU contention need more headroom.
-            timeoutSeconds: 10
+            timeoutSeconds: 5
             failureThreshold: 3
           readinessProbe:
             httpGet:
               path: /api.php?action=query&meta=siteinfo&format=json
               port: 80
             initialDelaySeconds: 15
-            # Increased from 15s to 30s — the api.php query can be slow
-            # when all workers are saturated; the old 15s period meant
-            # 45s total (3 failures) was too aggressive.
-            periodSeconds: 30
-            timeoutSeconds: 15
+            periodSeconds: 15
+            timeoutSeconds: 10
             failureThreshold: 3
           startupProbe:
             httpGet:
@@ -166,7 +154,7 @@ spec:
               port: 80
             initialDelaySeconds: 60
             periodSeconds: 10
-            timeoutSeconds: 10
+            timeoutSeconds: 5
             failureThreshold: 30
 
         # Dedicated job runner — continuously drains the MW job queue.
@@ -206,20 +194,17 @@ spec:
         - name: localsettings
           configMap:
             name: mediawiki-localsettings
-        # Simplified liveness healthcheck — replaces the image's
-        # healthcheck.php which does heavyweight DB + Redis checks.
-        # The full dependency check is done by the readiness probe.
-        - name: healthcheck
-          configMap:
-            name: mediawiki-healthcheck
         # Shared SMW config/marker directory. hostPath is safe here because
-        # the single MediaWiki pod is hard-pinned to kenobi via nodeSelector,
-        # so the pod + the maintenance Job (also pinned to kenobi) see the
-        # same .smw.json. This makes SMW setupStore a run-once operation.
+        # every MediaWiki pod is hard-pinned to kenobi via nodeAffinity, so
+        # all pods + the maintenance Job (also pinned to kenobi) see the same
+        # .smw.json. This makes SMW setupStore a run-once operation.
         - name: smw-config
           hostPath:
             path: /var/lib/mediawiki/smw-config
             type: DirectoryOrCreate
+        - name: phpfpm-override
+          configMap:
+            name: mediawiki-phpfpm-override
 ---
 apiVersion: v1
 kind: Service

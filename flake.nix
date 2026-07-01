@@ -178,6 +178,12 @@
             sops-nix.nixosModules.sops
             disko.nixosModules.disko
           ];
+          # yoda — phase 1 (bootstrap): disko only. sops-nix is added in
+          # phase 2 alongside Tailscale + k3s once secrets exist.
+          yoda = [
+            ./hosts/yoda/disko-config.nix
+            disko.nixosModules.disko
+          ];
         };
       };
 

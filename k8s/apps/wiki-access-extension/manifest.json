@@ -1,0 +1,31 @@
+{
+  "manifest_version": 3,
+  "name": "FOSS Cell Wiki Access",
+  "version": "1.0.0",
+  "description": "Grants seamless, challenge-free access to wiki.fosscell.org for NITC community members.",
+
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "wiki-access@fosscell.nitc.ac.in",
+      "strict_min_version": "109.0"
+    }
+  },
+
+  "background": {
+    "service_worker": "background.js"
+  },
+
+  "permissions": [
+    "declarativeNetRequest",
+    "declarativeNetRequestWithHostAccess"
+  ],
+
+  "host_permissions": [
+    "https://wiki.fosscell.org/*"
+  ],
+
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "FOSS Cell Wiki Access"
+  }
+}

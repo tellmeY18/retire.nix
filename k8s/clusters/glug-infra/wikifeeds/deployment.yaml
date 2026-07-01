@@ -21,9 +21,22 @@ spec:
       labels:
         app.kubernetes.io/name: wikifeeds
     spec:
-      # Pin to kenobi — minimal resource node for light services.
-      nodeSelector:
-        kubernetes.io/hostname: kenobi
+      # Spread replicas across different nodes for HA
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: wikifeeds
+                topologyKey: kubernetes.io/hostname
+      # Tolerate storage node taint so we can run on chopper/c3po
+      tolerations:
+        - key: node-role.glug.infra/storage
+          operator: Equal
+          value: "true"
+          effect: NoSchedule
       containers:
         - name: wikifeeds
           # Use build-tagged image for version control
@@ -37,11 +50,11 @@ spec:
               readOnly: true
           resources:
             requests:
-              cpu: 10m
-              memory: 64Mi
-            limits:
-              cpu: 100m
+              cpu: 50m
               memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
           livenessProbe:
             httpGet:
               path: /_info

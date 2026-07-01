@@ -29,18 +29,11 @@ spec:
         app.kubernetes.io/component: blog
         app.kubernetes.io/part-of: ghost
     spec:
-      # Schedule on storage nodes (chopper/c3po) — ghost and fediverse
-      # services don't need the kenobi compute node's resources.
-      nodeSelector:
-        node-role.glug.infra/storage: "true"
       tolerations:
-        - effect: NoSchedule
-          key: node-role.glug.infra/storage
-          operator: Exists
-        - key: node-role.glug.infra/storage-only
+        - key: node-role.glug.infra/storage
           operator: Equal
           value: "true"
-          effect: PreferNoSchedule
+          effect: NoSchedule
       affinity:
         podAntiAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:

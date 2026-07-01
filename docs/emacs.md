@@ -1,250 +1,185 @@
-# Emacs — Lessons from Zero
+# Emacs — Simple & Stupid Guide
 
-## Lesson 0: Open and Close
+## Where things live
+
+| What | Path |
+|------|------|
+| Config source | `home/darwin/emacs/` in this repo |
+| Runtime config | `~/.config/emacs/` → symlinked to repo (no rebuild needed) |
+| Module loader | `init.el` — bootstraps MELPA, then loads everything in `lisp/` |
+| UI / theme / scrolling | `lisp/ui.el` |
+| Evil / leader | `lisp/evil.el` |
+| Mode line | `lisp/modeline.el` |
+| Completions | `lisp/completion.el` |
+| LSP / major modes | `lisp/ide.el` |
+| Terminal | `lisp/ghostel.el` |
+| Markdown | `lisp/markdown.el` |
+| Keybindings | `lisp/keybindings.el` |
+| Workspaces | `lisp/workspace.el` |
+| Packages | `init.el` — add/remove `use-package` lines for MELPA packages |
+| Cache | `~/.cache/emacs/` |
+| State (recentf, savehist, custom.el) | `~/.local/state/emacs/` |
+
+## Iterating
+
+Edit any `.el` file in `home/darwin/emacs/` and restart Emacs (or `M-x eval-buffer`).
+No `nh darwin rebuild` needed — config is live from the repo.
+
+## Opening
 
 ```sh
-emacs-gui    # GUI app with a Dock icon
-emacs        # terminal mode (inside your current terminal)
+emacs-gui        # GUI app (Dock icon, proper macOS app)
+emacs            # terminal (runs inside your current terminal)
+emacsclient -t   # faster: connects to a running Emacs daemon
+emacsclient -c   # GUI frame from terminal
 ```
 
-To quit: `C-x C-c` or `:x` then Enter.
+## It's Vim Now
 
-When Emacs opens, you see a terminal (ghostel). That's normal. You live in the shell.
+Evil is on by default. You get `hjkl`, modes, `:w`, `:q`, `dd`, `yy`, `p`, `u`/`C-r`, the works.
 
----
-
-## Lesson 1: It's Just Vim
-
-Evil gives you Vim inside Emacs. The mode-line has a tag at the very left:
-
-```
-NORMAL | INSERT | VISUAL
-```
-
-| Do this | Key |
-|---------|-----|
-| Go to normal mode | `<Esc>` |
-| Go to insert mode | `i` |
-| Move around | `h j k l` |
-| Save | `:w` Enter |
-| Quit | `:q` Enter |
-| Save and quit | `:wq` Enter |
+| What | Key |
+|------|-----|
+| Go back to Normal | `<Esc>` in insert/visual |
+| Quit something (minibuffer, completion) | `<Esc>` |
 | Undo | `u` |
 | Redo | `C-r` |
-| Delete a line | `dd` |
-| Copy a line | `yy` |
-| Paste | `p` |
-| Visual select | `v` then move, then `d`/`y`/etc. |
-| Find file | `:e <file>` Enter |
 
-That's it. If you know Vim, you know 90% of Emacs now.
+## The Leader Key = Space
 
----
+`<Space>` in normal/visual mode opens the leader menu. Which-key shows you everything. Common ones:
 
-## Lesson 2: The Terminal (Ghostel)
+| Key | Does What |
+|-----|-----------|
+| `<Space> f` | Find file anywhere (fd) |
+| `<Space> e` | Toggle file tree (neotree) |
+| `<Space><Space>` | Find file in current project |
+| `<Space> b b` | Switch buffer (no special buffers) |
+| `<Space> b B` | Switch buffer (including special buffers) |
+| `<Space> g p` | Search in project (ripgrep) |
+| `<Space> g l` | Search current buffer (consult-line) |
+| `<Space> d` | List diagnostics |
+| `<Space> s` | Jump to symbol in file (imenu) |
+| `<Space> S` | Jump to LSP symbol across project |
+| `<Space> G G` | Magit status |
+| `<Space> G c` | Magit log for current file |
+| `<Space> c a` | LSP code actions |
+| `<Space> c r` | LSP rename |
+| `<Space> x d` | Show buffer diagnostics |
+| `<Space> x n/p` | Next/prev error |
 
-When Emacs starts, it opens a ghostel terminal in the current window. It's a real zsh. You can do anything you'd do in a terminal.
+Start typing after `<Space>` and which-key will show you everything.
 
-**Inside the terminal (insert mode — you're typing shell commands):**
+## Workspaces (Tab Bar)
 
-| Key | What |
-|-----|------|
-| `C-<Esc>` | Leave the terminal. Now you're in normal mode (browsing). |
-| `C-t` | Open a fresh terminal right here |
-| `C-<Tab>` | Switch to the next terminal buffer |
-| `C-S-<Tab>` | Switch to the previous terminal buffer |
-| `C-S-v` | Paste from system clipboard |
-| `C-c` | Send Ctrl-C (interrupt) |
-
-**Inside the terminal (normal mode — browsing scrollback):**
-
-| Key | What |
-|-----|------|
-| `j`/`k` | Scroll up/down in terminal history |
-| `C-t` | Open a fresh terminal |
-| `RET` | Open the file path under cursor in Emacs |
-| `]l` / `[l` | Next / previous hyperlink in terminal output |
-
-**Open files from the shell:**
-
-```sh
-e  main.rs      # open file (replaces the terminal window)
-es main.rs      # open file in a horizontal split (terminal stays)
-ev main.rs      # open file in a vertical split
-```
-
----
-
-## Lesson 3: The Leader Key — It's Space
-
-Press `<Space>` in normal mode. A menu pops up (which-key). Keep typing to see more.
-
-The most useful ones:
-
-| Keys | What |
-|------|------|
-| `SPC f` | Find any file (`fd`) |
-| `SPC SPC` | Find file in the current project |
-| `SPC b b` | Switch to another buffer (ignores \*scratch\*-type buffers) |
-| `SPC b B` | Switch buffer (shows *everything*) |
-| `SPC g p` | Search text in project (`ripgrep`) |
-| `SPC g l` | Search text in the current file |
-| `SPC e` | Toggle the file tree sidebar (neotree) |
-
-Type `SPC` and wait half a second — which-key shows you the full menu.
-
----
-
-## Lesson 4: Windows, Splits, and Terminals
-
-You can have terminals and files side by side.
-
-**New frames (real OS windows):**
-
-| Keys | What |
-|------|------|
-| `SPC w n` | New frame — another OS window into the same Emacs session |
-| `SPC w d` | Delete the current frame |
-| `SPC w o` | Go to the other frame |
-
-**Splits (panes inside a frame):**
-
-| Keys | What |
-|------|------|
-| `SPC t s` | Split window horizontally (top/bottom) and open a terminal in the new pane |
-| `SPC t v` | Split window vertically (left/right) and open a terminal in the new pane |
-| `SPC t t` | Replace the current window with a terminal |
-
-**Move between windows (panes):** Use the mouse, or:
-
-- `C-w h/j/k/l` — Vim-style window navigation (left/down/up/right)
-- `C-w w` — cycle windows
-
-**Resize windows:**
-
-| Keys | What |
-|------|------|
-| `C-w =` | Balance window sizes |
-| `C-w -` / `C-w +` | Shrink / grow height |
-| `C-w <` / `C-w >` | Shrink / grow width |
-
-**Close window / split:**
-
-| Keys | What |
-|------|------|
-| `C-w c` | Close the current window (keep the buffer alive) |
-| `C-w o` | Keep only the current window (close all others) |
-
----
-
-## Lesson 5: Code Editing (LSP)
-
-When you open a code file (Rust, TS, Go, Python, Nix, Elixir, etc.), Eglot starts a language server automatically. You get:
+Emacs starts with three named tab-bar workspaces — **ohc** (ohcnetwork), **10b** (10bedicu), and **jira** (Jira MCP server with a ghostel terminal). Each workspace tracks its own window layout, buffer list, and project root.
 
 | Key | What |
 |-----|------|
-| `K` | Hover — show docs for the thing under cursor |
-| `gd` | Go to definition |
-| `gr` | Find all references |
-| `gi` | Go to implementation |
-| `gt` | Go to type definition |
-| `SPC c a` | Code actions (auto-fix, refactor, etc.) |
-| `SPC c r` | Rename the symbol everywhere in the project |
-| `SPC S` | Search symbols across the whole project |
-| `SPC s` | Search symbols in the current file |
-| `SPC x n` / `SPC x p` | Next / previous error (flymake) |
-| `SPC d` | List all diagnostics |
+| `<Space> 1-9` | Switch to tab by number |
+| `<Space> [` / `<Space> ]` | Previous / next tab |
+| `<Space> t n` | New tab |
+| `<Space> t k` | Close current tab |
+| `M-x my/workspace-ohc` | Jump/create ohc workspace |
+| `M-x my/workspace-10b` | Jump/create 10b workspace |
+| `M-x my/workspace-jira` | Jump/create jira workspace (with terminal) |
 
----
+Use `<Space><Space>` (`project-find-file`) within a workspace to browse files relative to that workspace's project root. `tab-bar-history-mode` is on — `C-x <left>`/`C-x <right>` navigates tab history.
 
-## Lesson 6: Git (Magit)
+## File Tree (Neotree)
 
-`SPC G G` opens Magit status — the best Git UI that exists.
-
-From the Magit status buffer:
-
-| Key | What |
-|-----|------|
-| `s` | Stage the file under cursor |
-| `S` | Stage everything |
-| `c c` | Create a commit (write message, `C-c C-c` to confirm) |
-| `P P` | Push to remote |
-| `F F` | Pull from remote |
-| `b b` | Switch branch |
-| `l l` | Show log |
-| `f f` | Show log for current file |
-
-Other git keys from normal mode:
-
-| Keys | What |
-|------|------|
-| `SPC G G` | Magit status |
-| `SPC G c` | Magit log for the current file |
-| `SPC G do` | Diff working tree |
-| `SPC G dc` | Bury magit buffer |
-
----
-
-## Lesson 7: The File Tree (Neotree)
-
-`SPC e` toggles the file tree sidebar.
-
-| In the tree | What |
-|-------------|------|
+| In neotree | What |
+|------------|------|
 | `o` / `RET` | Open file |
 | `s` | Open in vertical split |
 | `S` | Open in horizontal split |
 | `g` | Refresh |
-| `R` | Rename file |
-| `c` | Create file |
-| `d` | Delete file |
-| `q` | Hide the tree |
+| `R` | Rename |
+| `c` | Create |
+| `d` | Delete |
+| `q` | Hide |
 | `H` | Toggle hidden files |
 
----
+## Completions (Corfu + Vertico)
 
-## Lesson 8: Completions
+- **In-buffer completions**: popup appears automatically after 2 chars (Corfu). `TAB` / `S-TAB` to cycle, `RET` to pick.
+- **Everywhere else** (M-x, switch buffer, find file): vertical list (Vertico). Type to narrow, `C-n`/`C-p` or arrows to move. `RET` to select.
+- **Orderless**: type space-separated parts in any order — `foo bar` matches anything containing both.
+- **`C-M-i`**: manually trigger completion.
+- **`C-h`** after a command shows help in a tooltip (eldoc-box).
+- **`C-x C-f`**: file finder (orderless search with `M-r` for history).
 
-There are two completion systems:
+## LSP (eglot)
 
-**In-buffer (Corfu):** As you type, a popup appears. `TAB` / `S-TAB` to cycle, `RET` to pick.
+LSP starts automatically when you open supported files (Rust, TypeScript, Go, Python, Nix, Elixir, JSON, YAML, Dockerfile, Bash, QML).
 
-**Everywhere else (Vertico):** `M-x`, `SPC b b`, `SPC f` — a vertical list appears. Type to narrow. `C-n`/`C-p` to move. `RET` to select.
+| In a file | What |
+|-----------|------|
+| `K` | Help at point (hover docs) |
+| `gd` | Go to definition |
+| `gr` | Find references |
+| `gi` | Go to implementation |
+| `gt` | Go to type definition |
+| `<Space> c a` | Code actions |
+| `<Space> c r` | Rename across project |
 
-**Orderless:** You can type words in any order. `log err` matches anything with both "log" and "err".
+## Ghostel (Terminal Inside Emacs)
 
----
+Opens a real zsh in a buffer. Not a terminal emulator — a pseudo-terminal with Emacs integration.
 
-## Lesson 9: Text Size and Markdown
+| Key (insert mode) | What |
+|-------------------|------|
+| `C-t` | New terminal tab |
+| `C-<Tab>` | Next tab |
+| `C-S-<Tab>` | Previous tab |
+| `C-S-v` | Paste clipboard |
+| `C-c` | Send Ctrl-C |
+| `C-<Esc>` | Back to normal mode |
+| `C-x` | Send Ctrl-X |
 
-**Zoom:**
+| Key (normal mode) | What |
+|-------------------|------|
+| `C-t` | New terminal tab |
+| `RET` | Open file path at cursor |
+| `]l` / `[l` | Next/prev hyperlink |
+| `o` etc. | Normal Vim motion in scroll-back |
+
+### Shell commands for files
+
+Inside a ghostel terminal, use these to open files in Emacs:
+
+```sh
+e  <file>     # open file (replaces current window)
+es <file>     # open file in a horizontal split
+ev <file>     # open file in a vertical split
+```
+
+## Text size
 
 | Key | What |
 |-----|------|
 | `C-+` | Bigger text |
 | `C--` | Smaller text |
-| `C-=` | Reset to default size |
+| `C-=` | Reset text size |
 
-**Markdown:** `.md` files open in GFM mode. Markup hides in normal mode (WYSIWYG) and shows when you start typing. Word wrap is on.
+## Markdown
 
----
+- `.md` files open in GFM mode automatically.
+- **WYSIWYG**: markup hides in normal mode, shows when you start typing.
+- Code blocks are fontified.
+- `visual-line-mode` is on (word wrap at window edge).
 
-## Lesson 10: Where Things Live
+## Theme
 
-| What | Path |
-|------|------|
-| Config directory | `packages/emacs/emacs.d/` in this repo |
-| Module loader | `init.el` — loads everything in `lisp/` |
-| UI / theme / scrolling | `lisp/ui.el` |
-| Evil / Vim keybindings | `lisp/evil.el` |
-| Mode line | `lisp/modeline.el` |
-| Completions | `lisp/completion.el` |
-| LSP / language modes | `lisp/ide.el` |
-| Terminal integration | `lisp/ghostel.el` |
-| Markdown | `lisp/markdown.el` |
-| Keybindings | `lisp/keybindings.el` |
-| Package list | `default.nix` — add/remove MELPA packages here |
-| Cache | `~/.cache/emacs/` |
-| State (recent files, history, custom.el) | `~/.local/state/emacs/` |
+Kanagawa Wave. If you want to change it, edit the `load-theme` line in `ui.el`.
 
-To add a package: add it to the `emacsPkgs.melpaPackages` list in `packages/emacs/default.nix`, then rebuild.
+## Other Bits
+
+- `C-x C-f` — open file
+- `C-x C-s` — save
+- `C-x b` — switch buffer (with Vertico preview)
+- `C-x k` — kill buffer
+- `C-x C-c` — quit Emacs
+- `M-x` — run any command (Vertico + orderless fuzzy search)
+- `M-x global-text-scale-adjust` — another way to resize text
+- `M-x my/change-major-mode` — switch language mode

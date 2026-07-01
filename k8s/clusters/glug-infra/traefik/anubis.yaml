@@ -46,20 +46,17 @@ spec:
             - name: COOKIE_DOMAIN
               value: "wiki.fosscell.org"
             - name: DIFFICULTY
-              value: "4"
+              value: "8"
             - name: SERVE_ROBOTS_TXT
               value: "true"
-            # Custom bot policy (see anubis-policy ConfigMap). Without this,
-            # Anubis allows empty-User-Agent crawlers straight through.
             - name: POLICY_FNAME
               value: /etc/anubis/policy.yaml
+            # Use X-Real-Ip from Traefik to identify clients
+            - name: USE_REMOTE_ADDRESS
+              value: "false"
           ports:
             - name: http
               containerPort: 8080
-          volumeMounts:
-            - name: policy
-              mountPath: /etc/anubis
-              readOnly: true
           resources:
             requests:
               cpu: 10m
@@ -77,10 +74,155 @@ spec:
               port: 8080
             initialDelaySeconds: 3
             periodSeconds: 10
+          volumeMounts:
+            - name: policy
+              mountPath: /etc/anubis
+              readOnly: true
       volumes:
         - name: policy
           configMap:
             name: anubis-policy
+---
+# Anubis bot policy.
+# Rules are evaluated top-to-bottom; first match wins.
+# DENY = 403. CHALLENGE = JS proof-of-work. ALLOW = pass through immediately.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: anubis-policy
+  namespace: traefik-system
+  labels:
+    app.kubernetes.io/name: anubis
+data:
+  policy.yaml: |
+    bots:
+      # Allow our own agents (rotating token) BEFORE any deny/challenge rule.
+      # The MCP client can't solve proof-of-work, so it must bypass the
+      # challenge entirely. ROTATE: replace the token literal here and in
+      # wiki-mcp. See file header.
+      - name: nitc-agent
+        user_agent_regex: ^NITCWikiAgent/.*token=e5e28642935802159128da31361c53b3
+        action: ALLOW
+
+      # FOSS Cell Wiki Access browser extension — community members install this
+      # to bypass the PoW challenge. The Traefik IngressRoute already routes them
+      # directly to mediawiki-svc (skipping Anubis), but this ALLOW rule is a
+      # belt-and-suspenders fallback in case traffic routes through Anubis.
+      # Token rotation: update here AND in ingress-traefik.yaml, then rollout restart anubis.
+      - name: fosscell-member
+        user_agent_regex: "FOSSCellWiki/token=af8675e4daaaf432b2735927e7c4e0dcbd3ac020c1687863"
+        action: ALLOW
+
+      # Deny pathological scrapers
+      - import: (data)/bots/_deny-pathological.yaml
+      - import: (data)/bots/aggressive-brazilian-scrapers.yaml
+
+      # Block AI/LLM bots aggressively
+      - import: (data)/meta/ai-block-aggressive.yaml
+
+      # meta-webindexer = Meta/Facebook's aggressive general-purpose indexer.
+      # Unlike facebookexternalhit (link previews), it has no legitimate reason
+      # to crawl Special:RecentChangesLinked. It runs headless Chrome, solves
+      # our PoW, then fires dozens of concurrent expensive DB queries until
+      # PHP-FPM hits pm.max_children and the liveness probe times out → crash
+      # loop. DENY before any challenge or allow rule.
+      - name: meta-webindexer-deny
+        user_agent_regex: "meta-webindexer"
+        action: DENY
+
+      # ── Bot lockdown: path-based Special: page protection ─────────────────
+      #
+      # DENY — the most expensive Special: pages have no legitimate anonymous
+      # use and directly caused PHP-FPM saturation + crash loops.
+      # Two past attacks: meta-webindexer on RecentChangesLinked; UA-rotating
+      # scraper on Drilldown. Both are outright denied here so they never
+      # consume a PHP-FPM worker slot at all.
+      # MediaWiki's SpecialPageBeforeExecute hook is a second line of defense
+      # for any request that makes it past this layer.
+      - name: deny-expensive-special-pages
+        path_regex: "^/Special:(Drilldown|RecentChangesLinked|Search|Export|AllPages|AllFiles|Statistics|Recentchanges|WhatLinksHere|LinkedPages|Deadendpages|Wantedpages|LongPages|ShortPages|Ancientpages|NewFiles|NewPages|Protectedpages|Listfiles|Unusedfiles|Unusedtemplates|Uncategorizedpages|Uncategorizedcategories|BrokenRedirects|DoubleRedirects)"
+        action: DENY
+
+      # CHALLENGE — all remaining Special: pages at difficulty 10.
+      # Bots must solve ~1024 hashes before Anubis lets them through.
+      # Real human browsers cache the cookie for 7 days — one solve per
+      # browser session, imperceptible on repeat visits.
+      # difficulty: 10 (fast algo) ≈ 1–3 s on a mid-range phone.
+      # difficulty: 8 (global default via DIFFICULTY env var) applies to all
+      # other non-Special: traffic.
+      - name: challenge-all-special-pages
+        path_regex: "^/Special:"
+        action: CHALLENGE
+        challenge:
+          algorithm: fast
+          difficulty: 10
+      # Empty-UA bots can't solve the JS PoW, so they keep hitting the
+      # challenge wall, which acts as a per-IP rate limiter without out-
+      # right denial. Legitimate clients always send a User-Agent.
+      - name: empty-ua
+        user_agent_regex: ^$
+        action: CHALLENGE
+
+      # Allow search engine crawlers (Google, Bing, Apple, DDG, etc.)
+      - import: (data)/crawlers/_allow-good.yaml
+
+      # Allow social media / embed crawlers (fixes OG previews!)
+      - name: facebook-crawler
+        user_agent_regex: "facebookexternalhit|facebookcatalog|Facebot"
+        action: ALLOW
+
+      - name: twitter-crawler
+        user_agent_regex: "Twitterbot"
+        action: ALLOW
+
+      - name: discord-crawler
+        user_agent_regex: "Discordbot"
+        action: ALLOW
+
+      - name: telegram-crawler
+        user_agent_regex: "TelegramBot"
+        action: ALLOW
+
+      - name: slack-crawler
+        user_agent_regex: "Slackbot|Slack-ImgProxy"
+        action: ALLOW
+
+      - name: linkedin-crawler
+        user_agent_regex: "LinkedInBot"
+        action: ALLOW
+
+      - name: whatsapp-crawler
+        user_agent_regex: "WhatsApp"
+        action: ALLOW
+
+      - name: signal-preview
+        user_agent_regex: "Signal"
+        action: ALLOW
+
+      - name: reddit-crawler
+        user_agent_regex: "Redditbot"
+        action: ALLOW
+
+      - name: mastodon-preview
+        user_agent_regex: "Mastodon|Pleroma|Akkoma|Misskey"
+        action: ALLOW
+
+      # Allow well-known paths (robots.txt, favicon, etc.)
+      - import: (data)/common/keep-internet-working.yaml
+
+      # Allow MediaWiki API (programmatic access)
+      - name: mediawiki-api
+        path_regex: "^/api\\.php"
+        action: ALLOW
+
+      - name: mediawiki-rest-api
+        path_regex: "^/rest\\.php"
+        action: ALLOW
+
+      # Challenge Firefox AI previews
+      - import: (data)/clients/x-firefox-ai.yaml
+
+      # Default: challenge everyone else (difficulty set via DIFFICULTY env var)
 ---
 apiVersion: v1
 kind: Service

@@ -9,6 +9,7 @@
   imports = [
     ./packages/default.nix
     ./zsh/default.nix
+    ./emacs/default.nix
     ./pulse/default.nix
     ./gomuks/default.nix
     ./kitty-launcher/default.nix

@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FOSS Cell Wiki Access</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      width: 300px;
+      background: #0d1117;
+      color: #e6edf3;
+    }
+
+    .header {
+      background: #1a5fb4;
+      padding: 14px 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .header-icon { font-size: 22px; }
+
+    .header-title {
+      font-size: 14px;
+      font-weight: 600;
+      line-height: 1.3;
+    }
+
+    .header-sub {
+      font-size: 11px;
+      opacity: 0.8;
+    }
+
+    .status {
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      border-bottom: 1px solid #21262d;
+    }
+
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #3fb950;
+      flex-shrink: 0;
+      box-shadow: 0 0 6px #3fb950aa;
+    }
+
+    .dot.inactive { background: #f85149; box-shadow: 0 0 6px #f85149aa; }
+
+    .status-text { font-size: 13px; }
+    .status-sub  { font-size: 11px; color: #8b949e; margin-top: 1px; }
+
+    .section {
+      padding: 10px 16px;
+      border-bottom: 1px solid #21262d;
+    }
+
+    .label {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #8b949e;
+      margin-bottom: 4px;
+    }
+
+    .value {
+      font-size: 11px;
+      font-family: "SFMono-Regular", Consolas, monospace;
+      color: #79c0ff;
+      word-break: break-all;
+      line-height: 1.5;
+    }
+
+    .footer {
+      padding: 10px 16px;
+      font-size: 11px;
+      color: #8b949e;
+      text-align: center;
+    }
+
+    .footer a { color: #58a6ff; text-decoration: none; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="header-icon">🔓</div>
+    <div>
+      <div class="header-title">FOSS Cell Wiki Access</div>
+      <div class="header-sub">wiki.fosscell.org</div>
+    </div>
+  </div>
+
+  <div class="status">
+    <div class="dot" id="dot"></div>
+    <div>
+      <div class="status-text" id="status-text">Checking…</div>
+      <div class="status-sub" id="status-sub"></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="label">Active on</div>
+    <div class="value">https://wiki.fosscell.org</div>
+  </div>
+
+  <div class="section">
+    <div class="label">Token (last 8 chars)</div>
+    <div class="value" id="token-preview">…</div>
+  </div>
+
+  <div class="footer">
+    <a href="https://wiki.fosscell.org" target="_blank">Open Wiki</a>
+    &nbsp;·&nbsp;
+    NITC FOSS Cell
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

@@ -11,10 +11,9 @@
 #   - Availability from the nginx failover proxy serves the replica when
 #     primary is down (with a slightly stale dataset).
 #
-# Scheduled on storage nodes (chopper/c3po) alongside the RustFS instances.
-# The mirror traffic goes chopper → c3po (local reads, remote writes), which
-# keeps replication traffic within the storage nodes and removes the need for
-# a coordinator node.
+# Scheduled on kenobi (coordinator node, not a storage node) — the mirror
+# traffic goes kenobi → chopper (read) and kenobi → c3po (write), which
+# adds network overhead but keeps the mirror off the storage nodes' CPU.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -40,7 +39,7 @@ spec:
         app.kubernetes.io/part-of: rustfs
     spec:
       nodeSelector:
-        node-role.glug.infra/storage: "true"
+        kubernetes.io/hostname: kenobi
       tolerations:
         - effect: NoSchedule
           key: node-role.glug.infra/storage

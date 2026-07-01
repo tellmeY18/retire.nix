@@ -1,0 +1,110 @@
+name: Release Wiki Access Extension
+
+# Triggered by: git tag extension/v1.0.0  (or any extension/v* tag)
+# Produces:
+#   - fosscell-wiki-access-<version>.zip   → Chrome / Edge / Brave (load unpacked)
+#   - fosscell-wiki-access-<version>.xpi   → Firefox (signed, permanent install)
+# Both files are attached to a GitHub Release.
+#
+# Required secrets (Settings → Secrets → Actions):
+#   AMO_JWT_ISSUER   — Mozilla AMO API key issuer
+#   AMO_JWT_SECRET   — Mozilla AMO API key secret
+# Generate at: https://addons.mozilla.org/en-US/developers/addon/api/key/
+
+on:
+  push:
+    tags:
+      - "extension/v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build & release extension
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install web-ext
+        run: npm install --global web-ext
+
+      - name: Extract version from tag
+        id: ver
+        run: |
+          RAW="${GITHUB_REF_NAME}"           # e.g. extension/v1.2.3
+          VER="${RAW#extension/v}"           # → 1.2.3
+          echo "version=${VER}" >> "$GITHUB_OUTPUT"
+
+      - name: Stamp version into manifest
+        run: |
+          cd k8s/apps/wiki-access-extension
+          jq --arg v "${{ steps.ver.outputs.version }}" \
+            '.version = $v' manifest.json > manifest.tmp.json
+          mv manifest.tmp.json manifest.json
+
+      - name: Build Chrome/Edge/Brave zip
+        run: |
+          cd k8s/apps/wiki-access-extension
+          zip -r \
+            "../../fosscell-wiki-access-${{ steps.ver.outputs.version }}.zip" \
+            manifest.json background.js popup.html popup.js
+          echo "Built: fosscell-wiki-access-${{ steps.ver.outputs.version }}.zip"
+
+      - name: Sign Firefox XPI (Mozilla AMO — unlisted / self-distributed)
+        env:
+          WEB_EXT_API_KEY: ${{ secrets.AMO_JWT_ISSUER }}
+          WEB_EXT_API_SECRET: ${{ secrets.AMO_JWT_SECRET }}
+        run: |
+          cd k8s/apps/wiki-access-extension
+          web-ext sign \
+            --channel=unlisted \
+            --api-key="${WEB_EXT_API_KEY}" \
+            --api-secret="${WEB_EXT_API_SECRET}" \
+            --artifacts-dir=./signed
+          # web-ext names the output <id>-<version>.xpi — rename to predictable name
+          mv signed/*.xpi \
+            "../../fosscell-wiki-access-${{ steps.ver.outputs.version }}.xpi"
+          echo "Signed: fosscell-wiki-access-${{ steps.ver.outputs.version }}.xpi"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "FOSS Cell Wiki Access v${{ steps.ver.outputs.version }}"
+          tag_name: ${{ github.ref_name }}
+          body: |
+            ## FOSS Cell Wiki Access v${{ steps.ver.outputs.version }}
+
+            Install this extension to get **instant, challenge-free access** to
+            [wiki.fosscell.org](https://wiki.fosscell.org) — no proof-of-work puzzle,
+            no waiting.
+
+            ---
+
+            ### Quick install
+
+            | Browser | Download | Steps |
+            |---|---|---|
+            | **Firefox** (desktop + Android) | `fosscell-wiki-access-${{ steps.ver.outputs.version }}.xpi` | Click the file → Firefox opens an install prompt → click **Add** |
+            | **Chrome / Edge / Brave** | `fosscell-wiki-access-${{ steps.ver.outputs.version }}.zip` | Extract → open `chrome://extensions` → enable **Developer mode** → **Load unpacked** |
+            | **Kiwi Browser (Android)** | same `.zip` | `kiwi://extensions` → **+ (from file)** |
+
+            Full instructions for every browser: [docs/wiki-access-extension.md](https://github.com/${{ github.repository }}/blob/develop/docs/wiki-access-extension.md)
+
+            ---
+
+            > **Note:** The Chrome zip requires Developer mode because it is not listed
+            > on the Chrome Web Store. This does not affect functionality or security.
+            > The Firefox XPI is signed by Mozilla and installs without any extra steps.
+          files: |
+            fosscell-wiki-access-${{ steps.ver.outputs.version }}.zip
+            fosscell-wiki-access-${{ steps.ver.outputs.version }}.xpi
+          draft: false
+          prerelease: false

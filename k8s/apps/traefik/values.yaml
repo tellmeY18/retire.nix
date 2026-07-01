@@ -30,6 +30,34 @@ ports:
     port: 9180
     hostPort: null
 
+# hostNetwork binds host ports 80/443/8080, so two Traefik pods can never
+# coexist on the same node. A rolling update (chart default: maxSurge=1,
+# maxUnavailable=0) therefore deadlocks — the surge pod can't bind the ports
+# the old pod still holds ("didn't have free ports"). Recreate the pod instead:
+# terminate the old one first, then start the new one.
+updateStrategy:
+  type: Recreate
+  rollingUpdate: null
+
+# Health probes. Traefik shares this node with MediaWiki, which gets hammered
+# by distributed scraper floods. Under CPU contention the default probes
+# (timeoutSeconds=2, liveness failureThreshold=3) time out and kubelet KILLS a
+# busy-but-healthy proxy, taking down ALL public ingress and triggering a
+# crash loop. Keep readiness responsive but tolerant, and make liveness very
+# reluctant to restart — a slow reverse proxy should be shed load, not killed.
+readinessProbe:
+  failureThreshold: 3
+  initialDelaySeconds: 5
+  periodSeconds: 10
+  successThreshold: 1
+  timeoutSeconds: 5
+livenessProbe:
+  failureThreshold: 10
+  initialDelaySeconds: 5
+  periodSeconds: 10
+  successThreshold: 1
+  timeoutSeconds: 5
+
 # Single replica — one compute node.
 deployment:
   replicas: 1
@@ -70,14 +98,19 @@ logs:
   access:
     enabled: true
 
-# Resources
+# Resources.
+# A real CPU *request* (not a limit) gives Traefik a guaranteed cgroup CPU
+# share so it wins contention against the co-located MediaWiki/scraper load
+# and can always answer /ping. Deliberately NO CPU limit: a CPU limit causes
+# CFS throttling that stalls the event loop and makes health probes time out
+# under exactly the load we need Traefik to survive. Memory stays capped.
+# 300m (not more) because kenobi only has 2 cores and ~350m of unreserved
+# request headroom once the databases/apps are scheduled; a larger request
+# leaves the pod Pending (Insufficient cpu).
 resources:
   requests:
-    cpu: 100m
+    cpu: 300m
     memory: 128Mi
-  # No CPU limit — let Go auto-detect cores (GOMAXPROCS).
-  # Bumped memory from 256Mi to 512Mi after Traefik was getting
-  # liveness-killed under ForwardAuth load through Anubis.
   limits:
     memory: 512Mi
 

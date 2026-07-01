@@ -61,14 +61,11 @@
 ;; --- Startup: build all workspaces, replacing the single-term banner ---
 
 (defun my/workspace-startup ()
-  ;; Tab 1: ohcnetwork — project root
   (tab-bar-rename-tab "ohc")
   (let ((ohc (expand-file-name "~/Documents/ohcnetwork")))
     (when (file-directory-p ohc)
       (project-switch-project ohc (lambda (d) (dired d)))))
-  ;; Tab 2: 10bedicu
   (my/workspace-make "10b" "~/Documents/10bedicu")
-  ;; Tab 3: Jira MCP — ghostel terminal in the server dir
   (my/workspace-make "jira" "~/Documents/ohcnetwork/jira/atlassian-mcp-server"
     (lambda (dir)
       (let ((default-directory dir))
@@ -77,3 +74,5 @@
 ;; Replace the single-banner startup with workspace startup
 (remove-hook 'emacs-startup-hook #'my/ghostel-startup)
 (add-hook 'emacs-startup-hook #'my/workspace-startup)
+
+;;; workspace.el ends here

@@ -1,22 +1,22 @@
 ---
-# hpa.yaml — HorizontalPodAutoscaler for MediaWiki.
-# Scales 2→3 replicas based on CPU utilization.
-# MediaWiki uses ~80m per pod under normal load.
+# hpa.yaml — HorizontalPodAutoscaler for Attic.
+# Scales 1→4 replicas based on CPU utilization.
+# CI pushes cause CPU spikes; HPA adds pods during bulk uploads.
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
-  name: mediawiki
-  namespace: mediawiki
+  name: attic
+  namespace: attic
   labels:
-    app.kubernetes.io/name: mediawiki
-    app.kubernetes.io/part-of: mediawiki
+    app.kubernetes.io/name: attic
+    app.kubernetes.io/part-of: nix-infra
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: mediawiki
-  minReplicas: 2
-  maxReplicas: 2
+    name: attic
+  minReplicas: 1
+  maxReplicas: 4
   metrics:
     - type: Resource
       resource:

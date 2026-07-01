@@ -1,11 +1,23 @@
-;;; early-init.el --- writable-state redirects for a store-baked config -*- lexical-binding: t; -*-
+;;; early-init.el --- straight.el bootstrap + writable-state redirects  -*- lexical-binding: t; -*-
 
+;; ── straight.el bootstrap (replaces package.el) ─────────────────────
+(defvar bootstrap-version)
+(let ((bootstrap-file
+       (expand-file-name "straight/repos/straight.el/bootstrap.el" user-emacs-directory))
+      (bootstrap-version 6))
+  (unless (file-exists-p bootstrap-file)
+    (with-current-buffer
+        (url-retrieve-synchronously
+         "https://raw.githubusercontent.com/radian-software/straight.el/develop/install.el"
+         'silent 'inhibit-cookies)
+      (goto-char (point-max))
+      (eval-print-last-sexp)))
+  (load bootstrap-file nil 'nomessage))
+
+;; ── XDG directory redirects ────────────────────────────────────────
 (defun my/xdg (env fallback)
   (let ((v (getenv env)))
     (if (and v (file-name-absolute-p v)) v (expand-file-name fallback))))
-
-(defvar my/config-dir user-emacs-directory
-  "The read-only Nix-store directory this config was loaded from.")
 
 (defconst my/cache-dir (expand-file-name "emacs/" (my/xdg "XDG_CACHE_HOME" "~/.cache")))
 (defconst my/state-dir (expand-file-name "emacs/" (my/xdg "XDG_STATE_HOME" "~/.local/state")))
@@ -14,7 +26,8 @@
 (dolist (d (list my/cache-dir my/state-dir my/data-dir))
   (make-directory d t))
 
-(setq user-emacs-directory my/state-dir)
+;; Install straight.el packages under data dir (not ~/.config/emacs)
+(setq straight-base-dir my/data-dir)
 
 (when (and (fboundp 'startup-redirect-eln-cache)
            (fboundp 'native-comp-available-p)
@@ -53,10 +66,5 @@
 (menu-bar-mode 0)
 (tool-bar-mode 0)
 (scroll-bar-mode 0)
-
-(add-hook 'after-init-hook
-          (lambda ()
-            (load (expand-file-name "init" my/config-dir) nil t))
-          t)
 
 ;;; early-init.el ends here

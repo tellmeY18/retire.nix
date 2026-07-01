@@ -11,4 +11,3 @@ resources:
   - namespace.yaml
   - middleware.yaml
   - anubis.yaml
-  - anubis-policy.yaml
