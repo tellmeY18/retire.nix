@@ -7,7 +7,10 @@
   "browser_specific_settings": {
     "gecko": {
       "id": "wiki-access@fosscell.nitc.ac.in",
-      "strict_min_version": "109.0"
+      "strict_min_version": "113.0"
+    },
+    "gecko_android": {
+      "strict_min_version": "121.0"
     }
   },
 
@@ -20,9 +23,7 @@
     "declarativeNetRequestWithHostAccess"
   ],
 
-  "host_permissions": [
-    "https://wiki.fosscell.org/*"
-  ],
+  "host_permissions": ["https://wiki.fosscell.org/*"],
 
   "action": {
     "default_popup": "popup.html",
