@@ -3,13 +3,11 @@ name: Release Wiki Access Extension
 # Triggered by: git tag extension/v1.0.0  (or any extension/v* tag)
 # Produces:
 #   - fosscell-wiki-access-<version>.zip   → Chrome / Edge / Brave (load unpacked)
-#   - fosscell-wiki-access-<version>.xpi   → Firefox (signed, permanent install)
+#   - fosscell-wiki-access-<version>.xpi   → Firefox (Mozilla-signed, permanent install)
 # Both files are attached to a GitHub Release.
 #
-# Required secrets (Settings → Secrets → Actions):
-#   AMO_JWT_ISSUER   — Mozilla AMO API key issuer
-#   AMO_JWT_SECRET   — Mozilla AMO API key secret
-# Generate at: https://addons.mozilla.org/en-US/developers/addon/api/key/
+# Secrets: credentials live in secrets/ci/actions.yaml (sops-encrypted).
+# The only GitHub Actions secret needed is SOPS_AGE_KEY (the CI age private key).
 
 on:
   push:
@@ -33,14 +31,32 @@ jobs:
         with:
           node-version: "20"
 
-      - name: Install web-ext
-        run: npm install --global web-ext
+      - name: Install sops + web-ext
+        run: |
+          # sops
+          curl -fsSL https://github.com/getsops/sops/releases/download/v3.9.4/sops-v3.9.4.linux.amd64 \
+            -o /usr/local/bin/sops && chmod +x /usr/local/bin/sops
+          # web-ext
+          npm install --global web-ext
+
+      - name: Decrypt CI secrets
+        env:
+          SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
+        run: |
+          # Decrypt secrets/ci/actions.yaml and export AMO creds as env vars.
+          # Uses process substitution so the plaintext never touches the filesystem.
+          AMO_ISSUER=$(sops --decrypt --extract '["amo_jwt_issuer"]' secrets/ci/actions.yaml)
+          AMO_SECRET=$(sops --decrypt --extract '["amo_jwt_secret"]' secrets/ci/actions.yaml)
+          echo "::add-mask::${AMO_ISSUER}"
+          echo "::add-mask::${AMO_SECRET}"
+          echo "AMO_JWT_ISSUER=${AMO_ISSUER}" >> "$GITHUB_ENV"
+          echo "AMO_JWT_SECRET=${AMO_SECRET}" >> "$GITHUB_ENV"
 
       - name: Extract version from tag
         id: ver
         run: |
-          RAW="${GITHUB_REF_NAME}"           # e.g. extension/v1.2.3
-          VER="${RAW#extension/v}"           # → 1.2.3
+          RAW="${GITHUB_REF_NAME}"      # e.g. extension/v1.2.3
+          VER="${RAW#extension/v}"      # → 1.2.3
           echo "version=${VER}" >> "$GITHUB_OUTPUT"
 
       - name: Stamp version into manifest
@@ -53,32 +69,23 @@ jobs:
       - name: Build Chrome/Edge/Brave zip
         run: |
           cd k8s/apps/wiki-access-extension
-          zip -r \
-            "../../fosscell-wiki-access-${{ steps.ver.outputs.version }}.zip" \
+          # -j strips directory paths so manifest.json is at the zip root
+          zip -j \
+            "${GITHUB_WORKSPACE}/fosscell-wiki-access-${{ steps.ver.outputs.version }}.zip" \
             manifest.json background.js popup.html popup.js
           echo "Built: fosscell-wiki-access-${{ steps.ver.outputs.version }}.zip"
 
       - name: Sign Firefox XPI (Mozilla AMO — unlisted / self-distributed)
         id: sign
-        continue-on-error: true
-        env:
-          WEB_EXT_API_KEY: ${{ secrets.AMO_JWT_ISSUER }}
-          WEB_EXT_API_SECRET: ${{ secrets.AMO_JWT_SECRET }}
         run: |
-          if [ -z "${WEB_EXT_API_KEY}" ] || [ -z "${WEB_EXT_API_SECRET}" ]; then
-            echo "::warning::AMO_JWT_ISSUER / AMO_JWT_SECRET secrets not set — skipping Firefox signing."
-            echo "See docs/wiki-access-extension.md for how to get Mozilla API credentials."
-            exit 0
-          fi
           cd k8s/apps/wiki-access-extension
           web-ext sign \
             --channel=unlisted \
-            --api-key="${WEB_EXT_API_KEY}" \
-            --api-secret="${WEB_EXT_API_SECRET}" \
+            --api-key="${AMO_JWT_ISSUER}" \
+            --api-secret="${AMO_JWT_SECRET}" \
             --artifacts-dir=./signed
-          # web-ext names the output <id>-<version>.xpi — rename to predictable name
           mv signed/*.xpi \
-            "../../fosscell-wiki-access-${{ steps.ver.outputs.version }}.xpi"
+            "${GITHUB_WORKSPACE}/fosscell-wiki-access-${{ steps.ver.outputs.version }}.xpi"
           echo "Signed: fosscell-wiki-access-${{ steps.ver.outputs.version }}.xpi"
           echo "signed=true" >> "$GITHUB_OUTPUT"
 
@@ -100,24 +107,13 @@ jobs:
 
             | Browser | Download | Steps |
             |---|---|---|
+            | **Firefox** (desktop + Android) | `fosscell-wiki-access-${{ steps.ver.outputs.version }}.xpi` | Download → open/drag onto Firefox → click **Add** |
             | **Chrome / Edge / Brave** | `fosscell-wiki-access-${{ steps.ver.outputs.version }}.zip` | Extract → `chrome://extensions` → Developer mode → **Load unpacked** |
-            | **Firefox desktop** | `fosscell-wiki-access-${{ steps.ver.outputs.version }}.xpi` *(if present)* | Download → drag onto Firefox or open via Add-ons Manager |
-            | **Firefox Android** | same `.xpi` | Transfer to phone → tap file → install |
             | **Kiwi Browser (Android)** | same `.zip` | `kiwi://extensions` → **+ (from file)** |
-
-            > If the `.xpi` is missing from this release the AMO signing credentials
-            > were not configured. Firefox users can still install the extension
-            > manually — see the full guide below.
 
             Full installation guide: [docs/wiki-access-extension.md](https://github.com/${{ github.repository }}/blob/develop/docs/wiki-access-extension.md)
           files: |
             fosscell-wiki-access-${{ steps.ver.outputs.version }}.zip
+            fosscell-wiki-access-${{ steps.ver.outputs.version }}.xpi
           draft: false
           prerelease: false
-
-      - name: Upload Firefox XPI to release
-        if: steps.sign.outputs.signed == 'true'
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ github.ref_name }}
-          files: fosscell-wiki-access-${{ steps.ver.outputs.version }}.xpi

@@ -33,7 +33,7 @@ async function installRule() {
             ],
           },
           condition: {
-            hostSuffix: "wiki.fosscell.org",
+            requestDomains: ["wiki.fosscell.org"],
             resourceTypes: [
               "main_frame",
               "sub_frame",
