@@ -96,19 +96,28 @@ jobs:
 
             ---
 
-            ### Quick install
+            ### Install
 
             | Browser | Download | Steps |
             |---|---|---|
-            | **Chrome / Edge / Brave** | `fosscell-wiki-access-${{ steps.ver.outputs.version }}.zip` | Extract → open `chrome://extensions` → enable **Developer mode** → **Load unpacked** |
-            ${{ steps.sign.outputs.signed == 'true' && '| **Firefox** (desktop + Android) | `fosscell-wiki-access-'}}${{ steps.ver.outputs.version }}${{ steps.sign.outputs.signed == 'true' && '.xpi` | Click the file → Firefox opens an install prompt → click **Add** |' || '' }}
+            | **Chrome / Edge / Brave** | `fosscell-wiki-access-${{ steps.ver.outputs.version }}.zip` | Extract → `chrome://extensions` → Developer mode → **Load unpacked** |
+            | **Firefox desktop** | `fosscell-wiki-access-${{ steps.ver.outputs.version }}.xpi` *(if present)* | Download → drag onto Firefox or open via Add-ons Manager |
+            | **Firefox Android** | same `.xpi` | Transfer to phone → tap file → install |
             | **Kiwi Browser (Android)** | same `.zip` | `kiwi://extensions` → **+ (from file)** |
 
-            ${{ steps.sign.outputs.signed != 'true' && '> ⚠️ **Firefox XPI not included** — AMO signing credentials not configured. Chrome zip works for all Chromium browsers. See [docs/wiki-access-extension.md](https://github.com/${{ github.repository }}/blob/develop/docs/wiki-access-extension.md) for manual Firefox install.' || '' }}
+            > If the `.xpi` is missing from this release the AMO signing credentials
+            > were not configured. Firefox users can still install the extension
+            > manually — see the full guide below.
 
-            Full instructions for every browser: [docs/wiki-access-extension.md](https://github.com/${{ github.repository }}/blob/develop/docs/wiki-access-extension.md)
+            Full installation guide: [docs/wiki-access-extension.md](https://github.com/${{ github.repository }}/blob/develop/docs/wiki-access-extension.md)
           files: |
             fosscell-wiki-access-${{ steps.ver.outputs.version }}.zip
-            ${{ steps.sign.outputs.signed == 'true' && format('fosscell-wiki-access-{0}.xpi', steps.ver.outputs.version) || '' }}
           draft: false
           prerelease: false
+
+      - name: Upload Firefox XPI to release
+        if: steps.sign.outputs.signed == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          files: fosscell-wiki-access-${{ steps.ver.outputs.version }}.xpi
