@@ -101,3 +101,8 @@ resources:
   - system-insights-grafana-dashboard.yaml
   # jiralert — Jira incident lifecycle management (create/escalate/resolve).
   # - jiralert.yaml
+  # CrowdSec — CAPI metrics, bouncer & acquisition telemetry.
+  - crowdsec-vmstaticscrape.yaml
+  - crowdsec-grafana-dashboard.yaml
+  # Traefik — ingress metrics (request rates, status codes, latency).
+  - traefik-vmservicescrape.yaml

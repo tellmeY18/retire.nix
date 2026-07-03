@@ -1,0 +1,38 @@
+---
+# crowdsec-vmstaticscrape.yaml — Scrape CrowdSec CAPI/bouncer/parser metrics.
+#
+# CrowdSec runs as a systemd service on kenobi (host, not a pod), so we use
+# VMStaticScrape to point vmagent directly at kenobi's Prometheus endpoint.
+# Kenobi is the only CrowdSec instance; there's no DaemonSet to auto-discover.
+#
+# Requires: crowdsec's prometheus listener to bind 0.0.0.0:6060 (set in
+# hosts/kenobi/parts/crowdsec.nix under `general.prometheus.listen_addr`).
+#
+# Exposed metrics:
+#   cs_acquisition_*         — lines read/parsed/unparsed per source
+#   cs_parsers_hits_total    — parser match counts
+#   cs_scenario_*            — scenario overflow/pour counts
+#   cs_bucket_*              — individual bucket states
+#   cs_active_decisions      — active ban counts by reason/origin
+#   cs_lapi_bouncer_*        — bouncer request rates
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMStaticScrape
+metadata:
+  name: crowdsec
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: crowdsec
+    app.kubernetes.io/component: metrics
+spec:
+  jobName: crowdsec
+  targetEndpoints:
+    - targets:
+        # kenobi's tailnet IP. Port 6060 is the CrowdSec Prometheus endpoint.
+        - "100.73.101.89:6060"
+      interval: 30s
+      sampleLimit: 5000
+      metricRelabelConfigs:
+        # Keep only crowdsec metrics, drop noisy Go runtime internals
+        - action: keep
+          sourceLabels: [__name__]
+          regex: "cs_.*|lapi_.*|process_.*|go_memstats_alloc_bytes|go_memstats_heap_inuse_bytes"

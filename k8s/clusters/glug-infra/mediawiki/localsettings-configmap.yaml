@@ -559,7 +559,7 @@ data:
     # and Special:RecentChangesLinked), ALL Special: pages are restricted to
     # logged-in users. Only the four pages needed to actually log in are accessible
     # anonymously. This is enforced at three layers:
-    #   1. Anubis: DENY expensive Special: outright; CHALLENGE rest at difficulty 10
+    #   1. Anubis: DENY expensive Special: outright; CHALLENGE rest at difficulty 5
     #   2. Traefik: 1 req/s + 3 concurrent InFlightReq cap per IP on /Special:
     #   3. HERE: PHP-level block so nothing touches the DB unless authenticated
     # To lift the lockdown: remove or expand $loginPages below.
@@ -570,6 +570,8 @@ data:
             'CreateAccount', // registration
             'PasswordReset', // password recovery
             'Userlogout',    // logout
+            'ConfirmEmail',  // email confirmation link (also 'Confirmemail' alias)
+            'Confirmemail',  // clicked from email while possibly logged out
         ];
         if (
             !$special->getUser()->isRegistered()

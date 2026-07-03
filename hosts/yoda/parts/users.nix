@@ -11,7 +11,7 @@ in
 {
   users.users = {
     vysakh = {
-      shell = pkgs.zsh;
+      shell = pkgs.zsh; # phase 2: zsh restored (bootstrap used bashInteractive)
       isNormalUser = vysakhMeta.isNormalUser;
       extraGroups = vysakhMeta.extraGroups;
       openssh.authorizedKeys.keys = vysakhMeta.sshKeys;

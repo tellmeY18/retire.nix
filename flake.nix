@@ -1,6 +1,13 @@
 {
   description = "Unified flake: macOS (nix-darwin) + NixOS-on-ZFS (Disko)";
 
+  nixConfig = {
+    extra-substituters = [ "https://cache.garnix.io" ];
+    extra-trusted-public-keys = [
+      "cache.garnix.io:CTFPyKSLcx5RMJKfLo5EEPUObbA78b0YQ2DTCJXqr9g="
+    ];
+  };
+
   inputs = {
     # Channel strategy:
     #   - nixpkgs (unstable): default for most packages — latest features
@@ -49,20 +56,23 @@
       url = "github:nix-community/emacs-overlay";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    nix-openclaw = {
+      url = "github:openclaw/nix-openclaw";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs =
-    inputs@{
-      self,
-      nix-homebrew,
-      nix-index-database,
-      nixvim,
-      fenix,
-      disko,
-      sops-nix,
-      deploy-rs,
-      emacs-overlay,
-      ...
+    inputs@{ self
+    , nix-homebrew
+    , nix-index-database
+    , nixvim
+    , fenix
+    , disko
+    , sops-nix
+    , deploy-rs
+    , emacs-overlay
+    , ...
     }:
     let
       myLib = import ./lib { inherit inputs; };
@@ -162,6 +172,7 @@
             ./hosts/chopper/disko-config.nix
             sops-nix.nixosModules.sops
             disko.nixosModules.disko
+            inputs.nix-openclaw.nixosModules.openclaw-gateway
           ];
           kenobi = [
             ./hosts/kenobi/disko-config.nix
@@ -178,10 +189,11 @@
             sops-nix.nixosModules.sops
             disko.nixosModules.disko
           ];
-          # yoda — phase 1 (bootstrap): disko only. sops-nix is added in
-          # phase 2 alongside Tailscale + k3s once secrets exist.
+          # yoda — phase 2: sops-nix (Tailscale auth key + k3s join token),
+          # Tailscale, and the k3s compute agent are now wired in.
           yoda = [
             ./hosts/yoda/disko-config.nix
+            sops-nix.nixosModules.sops
             disko.nixosModules.disko
           ];
         };

@@ -67,6 +67,20 @@ deployment:
       hostPath:
         path: /var/lib/traefik
         type: DirectoryOrCreate
+    # Access logs written to the host so CrowdSec (NixOS service on kenobi)
+    # can tail them — see hosts/kenobi/parts/crowdsec.nix.
+    - name: access-logs
+      hostPath:
+        path: /var/log/traefik
+        type: DirectoryOrCreate
+
+# hostNetwork provides the real ingress path (node's public IP :80/:443).
+# The chart's default Service type LoadBalancer sits <pending> forever
+# (servicelb is disabled cluster-wide), which made every `helm upgrade --wait`
+# time out after 600s and marked releases failed. ClusterIP keeps in-cluster
+# routing working and lets --wait succeed.
+service:
+  type: ClusterIP
 
 # Increase entrypoint read timeouts for large Attic uploads (initrd etc.).
 # Default is 60s in Traefik v3 — Attic push of large closures can exceed this.
@@ -81,6 +95,8 @@ additionalArguments:
 additionalVolumeMounts:
   - name: acme-storage
     mountPath: /acme
+  - name: access-logs
+    mountPath: /var/log/traefik
 
 # No PVC persistence — using hostPath above instead.
 persistence:
@@ -97,6 +113,19 @@ logs:
     level: INFO
   access:
     enabled: true
+    # JSON to a hostPath file — parsed by CrowdSec on the node
+    # (crowdsecurity/traefik expects Traefik's JSON access-log format).
+    # Container stdout no longer carries access logs; use this file instead.
+    format: json
+    filePath: /var/log/traefik/access.log
+    # Buffered writes so logging doesn't add per-request fsync latency.
+    bufferingSize: 100
+    fields:
+      headers:
+        # Headers are dropped by default; CrowdSec's user-agent scenarios
+        # need the UA. Keep only that — no cookies/auth headers on disk.
+        names:
+          User-Agent: keep
 
 # Resources.
 # A real CPU *request* (not a limit) gives Traefik a guaranteed cgroup CPU

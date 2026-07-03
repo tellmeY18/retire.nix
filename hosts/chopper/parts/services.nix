@@ -100,6 +100,36 @@
     enable = false;
   };
 
+  # OpenClaw uses LLMs to process untrusted content — upstream marks it
+  # insecure due to prompt-injection risk. We accept this intentionally.
+  nixpkgs.config.permittedInsecurePackages = [ "openclaw-2026.6.5" ];
+
+  ####################
+  # OpenClaw Gateway #
+  ####################
+  services.openclaw-gateway = {
+    enable = true;
+    port = 18789;
+
+    # Bind to all interfaces for LAN access
+    execStart = "${config.services.openclaw-gateway.package}/bin/openclaw gateway --bind all --port ${toString config.services.openclaw-gateway.port}";
+
+    # Basic config — add tokens via sops secrets below
+    config = {
+      gateway = {
+        mode = "local";
+        auth.token = { source = "env"; provider = "default"; id = "OPENCLAW_GATEWAY_TOKEN"; };
+      };
+    };
+
+    environment = {
+      # Point these to sops-decrypted runtime paths when secrets are created:
+      # OPENCLAW_GATEWAY_TOKEN = config.sops.secrets.openclaw-gateway-token.path;
+      # ANTHROPIC_API_KEY       = config.sops.secrets.openclaw-anthropic-key.path;
+      # TELEGRAM_BOT_TOKEN      = config.sops.secrets.openclaw-telegram-token.path;
+    };
+  };
+
   ####################
   # ZFS Maintenance  #
   ####################

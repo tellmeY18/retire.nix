@@ -9,6 +9,7 @@
     ./parts/users.nix
     ./parts/k3s.nix
     ./parts/storage.nix
+    ./parts/crowdsec.nix
     ../../profiles/zram.nix
   ];
 

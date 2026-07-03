@@ -1,0 +1,41 @@
+---
+# traefik-vmservicescrape.yaml — VMServiceScrape for Traefik metrics.
+#
+# Traefik runs on kenobi (hostNetwork, compute node) and exposes Prometheus
+# metrics on port 9180. This scrapes them so we can correlate request traffic
+# with CrowdSec bans, Anubis DENY rates, and MediaWiki health.
+#
+# Metrics exposed:
+#   traefik_service_requests_total        — per-service HTTP request counters
+#   traefik_service_request_duration_seconds_* — latency histograms
+#   traefik_router_requests_total         — per-router request counters
+#   traefik_router_request_duration_seconds_*  — per-router latency
+#
+# Used by the CrowdSec CAPI & Traffic Defense dashboard to answer:
+#   "What requests are coming in? What's blocked? Is MediaWiki healthy?"
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMServiceScrape
+metadata:
+  name: traefik
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: traefik
+    app.kubernetes.io/component: ingress
+    app.kubernetes.io/part-of: victoria-metrics-k8s-stack
+    app.kubernetes.io/managed-by: kustomize
+spec:
+  jobLabel: app.kubernetes.io/name
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: traefik
+  namespaceSelector:
+    matchNames:
+      - traefik-system
+  endpoints:
+    - port: metrics
+      interval: 30s
+      metricRelabelConfigs:
+        # Keep only what the traffic-defense dashboard uses
+        - action: keep
+          sourceLabels: [__name__]
+          regex: "traefik_service_requests_total|traefik_router_requests_total|traefik_service_request_duration_seconds_bucket"

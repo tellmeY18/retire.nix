@@ -45,8 +45,13 @@ spec:
               value: "wiki.fosscell.org"
             - name: COOKIE_DOMAIN
               value: "wiki.fosscell.org"
+            # TEMPORARY LOCKDOWN (2026-07-05): raised 5 → 10 during the second
+            # Drilldown scraper wave (bots bypass the path DENY via
+            # /index.php?title=Special%3ADrilldown and solve the difficulty-5
+            # challenge). 16^10 hashes is unsolvable on phones — this WILL lock
+            # out real users on weak devices. Revert to "5" once the wave stops.
             - name: DIFFICULTY
-              value: "8"
+              value: "10"
             - name: SERVE_ROBOTS_TXT
               value: "true"
             - name: POLICY_FNAME
@@ -130,6 +135,17 @@ data:
         user_agent_regex: "meta-webindexer"
         action: DENY
 
+      # ALLOW Special:ConfirmEmail before the Special: deny/challenge rules.
+      # The email-confirmation link is clicked once from a user's inbox, often
+      # in a logged-out browser that has never solved a PoW challenge. Forcing
+      # a difficulty-10 challenge there breaks account verification. It takes a
+      # token, runs no expensive query, and is not a scraper target — safe to
+      # pass straight through. (MediaWiki's SpecialPageBeforeExecute hook also
+      # whitelists it.) Matches /Special:ConfirmEmail and /Special:ConfirmEmail/<token>.
+      - name: allow-confirm-email
+        path_regex: "^/Special:ConfirmEmail"
+        action: ALLOW
+
       # ── Bot lockdown: path-based Special: page protection ─────────────────
       #
       # DENY — the most expensive Special: pages have no legitimate anonymous
@@ -139,17 +155,38 @@ data:
       # consume a PHP-FPM worker slot at all.
       # MediaWiki's SpecialPageBeforeExecute hook is a second line of defense
       # for any request that makes it past this layer.
+      # `Browse` (SemanticMediaWiki) added 2026-07-05 — second scraper wave was
+      # crashing PHP-FPM through it.
       - name: deny-expensive-special-pages
-        path_regex: "^/Special:(Drilldown|RecentChangesLinked|Search|Export|AllPages|AllFiles|Statistics|Recentchanges|WhatLinksHere|LinkedPages|Deadendpages|Wantedpages|LongPages|ShortPages|Ancientpages|NewFiles|NewPages|Protectedpages|Listfiles|Unusedfiles|Unusedtemplates|Uncategorizedpages|Uncategorizedcategories|BrokenRedirects|DoubleRedirects)"
+        path_regex: "^/(index\\.php/)?Special:(Drilldown|RecentChangesLinked|Browse|Search|Export|AllPages|AllFiles|Statistics|Recentchanges|WhatLinksHere|LinkedPages|Deadendpages|Wantedpages|LongPages|ShortPages|Ancientpages|NewFiles|NewPages|Protectedpages|Listfiles|Unusedfiles|Unusedtemplates|Uncategorizedpages|Uncategorizedcategories|BrokenRedirects|DoubleRedirects)"
         action: DENY
 
-      # CHALLENGE — all remaining Special: pages at difficulty 10.
-      # Bots must solve ~1024 hashes before Anubis lets them through.
-      # Real human browsers cache the cookie for 7 days — one solve per
-      # browser session, imperceptible on repeat visits.
-      # difficulty: 10 (fast algo) ≈ 1–3 s on a mid-range phone.
-      # difficulty: 8 (global default via DIFFICULTY env var) applies to all
-      # other non-Special: traffic.
+      # Same DENY list for the query-string form. path_regex only matches the
+      # URL path, so the 2026-07-05 second scraper wave bypassed the rule
+      # above with /index.php?title=Special%3ADrilldown%2F... and sailed
+      # through the challenge. This CEL rule inspects the DECODED `title`
+      # query parameter, closing the hole regardless of endpoint
+      # (/index.php?title=, /?title=). (?i) because MediaWiki title matching
+      # is case-insensitive on the namespace.
+      - name: deny-expensive-special-pages-query-form
+        action: DENY
+        expression:
+          all:
+            - '"title" in query'
+            - 'query["title"].matches("(?i)^Special:(Drilldown|RecentChangesLinked|Browse|Search|Export|AllPages|AllFiles|Statistics|Recentchanges|WhatLinksHere|LinkedPages|Deadendpages|Wantedpages|LongPages|ShortPages|Ancientpages|NewFiles|NewPages|Protectedpages|Listfiles|Unusedfiles|Unusedtemplates|Uncategorizedpages|Uncategorizedcategories|BrokenRedirects|DoubleRedirects)")'
+
+      # CHALLENGE — all remaining Special: pages.
+      # Bots must solve a proof-of-work before Anubis lets them through.
+      # Anubis difficulty = leading zero HEX NIBBLES on the SHA-256 hash, so the
+      # expected work is 16^difficulty (NOT 2^difficulty). difficulty 5 ≈ 16^5
+      # ≈ 1M hashes ≈ ~1 s with the multithreaded `fast` algo — solvable on a
+      # phone. 16^10 ≈ 1.1T hashes locks out real users on weak devices, while
+      # a resourced scraper just caches the 7-day cookie or swaps in a
+      # native/GPU solver. The teeth live in the DENY list + Traefik
+      # InFlightReq/rate limits + the PHP anon-block, not in PoW difficulty.
+      # TEMPORARY LOCKDOWN (2026-07-05): raised 5 → 10 during the second
+      # Drilldown scraper wave. Revert to 5 once the wave stops.
+      # Real human browsers cache the cookie for 7 days — one solve per session.
       - name: challenge-all-special-pages
         path_regex: "^/Special:"
         action: CHALLENGE

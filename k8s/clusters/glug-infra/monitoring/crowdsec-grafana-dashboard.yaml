@@ -1,0 +1,615 @@
+---
+# crowdsec-grafana-dashboard.yaml — Grafana dashboard for CrowdSec CAPI + traffic defense.
+#
+# Shows the complete request-defense picture in one place:
+#   Row 1 — "Traffic & Defense Status": headline stats (total req, reaching MW,
+#            blocked, CAPI bans).
+#   Row 2 — "What's Being Blocked": CAPI bans and HTTP status flow over time.
+#   Row 3 — "MediaWiki Impact": MW request rate, CPU, memory — is the
+#            defense keeping MW healthy?
+#   Row 4 — "CrowdSec Telemetry": acquisition rate, scenario pours, ban table.
+#
+# Depends on:
+#   - crowdsec-vmstaticscrape.yaml  (CrowdSec Prometheus endpoint)
+#   - traefik-vmservicescrape.yaml   (Traefik metrics for traffic data)
+#   - cadvisor-vmnodescrape.yaml     (container CPU/memory for MW)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: crowdsec-metrics-dashboard
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+    app.kubernetes.io/name: crowdsec
+    app.kubernetes.io/component: metrics
+  annotations:
+    grafana_folder: "Security"
+data:
+  dashboard.json: |
+    {
+      "title": "CrowdSec — CAPI & Traffic Defense",
+      "description": "What's coming in, what's malicious, what's blocked, and how MediaWiki is doing — one glance shows if the defense is working.",
+      "tags": ["crowdsec", "capi", "security", "mediawiki"],
+      "timezone": "browser",
+      "schemaVersion": 39,
+      "version": 2,
+      "refresh": "30s",
+      "graphTooltip": 1,
+      "panels": [
+        {
+          "id": 1,
+          "title": "Traffic & Defense Status",
+          "type": "row",
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+          "collapsed": false
+        },
+        {
+          "id": 2,
+          "title": "Total Requests",
+          "description": "All requests hitting wiki.fosscell.org through Traefik (Anubis gate + direct member bypass).",
+          "type": "stat",
+          "datasource": { "type": "prometheus" },
+          "gridPos": { "h": 4, "w": 6, "x": 0, "y": 1 },
+          "targets": [
+            {
+              "expr": "sum(rate(traefik_service_requests_total{service=~\"anubis.*|.*mediawiki.*\"}[5m])) or vector(0)",
+              "legendFormat": "req/s",
+              "interval": ""
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "reqps",
+              "color": {
+                "mode": "thresholds"
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "value": null, "color": "green" },
+                  { "value": 5, "color": "orange" },
+                  { "value": 15, "color": "red" }
+                ]
+              },
+              "mappings": [
+                {
+                  "type": "value",
+                  "value": "null",
+                  "text": "No data"
+                }
+              ]
+            }
+          },
+          "options": {
+            "colorMode": "background",
+            "graphMode": "area",
+            "justifyMode": "center",
+            "orientation": "horizontal",
+            "reduceOptions": { "calcs": ["lastNotNull"] },
+            "textMode": "auto"
+          }
+        },
+        {
+          "id": 3,
+          "title": "Reaching MW",
+          "description": "Requests that passed all defense layers and reached MediaWiki (2xx from Anubis + direct member-bypass).",
+          "type": "stat",
+          "datasource": { "type": "prometheus" },
+          "gridPos": { "h": 4, "w": 6, "x": 6, "y": 1 },
+          "targets": [
+            {
+              "expr": "sum(rate(traefik_service_requests_total{service=~\"anubis.*|.*mediawiki.*\",code=\"200\"}[5m])) or vector(0)",
+              "legendFormat": "req/s",
+              "interval": ""
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "reqps",
+              "color": {
+                "mode": "thresholds"
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "value": null, "color": "red" },
+                  { "value": 0.01, "color": "green" }
+                ]
+              },
+              "mappings": [
+                {
+                  "type": "value",
+                  "value": "null",
+                  "text": "No data"
+                }
+              ]
+            }
+          },
+          "options": {
+            "colorMode": "background",
+            "graphMode": "area",
+            "justifyMode": "center",
+            "orientation": "horizontal",
+            "reduceOptions": { "calcs": ["lastNotNull"] },
+            "textMode": "auto"
+          }
+        },
+        {
+          "id": 4,
+          "title": "Blocked",
+          "description": "Requests blocked by any layer: Anubis DENY (403), Traefik rate-limit (429/503), or 5xx errors.",
+          "type": "stat",
+          "datasource": { "type": "prometheus" },
+          "gridPos": { "h": 4, "w": 6, "x": 12, "y": 1 },
+          "targets": [
+            {
+              "expr": "sum(rate(traefik_service_requests_total{service=~\"anubis.*|.*mediawiki.*\",code=~\"4..|5..\"}[5m])) or vector(0)",
+              "legendFormat": "req/s",
+              "interval": ""
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "reqps",
+              "color": {
+                "mode": "thresholds"
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "value": null, "color": "green" },
+                  { "value": 1, "color": "orange" },
+                  { "value": 5, "color": "red" }
+                ]
+              },
+              "mappings": [
+                {
+                  "type": "value",
+                  "value": "null",
+                  "text": "No data"
+                }
+              ]
+            }
+          },
+          "options": {
+            "colorMode": "background",
+            "graphMode": "area",
+            "justifyMode": "center",
+            "orientation": "horizontal",
+            "reduceOptions": { "calcs": ["lastNotNull"] },
+            "textMode": "auto"
+          }
+        },
+        {
+          "id": 5,
+          "title": "Active CAPI Bans",
+          "description": "Total active bans from the CrowdSec community blocklist being enforced at the firewall.",
+          "type": "stat",
+          "datasource": { "type": "prometheus" },
+          "gridPos": { "h": 4, "w": 6, "x": 18, "y": 1 },
+          "targets": [
+            {
+              "expr": "sum(cs_active_decisions{origin=\"CAPI\"})",
+              "legendFormat": "bans",
+              "interval": ""
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "color": {
+                "mode": "thresholds"
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "value": null, "color": "red" },
+                  { "value": 100, "color": "orange" },
+                  { "value": 1000, "color": "green" }
+                ]
+              },
+              "mappings": [
+                {
+                  "type": "value",
+                  "value": "null",
+                  "text": "No data"
+                }
+              ]
+            }
+          },
+          "options": {
+            "colorMode": "background",
+            "graphMode": "area",
+            "justifyMode": "center",
+            "orientation": "horizontal",
+            "reduceOptions": { "calcs": ["lastNotNull"] },
+            "textMode": "auto"
+          }
+        },
+        {
+          "id": 6,
+          "title": "What's Being Blocked",
+          "type": "row",
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 },
+          "collapsed": false
+        },
+        {
+          "id": 7,
+          "title": "Active CAPI Bans by Reason",
+          "description": "Active community-blocklist bans grouped by threat category (exploit, scan, bruteforce, crawl).",
+          "type": "bargauge",
+          "datasource": { "type": "prometheus" },
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+          "targets": [
+            {
+              "expr": "cs_active_decisions{action=\"ban\",origin=\"CAPI\"}",
+              "legendFormat": "{{reason}}",
+              "interval": "",
+              "instant": true
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "custom": {
+                "displayMode": "basic",
+                "orientation": "horizontal"
+              },
+              "color": {
+                "mode": "palette-classic"
+              }
+            }
+          },
+          "options": {
+            "orientation": "horizontal",
+            "displayMode": "gradient",
+            "showUnfilled": true
+          }
+        },
+        {
+          "id": 8,
+          "title": "HTTP Status Flow",
+          "description": "Request outcomes over time. 2xx = passed Anubis, 4xx = blocked/challenged, 5xx = errors.",
+          "type": "timeseries",
+          "datasource": { "type": "prometheus" },
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
+          "targets": [
+            {
+              "expr": "sum(rate(traefik_service_requests_total{service=~\"anubis.*|.*mediawiki.*\",code=~\"2..\"}[5m]))",
+              "legendFormat": "2xx — Passed",
+              "interval": ""
+            },
+            {
+              "expr": "sum(rate(traefik_service_requests_total{service=~\"anubis.*|.*mediawiki.*\",code=~\"4..\"}[5m]))",
+              "legendFormat": "4xx — Blocked",
+              "interval": ""
+            },
+            {
+              "expr": "sum(rate(traefik_service_requests_total{service=~\"anubis.*|.*mediawiki.*\",code=~\"5..\"}[5m]))",
+              "legendFormat": "5xx — Errors",
+              "interval": ""
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "reqps",
+              "custom": {
+                "lineInterpolation": "smooth",
+                "showPoints": "never",
+                "stacking": { "mode": "normal" },
+                "fillOpacity": 30
+              }
+            },
+            "overrides": [
+              {
+                "matcher": { "id": "byRegexp", "options": "^2xx" },
+                "properties": [
+                  { "id": "color", "value": { "mode": "fixed", "fixedColor": "green" } }
+                ]
+              },
+              {
+                "matcher": { "id": "byRegexp", "options": "^4xx" },
+                "properties": [
+                  { "id": "color", "value": { "mode": "fixed", "fixedColor": "orange" } }
+                ]
+              },
+              {
+                "matcher": { "id": "byRegexp", "options": "^5xx" },
+                "properties": [
+                  { "id": "color", "value": { "mode": "fixed", "fixedColor": "red" } }
+                ]
+              }
+            ]
+          },
+          "options": {
+            "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["mean"] },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          }
+        },
+        {
+          "id": 9,
+          "title": "MediaWiki Health",
+          "type": "row",
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 14 },
+          "collapsed": false
+        },
+        {
+          "id": 10,
+          "title": "MW Request Rate",
+          "description": "Requests reaching MediaWiki. Green = successful (2xx), Red = server errors (5xx). If red spikes, the defense is NOT working.",
+          "type": "timeseries",
+          "datasource": { "type": "prometheus" },
+          "gridPos": { "h": 8, "w": 8, "x": 0, "y": 15 },
+          "targets": [
+            {
+              "expr": "sum(rate(traefik_service_requests_total{service=~\".*mediawiki.*\",code=\"200\"}[5m])) or vector(0)",
+              "legendFormat": "2xx — OK",
+              "interval": ""
+            },
+            {
+              "expr": "sum(rate(traefik_service_requests_total{service=~\".*mediawiki.*\",code=~\"5..\"}[5m])) or vector(0)",
+              "legendFormat": "5xx — Errors",
+              "interval": ""
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "reqps",
+              "custom": {
+                "lineInterpolation": "smooth",
+                "showPoints": "never",
+                "stacking": { "mode": "normal" },
+                "fillOpacity": 30
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "value": null, "color": "green" }
+                ]
+              }
+            },
+            "overrides": [
+              {
+                "matcher": { "id": "byRegexp", "options": "^2xx" },
+                "properties": [
+                  { "id": "color", "value": { "mode": "fixed", "fixedColor": "green" } }
+                ]
+              },
+              {
+                "matcher": { "id": "byRegexp", "options": "^5xx" },
+                "properties": [
+                  { "id": "color", "value": { "mode": "fixed", "fixedColor": "red" } }
+                ]
+              }
+            ]
+          },
+          "options": {
+            "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["mean", "max"] },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          }
+        },
+        {
+          "id": 11,
+          "title": "MW CPU",
+          "description": "MediaWiki container CPU usage vs request/limit. If usage stays near the limit, MW is under load.",
+          "type": "timeseries",
+          "datasource": { "type": "prometheus" },
+          "gridPos": { "h": 8, "w": 8, "x": 8, "y": 15 },
+          "targets": [
+            {
+              "expr": "sum(rate(container_cpu_usage_seconds_total{namespace=\"mediawiki\",container=\"mediawiki\"}[5m])) by (pod)",
+              "legendFormat": "{{pod}} — usage",
+              "interval": ""
+            },
+            {
+              "expr": "sum(kube_pod_container_resource_requests{namespace=\"mediawiki\",container=\"mediawiki\",resource=\"cpu\"})",
+              "legendFormat": "Request (100m)",
+              "interval": ""
+            },
+            {
+              "expr": "sum(kube_pod_container_resource_limits{namespace=\"mediawiki\",container=\"mediawiki\",resource=\"cpu\"})",
+              "legendFormat": "Limit (2)",
+              "interval": ""
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "cores",
+              "custom": {
+                "lineInterpolation": "smooth",
+                "showPoints": "never",
+                "stacking": { "mode": "none" },
+                "fillOpacity": 20
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "value": null, "color": "green" }
+                ]
+              }
+            },
+            "overrides": [
+              {
+                "matcher": { "id": "byName", "options": "Request (100m)" },
+                "properties": [
+                  { "id": "color", "value": { "mode": "fixed", "fixedColor": "blue" } },
+                  { "id": "custom.lineStyle", "value": { "fill": "dash", "dash": [10, 10] } },
+                  { "id": "custom.fillOpacity", "value": 0 }
+                ]
+              },
+              {
+                "matcher": { "id": "byName", "options": "Limit (2)" },
+                "properties": [
+                  { "id": "color", "value": { "mode": "fixed", "fixedColor": "red" } },
+                  { "id": "custom.lineStyle", "value": { "fill": "dash", "dash": [10, 10] } },
+                  { "id": "custom.fillOpacity", "value": 0 }
+                ]
+              }
+            ]
+          },
+          "options": {
+            "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["mean", "max"] },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          }
+        },
+        {
+          "id": 12,
+          "title": "MW Memory",
+          "description": "MediaWiki container memory usage vs request/limit. Near-limit usage indicates memory pressure.",
+          "type": "timeseries",
+          "datasource": { "type": "prometheus" },
+          "gridPos": { "h": 8, "w": 8, "x": 16, "y": 15 },
+          "targets": [
+            {
+              "expr": "sum(container_memory_working_set_bytes{namespace=\"mediawiki\",container=\"mediawiki\"}) by (pod)",
+              "legendFormat": "{{pod}} — usage",
+              "interval": ""
+            },
+            {
+              "expr": "sum(kube_pod_container_resource_requests{namespace=\"mediawiki\",container=\"mediawiki\",resource=\"memory\"})",
+              "legendFormat": "Request (512 Mi)",
+              "interval": ""
+            },
+            {
+              "expr": "sum(kube_pod_container_resource_limits{namespace=\"mediawiki\",container=\"mediawiki\",resource=\"memory\"})",
+              "legendFormat": "Limit (4 Gi)",
+              "interval": ""
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "bytes",
+              "custom": {
+                "lineInterpolation": "smooth",
+                "showPoints": "never",
+                "stacking": { "mode": "none" },
+                "fillOpacity": 20
+              }
+            },
+            "overrides": [
+              {
+                "matcher": { "id": "byName", "options": "Request (512 Mi)" },
+                "properties": [
+                  { "id": "color", "value": { "mode": "fixed", "fixedColor": "blue" } },
+                  { "id": "custom.lineStyle", "value": { "fill": "dash", "dash": [10, 10] } },
+                  { "id": "custom.fillOpacity", "value": 0 }
+                ]
+              },
+              {
+                "matcher": { "id": "byName", "options": "Limit (4 Gi)" },
+                "properties": [
+                  { "id": "color", "value": { "mode": "fixed", "fixedColor": "red" } },
+                  { "id": "custom.lineStyle", "value": { "fill": "dash", "dash": [10, 10] } },
+                  { "id": "custom.fillOpacity", "value": 0 }
+                ]
+              }
+            ]
+          },
+          "options": {
+            "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["mean", "max"] },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          }
+        },
+        {
+          "id": 13,
+          "title": "CrowdSec Telemetry",
+          "type": "row",
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 23 },
+          "collapsed": false
+        },
+        {
+          "id": 14,
+          "title": "Active Bans by Reason (Table)",
+          "description": "Top-20 active CAPI bans with reason, origin, and count.",
+          "type": "table",
+          "datasource": { "type": "prometheus" },
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 24 },
+          "targets": [
+            {
+              "expr": "topk(20, cs_active_decisions{origin=\"CAPI\"})",
+              "format": "table",
+              "instant": true,
+              "legendFormat": ""
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "custom": { "align": "left" }
+            }
+          },
+          "options": {
+            "showHeader": true,
+            "sortBy": [
+              {
+                "displayName": "Value",
+                "desc": true
+              }
+            ]
+          }
+        },
+        {
+          "id": 15,
+          "title": "Log Acquisition Rate",
+          "description": "Traefik access log lines being parsed by CrowdSec per second. If this drops to zero, CrowdSec has no data to analyse.",
+          "type": "timeseries",
+          "datasource": { "type": "prometheus" },
+          "gridPos": { "h": 8, "w": 6, "x": 12, "y": 24 },
+          "targets": [
+            {
+              "expr": "rate(cs_filesource_hits_total[5m])",
+              "legendFormat": "lines/s",
+              "interval": ""
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "custom": {
+                "lineInterpolation": "stepAfter",
+                "showPoints": "auto"
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "value": null, "color": "red" },
+                  { "value": 1, "color": "green" }
+                ]
+              }
+            }
+          },
+          "options": {
+            "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["mean"] },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          }
+        },
+        {
+          "id": 16,
+          "title": "Scenario Pours (Top 5)",
+          "description": "CrowdSec scenario overflow events — spikes indicate attack waves being detected.",
+          "type": "timeseries",
+          "datasource": { "type": "prometheus" },
+          "gridPos": { "h": 8, "w": 6, "x": 18, "y": 24 },
+          "targets": [
+            {
+              "expr": "topk(5, rate(cs_bucket_poured_total[5m]))",
+              "legendFormat": "{{name}}",
+              "interval": ""
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "custom": {
+                "lineInterpolation": "smooth",
+                "showPoints": "never"
+              }
+            }
+          },
+          "options": {
+            "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["mean", "max"] },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          }
+        }
+      ]
+    }

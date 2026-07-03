@@ -111,6 +111,23 @@ vmsingle:
       # Deduplication window — useful if VMAgent retries writes.
       dedup.minScrapeInterval: "30s"
 
+    # Run on storage nodes (chopper) — this is the heavy TSDB.
+    tolerations:
+      - key: node-role.glug.infra/storage
+        operator: Equal
+        value: "true"
+        effect: NoSchedule
+    affinity:
+      nodeAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            preference:
+              matchExpressions:
+                - key: node-role.glug.infra/storage
+                  operator: In
+                  values:
+                    - "true"
+
 # ===========================================================================
 # VMAgent — metrics scraper (replaces Prometheus scraping)
 # ===========================================================================
@@ -188,6 +205,23 @@ vmalert:
         cpu: "300m"
         memory: "256Mi"
 
+    # Run on storage nodes (chopper).
+    tolerations:
+      - key: node-role.glug.infra/storage
+        operator: Equal
+        value: "true"
+        effect: NoSchedule
+    affinity:
+      nodeAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            preference:
+              matchExpressions:
+                - key: node-role.glug.infra/storage
+                  operator: In
+                  values:
+                    - "true"
+
 # ===========================================================================
 # VMAlertmanager — alert routing (replaces Alertmanager)
 # ===========================================================================
@@ -213,6 +247,23 @@ alertmanager:
       limits:
         cpu: "200m"
         memory: "256Mi"
+
+    # Run on storage nodes (chopper).
+    tolerations:
+      - key: node-role.glug.infra/storage
+        operator: Equal
+        value: "true"
+        effect: NoSchedule
+    affinity:
+      nodeAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            preference:
+              matchExpressions:
+                - key: node-role.glug.infra/storage
+                  operator: In
+                  values:
+                    - "true"
 
   # Alertmanager routing config.
   # Critical/warning endpoint alerts are routed to jiralert for Jira ticket
@@ -314,6 +365,23 @@ grafana:
 
   persistence:
     enabled: false
+
+  # Run on storage nodes (chopper), not the compute node (kenobi).
+  tolerations:
+    - key: node-role.glug.infra/storage
+      operator: Equal
+      value: "true"
+      effect: NoSchedule
+  affinity:
+    nodeAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          preference:
+            matchExpressions:
+              - key: node-role.glug.infra/storage
+                operator: In
+                values:
+                  - "true"
 
   # VictoriaLogs Grafana plugin (required for the Logs datasource).
   plugins:
@@ -424,6 +492,23 @@ kube-state-metrics:
     limits:
       cpu: "200m"
       memory: "256Mi"
+
+  # Run on storage nodes (chopper).
+  tolerations:
+    - key: node-role.glug.infra/storage
+      operator: Equal
+      value: "true"
+      effect: NoSchedule
+  affinity:
+    nodeAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          preference:
+            matchExpressions:
+              - key: node-role.glug.infra/storage
+                operator: In
+                values:
+                  - "true"
 
   vmScrape:
     enabled: true

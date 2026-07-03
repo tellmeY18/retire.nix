@@ -19,9 +19,13 @@
         "tailscale0"
         "cni0"
       ];
-      # SSH only; all web services (Nextcloud, conduwuit, care) bind to
-      # localhost and are exposed exclusively via Cloudflare Tunnel.
-      allowedTCPPorts = [ 22 ];
+      # SSH + OpenClaw gateway for LAN access; all legacy web services
+      # (Nextcloud, conduwuit, care) bind to localhost and are exposed
+      # via Cloudflare Tunnel.
+      allowedTCPPorts = [
+        22
+        18789 # OpenClaw gateway — LAN WebSocket access
+      ];
 
       # Allow forwarding between tailscale0 and pod networks (cni0).
       # MUST use -I (insert at top) because kube-router's FORWARD rules

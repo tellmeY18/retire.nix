@@ -78,7 +78,8 @@ keys:
   - &chopper age1y8v9n2z4y8kp8mfdytvxasud379n44dlrwkn88ynh5u2xnjt2aks8m0xz4
   - &kenobi age1vexywt66s7fzakttu4tw0kyzyl6dc73u6jr870w08nsdegmanudshv3kjv
   - &c3po age1kxdlut9r8fxw9hsfhdq0jgs798qy4zrs2traxsxvw46wldsd7qdqye7m2n
-  - &r2d2 age1pwsnn9ptq7xju2k583n8dum0h82alwe3q9rdzl2ute720wrf53psl0d5wd
+  - &r2d2 age1chawh7tykgfn49hmt2q63vhv4uzkwg098ttzxw5k90sg2w73ucts924uyh
+  - &yoda age15syaxfchkeuncyumqsyhcm4rm8qvkkleerjpzz6mydzz6f29dsvs5ch726
 
   # CI key — GitHub Actions can only decrypt secrets/ci/*
   - &ci age15arhyjjf09vy4he9qfhzyvl2p4kx8plzqycjfw4fjmkq32lhvgmscq5s2w
@@ -119,6 +120,12 @@ creation_rules:
       - age:
           - *master
           - *r2d2
+
+  - path_regex: secrets/yoda/.*
+    key_groups:
+      - age:
+          - *master
+          - *yoda
 
   # Example for a future host (add its age key anchor above first):
   # - path_regex: secrets/newhost/.*
