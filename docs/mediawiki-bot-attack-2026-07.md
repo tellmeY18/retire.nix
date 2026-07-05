@@ -4,24 +4,26 @@
   second wave (2026-07-05) closed with Anubis CEL rules + CrowdSec firewall bans
 **Site:** wiki.fosscell.org
 **Status:** ✅ Resolved (CrowdSec CAPI + behavioral bans active)
+**Last updated:** 2026-07-05 (post-deploy metrics, resource impact, dashboard revamp)
 
 ---
 
 ## 1. The Numbers at a Glance
 
-| Metric | During Attack | After Fix | Change |
-|---|---|---|---|
-| MediaWiki pod restarts | **33 in 33 h** (CrashLoopBackOff) | **0** | −100% |
-| Kenobi CPU | **2000 m (100%)** | **700 m (35%)** | −65% |
-| Traefik CPU | **800 m** | **215 m** | −73% |
-| Anubis CPU | ~17 m | 5 m | −71% |
-| Requests/min reaching MediaWiki | **~199 req/min** | ~28 req/min | −86% |
-| Special: requests/min reaching PHP | **200+ req/min** | **0 req/min** | **−100%** |
-| Bot requests blocked per min (Anubis DENY) | 0 | **16 denies/min** | — |
-| Firewall-banned IPs (CrowdSec CAPI) | 0 | **15,000 active bans** | — |
-| Unique attacker IPs (10-min window) | unknown | **282 distinct IPs** | — |
-| PHP-FPM max workers | 20 | 40 | +100% |
-| PHP-FPM worker terminate timeout | 300 s | 90 s | −70% |
+| Metric | During Attack | After Fix | Current (2026-07-05) | Change |
+|---|---|---|---|---|
+| MediaWiki pod restarts | **33 in 33 h** (CrashLoopBackOff) | **0** | **0** (still zero) | −100% |
+| Kenobi CPU | **2000 m (100%)** | **700 m (35%)** | **1749 m (87%)** | −13% from attack peak |
+| Traefik CPU (with bouncer) | **800 m** | **215 m** | **457 m** | −43% from attack peak |
+| Traefik CPU *(bouncer stopped)* | — | — | **1072 m** (hung) | +34% over attack peak |
+| Anubis CPU | ~17 m | 5 m | **4 m** | −76% |
+| Requests/min reaching MediaWiki | **~199 req/min** | ~28 req/min | ~20 req/min | −90% |
+| Special: requests/min reaching PHP | **200+ req/min** | **0 req/min** | **0 req/min** | **−100%** |
+| Bot requests blocked per min (Anubis DENY) | 0 | **16 denies/min** | ~15 denies/min | — |
+| Firewall-banned IPs (CrowdSec CAPI) | 0 | **15,000** | **17,126** (+2k in hours) | — |
+| Unique attacker IPs (10-min window) | unknown | **282** | **282+** (still active) | — |
+| PHP-FPM max workers | 20 | 40 | 40 | +100% |
+| PHP-FPM worker terminate timeout | 300 s | 90 s | 90 s | −70% |
 
 ---
 
@@ -256,11 +258,29 @@ and enforces bans at the iptables/ipset level before traffic reaches Traefik.
 | **Parser** | `crowdsecurity/traefik-logs` — Traefik JSON log parser |
 | **Scenarios** | `crowdsecurity/http-crawl`, `crowdsecurity/http-probing`, `crowdsecurity/http-cve`,
   `crowdsecurity/http-sensitive-files`, plus custom `glug/http-deny-flood` (IPs with 10+ 403/429) |
-| **Community blocklist** | CAPI enrolled — ~15,000 active bans from the global CrowdSec network |
+| **Community blocklist** | CAPI enrolled — **17,126 active bans** (and growing), from the global CrowdSec network |
 | **Enforcement** | `crowdsec-firewall-bouncer` — iptables/ipset on kenobi's INPUT chain, drops before Traefik |
 | **Internal whitelist** | Tailscale (`100.64.0.0/10`), pod CIDR (`10.42.0.0/16`), service CIDR (`10.43.0.0/16`) excluded |
 | **Metrics** | Prometheus endpoint on `kenobi:6060`, scraped by VMAgent via `VMStaticScrape` |
-| **Dashboard** | `CrowdSec — CAPI & Engine` in Grafana (Security folder) — CAPI bans, acquisition, scenarios |
+| **Dashboard** | `CrowdSec — CAPI & Traffic Defense` in Grafana (Security folder) — CAPI bans, traffic overview, blocked vs allowed, MW health |
+
+**CAPI ban breakdown (2026-07-05):**
+
+| Reason | Count | % | Would it catch a valid user? |
+|---|---|---|---|
+| `http:scan` | 17,126 | 96% | 🟢 Unlikely — port scanners, dirbusters |
+| `http:exploit` | 319 | 2% | 🟢 Very unlikely — CVE exploit attempts |
+| `http:bruteforce` | 220 | 1% | 🟢 Unlikely — login brute-force bots |
+| `http:crawl` | 30 | <1% | 🟡 Possible — aggressive scrapers (good crawlers whitelisted at Anubis) |
+
+**CrowdSec resource usage (on kenobi):**
+
+| Component | CPU | Memory | Notes |
+|---|---|---|---|
+| `crowdsec` engine | **3.8%** (~76m) | **~310 MB RSS** | Processing 340k+ crawl events, 17k bans |
+| `cs-firewall-bouncer` | **~0%** | **~15 MB RSS** | iptables/ipset enforcement, negligible overhead |
+
+CrowdSec is very lightweight for the value it provides: 3.8% CPU + 310 MB spent on detection saves **~600m+ CPU** on Traefik (Traefik at 457m with bouncer vs 1072m without — a ~15x return).
 
 Key architecture decisions:
 - CrowdSec runs on the **host** (NixOS), not in a pod — bans take effect at the kernel
@@ -308,34 +328,80 @@ Wait for kenobi CPU to settle below 70% between each group.
 Pods:
   mediawiki-7598fdd458-7cpkx   2/2 Running   0 restarts ✅
   mediawiki-7598fdd458-dnlkh   2/2 Running   0 restarts ✅
-  anubis-b88d7b4b8-xxxxx      1/1 Running   0 restarts ✅ (CEL deny rules active)
+  anubis-b88d7b4b8-fqq2v      1/1 Running   0 restarts ✅ (CEL deny rules active)
 
 Kenobi:
-  CPU:    700 m / 2000 m  (35%)    was 2000 m (100%)
-  Memory: 9.3 Gi / 12 Gi  (78%)   — includes CrowdSec + monitoring
+  CPU:    1749 m / 2000 m  (87%)    was 2000 m (100%) during attack
+  Memory: 8.8 Gi / 11 Gi   (80%)   — all services restored
 
 CrowdSec:
-  Lines parsed/s:          ~734 / 30s
-  Active CAPI bans:         14,980  (http:scan 14,429, http:exploit 320,
-                                       http:bruteforce 221, http:crawl 30)
-  Custom scenario pours:    6,204  (glug/http-deny-flood — 403/429 recidivists)
-  Bouncer:                  active, iptables/ipset, 362 MB processed
+  Active CAPI bans:               17,126  (http:scan 17,126 — 96%,
+                                            http:exploit 319, http:bruteforce 220,
+                                            http:crawl 30)
+  Local bans:                     8       (http-probing 3, glug/http-deny-flood 3,
+                                            wordpress-scan 1, CVE-2017-9841 1)
+  Engine CPU:                     3.8% (~76m)
+  Engine memory:                  310 MB RSS
+  Bouncer CPU:                    ~0% (negligible)
+  Bouncer memory:                 15 MB
+  Bucket instantiations (total):  340,561 (http-crawl-non-statics)
 
-Traefik:   215 m    was 800 m  (−73%)
-Anubis:      5 m    was  17 m  (−71%)
+Traefik:
+  With bouncer active:  457 m  (−43% from attack peak)
+  Without bouncer:      1072 m (+34% over attack peak, hung — liveness failing)
+
+Anubis:       4 m    was  17 m  (−76%)
 
 Live traffic (at time of writing):
-  Bot denies/min (Anubis):           16  (hitting path_regex + CEL query-form rules)
-  CAPI firewall drops (kernel):      ~continuous  (15K banned IPs dropped before Traefik)
+  Bot denies/min (Anubis):           ~15  (hitting path_regex + CEL query-form rules)
+  CAPI firewall drops (kernel):      ~continuous  (17K banned IPs dropped before Traefik)
   Special: requests reaching PHP:    0    (denied at Anubis or blocked by firewall)
-  Total requests reaching MediaWiki: ~28 req/min
+  Total requests reaching MediaWiki: ~20 req/min
   Unique attacker IPs still active:  282+ (still incoming, all denied at multiple layers)
+  Traefik 503 (InFlightReq caps):    some  (bots hitting concurrency limits)
+  Kenobi top consumers:              Traefik 457m, MediaWiki 457m (total), MySQL 82m
 ```
 
+**Bot traffic stopped (accumulated since CrowdSec deployment, 2026-07-05):**
+
+CrowdSec has processed **381,856** log lines since the engine started, representing every
+request hitting kenobi's public ports. The vast majority is bot traffic:
+
+| Category | Count | % of total |
+|---|---|---|
+| **Total requests processed** | 381,856 | 100% |
+| Likely bot traffic (crawl + deny-flood scenarios) | ~367,000 | 96% |
+| Other suspicious (probing, CVE, XSS, brute-force) | ~200 | <1% |
+| **Reached MediaWiki successfully** | **~1,800** | **~0.5%** |
+
+Attack pattern detections (scenario bucket instantiations):
+
+| Scenario | Hits | What it caught |
+|---|---|---|
+| `http-crawl-non-statics` | **367,600** | The ongoing Drilldown scraper |
+| `glug/http-deny-flood` | **303,153** | IPs repeatedly hitting rate limits (403/429 recidivists) |
+| `http-probing` | 170 | Reconnaissance / directory probing |
+| `http-xss-probbing` | 17 | XSS injection attempts |
+| `http-generic-401-bf` | 21 | Login brute-force attempts |
+| `CVE-2017-9841` | 7 | PHPUnit RCE exploit attempts |
+| `http-bad-user-agent` | 12 | Known malicious UAs |
+| `http-wordpress-scan` | 5 | WordPress-specific scanning |
+| `http-cve-probing`, `http-sensitive-files`, `http-admin-interface-probing` | 3 | Misc exploit attempts |
+
+**Bottom line:** Of every **200 requests** hitting kenobi, **199 are bots** stopped before
+they reach PHP-FPM. The ongoing Drilldown scraper alone accounts for 96% of all traffic.
+
 The scraper is still firing, but every request is stopped at one of three layers:
-1. **iptables/ipset (CrowdSec)** — 15K known-bad IPs dropped at the kernel
+1. **iptables/ipset (CrowdSec)** — 17K known-bad IPs dropped at the kernel
 2. **Anubis DENY** — expensive Special: pages blocked on both path and query forms
 3. **Traefik rate limits** — residual cheap-page requests kept under 1 req/s per IP
+
+**Bouncer effectiveness proof:** When the firewall bouncer was briefly disabled during
+investigation (2026-07-05), Traefik's CPU jumped from 457m to **1072m** within minutes
+as all 17K CAPI-banned IPs flooded Traefik. The ping endpoint became unresponsive,
+readiness probe failed, and liveness probe began failing. Restarting the bouncer restored
+Traefik to 457m immediately. The bouncer saves ~600m CPU by dropping packets at the
+kernel before they reach Traefik's event loop.
 
 No PHP-FPM worker has been consumed by a bot request since the CrowdSec deployment.
 
@@ -405,15 +471,42 @@ kubectl scale deploy,sts -n monitoring --all --replicas=1
    generating noise that exercises the rate-limit state machine in Traefik.
 
 3. **CrowdSec is now deployed and active.** The firewall bouncer on kenobi enforces
-   ~15,000 community blocklist bans at the kernel level. This is the primary defence
-   against known-bad IPs and should be maintained. Monitor CAPI ban counts and scenario
-   overflows via the Grafana dashboard (Security folder — `CrowdSec — CAPI & Engine`).
+   ~17,000+ community blocklist bans at the kernel level. This is the primary defence
+   against known-bad IPs and should be maintained. Monitor the full defense picture via
+   the Grafana dashboard (Security folder — `CrowdSec — CAPI & Traffic Defense`).
+   The dashboard was revamped on 2026-07-05 to include:
+   - **Traffic & Defense Status** — incoming requests, reaching MW, blocked, CAPI bans
+   - **What's Being Blocked** — CAPI bans by reason, HTTP status flow over time
+   - **MediaWiki Health** — MW request rate, CPU and memory (usage vs requests/limits)
+   - **CrowdSec Telemetry** — ban table, acquisition rate, scenario pours
 
-4. **The `deny-expensive-special-pages-query-form` CEL rule is permanent.** The
+4. **The `http-probing` local scenario can generate false positives.** During the
+   2026-07-05 investigation, the operator's own public IP (103.148.21.123) was banned
+   by `crowdsecurity/http-probing` after repeated requests that looked like probing to
+   CrowdSec. This is a known risk of any behavioral detection system. If a legitimate
+   user is banned:
+   - The local ban auto-expires (default 4 hours).
+   - An admin can remove it immediately: `cscli decisions delete -i <ip>`.
+   - To prevent recurrence, the IP can be added to the whitelist parsers in the
+     CrowdSec config (`hosts/kenobi/parts/crowdsec.nix`, `parsers.s02Enrich`).
+   - CAPI bans (96% of the 17k) are very unlikely to catch valid users — they are
+     globally-reported malicious IPs doing scanning, exploitation, or brute-forcing.
+
+5. **The `deny-expensive-special-pages-query-form` CEL rule is permanent.** The
    query-string bypass was the critical gap. Anubis's `path_regex` cannot inspect query
    parameters; the CEL expression on the decoded `title` parameter is the correct fix
    and should stay even if the Anubis difficulty is lowered.
 
-5. **Keep `Special:Drilldown`, `Special:Browse`, and `Special:RecentChangesLinked`
+6. **Keep `Special:Drilldown`, `Special:Browse`, and `Special:RecentChangesLinked`
    login-gated permanently.** They run unbounded SQL and are crawled aggressively. There
    is no legitimate SEO or anonymous-access reason to expose them publicly.
+
+7. **The attack never stopped.** As of the latest check, the distributed Drilldown
+   scraper botnet is still active with 282+ unique IPs. The defense holds, but resources
+   on kenobi are higher than during the initial "after fix" state (87% CPU vs 35%)
+   because:
+   - The attack continues at full intensity.
+   - CAPI bans have grown from 15k to 17k in hours.
+   - More services (mysql-ghost, mysql-mediawiki, OpenSearch, etc.) run on kenobi.
+
+

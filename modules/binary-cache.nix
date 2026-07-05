@@ -44,6 +44,9 @@
       "https://deploy-rs.cachix.org"
       "https://cachix.cachix.org"
       "https://tellmey18.cachix.org"
+      # Garnix — upstream binary cache for nix-openclaw (openclaw-gateway,
+      # openclaw runtime, and their dependencies).
+      "https://cache.garnix.io"
     ];
 
     trusted-public-keys = [
@@ -54,6 +57,8 @@
       "devenv.cachix.org-1:w1cLUi8dv3hnoSPGAuibQv+f9TZLr6cv/Hm9XgU50cw="
       "deploy-rs.cachix.org-1:WfYy4n/FmMUOR55R4BcI04+CLy18CXsMJMIRhDw3hOw="
       "cachix.cachix.org-1:myoobmXM2d/eFGhO/9rE8cVoEPCFU1N2aR2YmZ77Rso="
+      # Garnix cache for nix-openclaw upstream packages
+      "cache.garnix.io:CTFPyKSLcx5RMJKfLo5EEPUObbA78b0YQ2DTCJXqr9g="
     ];
 
     # Both attic endpoints serve the same store (signed by the key above).

@@ -58,7 +58,9 @@
     };
     nix-openclaw = {
       url = "github:openclaw/nix-openclaw";
-      inputs.nixpkgs.follows = "nixpkgs";
+      # Intentionally NOT following nixpkgs — lets the upstream flake use its
+      # own pinned revision so Garnix binary cache hits. Following our unstable
+      # nixpkgs would change every derivation hash and defeat caching.
     };
   };
 
@@ -173,6 +175,14 @@
             sops-nix.nixosModules.sops
             disko.nixosModules.disko
             inputs.nix-openclaw.nixosModules.openclaw-gateway
+            # Force openclaw-gateway from the nix-openclaw flake's own nixpkgs
+            # pin so Garnix binary cache hits. The nixpkgs-unstable version of
+            # openclaw (2026.6.5) has to build its pnpm deps from source (~1GB)
+            # and times out over SSH-remote-build.
+            ({ lib, ... }: {
+              services.openclaw-gateway.package = lib.mkForce
+                inputs.nix-openclaw.packages.x86_64-linux.openclaw-gateway;
+            })
           ];
           kenobi = [
             ./hosts/kenobi/disko-config.nix
