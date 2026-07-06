@@ -12,6 +12,12 @@ nodeSelector:
 # Bind directly to the node's network stack (no kube-proxy hop).
 hostNetwork: true
 
+# With hostNetwork, the default dnsPolicy (ClusterFirst) inherits the node's
+# /etc/resolv.conf, which doesn't include kube-dns. This prevents Traefik from
+# resolving cluster-internal service names — including the Turnstile CAPTCHA
+# gate's ForwardAuth address. ClusterFirstWithHostNet adds kube-dns to the
+# search path so service names like `turnstile.traefik-system.svc` resolve.
+
 ports:
   traefik:
     port: 8080
@@ -61,6 +67,10 @@ livenessProbe:
 # Single replica — one compute node.
 deployment:
   replicas: 1
+  # hostNetwork pods inherit the node's DNS by default, which can't resolve
+  # cluster-internal service names (Turnstile ForwardAuth, etc.).
+  # ClusterFirstWithHostNet adds kube-dns to the search path.
+  dnsPolicy: ClusterFirstWithHostNet
   # hostPath volume for ACME cert persistence (compute nodes have no PVC StorageClass).
   additionalVolumes:
     - name: acme-storage

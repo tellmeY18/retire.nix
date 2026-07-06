@@ -1,0 +1,415 @@
+---
+# Turnstile — Cloudflare Turnstile CAPTCHA gate for Traefik.
+# Replaces the blanket "login to view any Special: page" block with
+# a frictionless Turnstile challenge at the Traefik layer.
+#
+# Legitimate users pass Turnstile (usually invisibly), get a 7-day
+# signed cookie, and never see the challenge again. Headless scrapers
+# that can't pass Turnstile are blocked before they reach Anubis.
+#
+# Architecture:
+#   Special: request → Traefik → Turnstile (ForwardAuth) → Anubis → MediaWiki
+#
+# Flow:
+#   1. Traefik forwards /Special:* requests to /auth
+#   2. If valid cookie exists → 200 → pass through to Anubis
+#   3. If no cookie → 302 redirect to /challenge?redirect=<original URL>
+#   4. Browser renders Turnstile widget; JS POSTs to /verify
+#   5. Service verifies token via Cloudflare API; sets signed cookie
+#   6. Redirects back to original URL → cookie present → pass through
+#
+# Requires: CLOUDFLARE_TURNSTILE_SECRET (k8s secret) + site key (in ConfigMap)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: turnstile
+  namespace: traefik-system
+  labels:
+    app.kubernetes.io/name: turnstile
+    app.kubernetes.io/component: captcha-gate
+data:
+  # Cloudflare Turnstile site key (public, safe in ConfigMap)
+  # Get yours: https://dash.cloudflare.com/?to=/:account/turnstile
+  TURNSTILE_SITE_KEY: "0x4AAAAAADxLSLuUnu4oSN2k"
+  SESSION_SECRET: "abf4cf44d9bcc32a273b7f7c5b308a60df965692491c6f996554b82fa67db135"
+
+  # HTML challenge page — served at /challenge
+  # Renders the Turnstile widget and POSTs the token to /verify
+  challenge.html: |
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Please verify you are human — wiki.fosscell.org</title>
+      <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+      <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+          background: #f5f5f5;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          min-height: 100vh;
+        }
+        .card {
+          background: white;
+          border-radius: 12px;
+          padding: 2.5rem;
+          box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+          text-align: center;
+          max-width: 420px;
+          width: 90%;
+        }
+        h1 { font-size: 1.25rem; color: #1a1a1a; margin-bottom: 0.5rem; }
+        p { font-size: 0.9rem; color: #666; margin-bottom: 1.5rem; line-height: 1.5; }
+        .cf-turnstile { display: inline-block; }
+        .footer { margin-top: 1.5rem; font-size: 0.75rem; color: #999; }
+        .error { color: #d32f2f; font-size: 0.85rem; margin-top: 0.75rem; display: none; }
+      </style>
+    </head>
+    <body>
+      <div class="card">
+        <h1>Quick security check</h1>
+        <p>wiki.fosscell.org requires a quick check before accessing this page. This helps protect the site from automated scrapers.</p>
+        <div class="cf-turnstile" data-sitekey="__SITE_KEY__" data-callback="onTurnstileSuccess"></div>
+        <div id="error" class="error"></div>
+        <div class="footer">Protected by Cloudflare Turnstile</div>
+      </div>
+      <script>
+        function onTurnstileSuccess(token) {
+          const params = new URLSearchParams(window.location.search);
+          const redirect = params.get('redirect') || '/';
+
+          fetch('/verify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({ token: token, redirect: redirect })
+          })
+          .then(r => {
+            if (r.redirected) { window.location.href = r.url; }
+            else if (r.ok) { window.location.href = redirect; }
+            else { throw new Error('Verification failed'); }
+          })
+          .catch(e => {
+            document.getElementById('error').style.display = 'block';
+            document.getElementById('error').textContent = 'Verification failed. Please try again.';
+            turnstile.reset();
+          });
+        }
+      </script>
+    </body>
+    </html>
+
+  # Python service — Flask app that handles ForwardAuth + Turnstile verification
+  server.py: |
+    import os
+    import html
+    import hmac
+    import hashlib
+    import json
+    import urllib.request
+    import urllib.parse
+    from http.server import HTTPServer, BaseHTTPRequestHandler
+    from urllib.parse import urlparse, parse_qs
+
+    SESSION_SECRET = os.environ.get('SESSION_SECRET', 'INSECURE-DEFAULT')
+    TURNSTILE_SECRET = os.environ.get('CLOUDFLARE_TURNSTILE_SECRET', '')
+    TURNSTILE_SITE_KEY = os.environ.get('TURNSTILE_SITE_KEY', '')
+    COOKIE_NAME = 'turnstile_verified'
+    COOKIE_MAX_AGE = 604800  # 7 days
+
+    def make_cookie_value():
+        """Generate a HMAC-signed session token."""
+        import time
+        ts = str(int(time.time()))
+        sig = hmac.new(SESSION_SECRET.encode(), ts.encode(), hashlib.sha256).hexdigest()[:16]
+        return f"{ts}-{sig}"
+
+    def verify_cookie(value):
+        """Verify a signed cookie. Returns True if valid."""
+        try:
+            parts = value.split('-', 1)
+            if len(parts) != 2:
+                return False
+            ts, sig = parts
+            expected = hmac.new(SESSION_SECRET.encode(), ts.encode(), hashlib.sha256).hexdigest()[:16]
+            return hmac.compare_digest(sig, expected)
+        except Exception:
+            return False
+
+    def verify_turnstile_token(token):
+        """Verify a Turnstile token against Cloudflare's API."""
+        data = urllib.parse.urlencode({
+            'secret': TURNSTILE_SECRET,
+            'response': token,
+        }).encode()
+        req = urllib.request.Request(
+            'https://challenges.cloudflare.com/turnstile/v0/siteverify',
+            data=data,
+            headers={'Content-Type': 'application/x-www-form-urlencoded'}
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                result = json.loads(resp.read())
+                return result.get('success', False)
+        except Exception:
+            return False
+
+    class TurnstileHandler(BaseHTTPRequestHandler):
+        def log_message(self, format, *args):
+            # Log requests to stdout so `kubectl logs` shows them
+            client = self.headers.get('X-Forwarded-For', self.client_address[0])
+            print(f'{client} - {self.command} {self.path} - {format % args}', flush=True)
+
+        def _send_redirect(self, location, set_cookie=None):
+            self.send_response(302)
+            if set_cookie:
+                self.send_header('Set-Cookie', set_cookie)
+            self.send_header('Location', location)
+            self.end_headers()
+
+        def _send_html(self, html, status=200):
+            html = html.replace('__SITE_KEY__', TURNSTILE_SITE_KEY)
+            self.send_response(status)
+            self.send_header('Content-Type', 'text/html; charset=utf-8')
+            self.send_header('Cache-Control', 'no-store')
+            self.end_headers()
+            self.wfile.write(html.encode())
+
+        def _send_auth_response(self, allowed, redirect_url=None, public_host='wiki.fosscell.org', public_proto='https'):
+            if allowed:
+                self.send_response(200)
+                self.send_header('Content-Type', 'text/plain')
+                self.end_headers()
+                self.wfile.write(b'OK')
+            else:
+                challenge_url = f'{public_proto}://{public_host}/challenge?redirect={urllib.parse.quote(redirect_url or "/")}'
+                self.send_response(302)
+                self.send_header('Location', challenge_url)
+                self.end_headers()
+
+        def do_GET(self):
+            parsed = urlparse(self.path)
+            params = parse_qs(parsed.query)
+
+            # ForwardAuth endpoint — Traefik forwards requests here
+            if parsed.path == '/auth':
+                # Get the original request URL from ForwardAuth headers
+                # Traefik sends: X-Forwarded-Method, X-Forwarded-Proto, X-Forwarded-Host, X-Forwarded-Uri
+                fwd_method = self.headers.get('X-Forwarded-Method', 'GET')
+                fwd_proto = self.headers.get('X-Forwarded-Proto', 'https')
+                fwd_host = self.headers.get('X-Forwarded-Host', 'wiki.fosscell.org')
+                fwd_uri = self.headers.get('X-Forwarded-Uri', '/')
+                original_url = f"{fwd_proto}://{fwd_host}{fwd_uri}"
+
+                # Check for our cookie
+                cookies = self.headers.get('Cookie', '')
+                for c in cookies.split(';'):
+                    c = c.strip()
+                    if c.startswith(f'{COOKIE_NAME}='):
+                        val = c.split('=', 1)[1]
+                        if verify_cookie(val):
+                            # Cookie is valid — allow through
+                            return self._send_auth_response(True)
+
+                # No valid cookie — redirect to challenge using public hostname
+                return self._send_auth_response(False, original_url, fwd_host, fwd_proto)
+
+            # Challenge page
+            elif parsed.path == '/challenge':
+                page_path = '/etc/turnstile/challenge.html'
+                try:
+                    with open(page_path) as f:
+                        html = f.read()
+                    self._send_html(html)
+                except FileNotFoundError:
+                    self.send_response(500)
+                    self.end_headers()
+
+            # Health check
+            elif parsed.path == '/healthz':
+                self.send_response(200)
+                self.send_header('Content-Type', 'text/plain')
+                self.end_headers()
+                self.wfile.write(b'OK')
+
+            else:
+                self.send_response(404)
+                self.end_headers()
+
+        def do_POST(self):
+            parsed = urlparse(self.path)
+
+            # Verify endpoint — Turnstile token POSTed from the challenge page
+            if parsed.path == '/verify':
+                content_length = int(self.headers.get('Content-Length', 0))
+                body = self.rfile.read(content_length).decode() if content_length > 0 else ''
+                post_params = parse_qs(body)
+
+                token = post_params.get('token', [''])[0]
+                redirect = post_params.get('redirect', ['/'])[0]
+
+                if not token:
+                    self.send_response(400)
+                    self.end_headers()
+                    return
+
+                if verify_turnstile_token(token):
+                    cookie_val = make_cookie_value()
+                    cookie = (
+                        f'{COOKIE_NAME}={cookie_val}; '
+                        f'Max-Age={COOKIE_MAX_AGE}; '
+                        f'Path=/; SameSite=Lax; HttpOnly; Secure'
+                    )
+                    # Return 200 + Set-Cookie + JS redirect.
+                    # 302 + Set-Cookie is unreliable during fetch redirect chains
+                    # (some browsers drop the cookie). A 200 response lets the
+                    # browser reliably set the cookie before the JS navigates away.
+                    self.send_response(200)
+                    self.send_header('Set-Cookie', cookie)
+                    self.send_header('Content-Type', 'text/html; charset=utf-8')
+                    self.send_header('Cache-Control', 'no-store')
+                    self.end_headers()
+                    escaped = html.escape(redirect)
+                    self.wfile.write(
+                        f'<script>window.location.href="{escaped}"</script>'
+                        f'<a href="{escaped}">Continue</a>'.encode()
+                    )
+                else:
+                    # Token invalid — return 200 + JS redirect to challenge
+                    challenge_url = f'/challenge?redirect={urllib.parse.quote(redirect)}'
+                    escaped = html.escape(challenge_url)
+                    self.send_response(200)
+                    self.send_header('Content-Type', 'text/html; charset=utf-8')
+                    self.send_header('Cache-Control', 'no-store')
+                    self.end_headers()
+                    self.wfile.write(
+                        f'<script>window.location.href="{escaped}"</script>'
+                        f'<a href="{escaped}">Try again</a>'.encode()
+                    )
+
+            else:
+                self.send_response(404)
+                self.end_headers()
+
+    if __name__ == '__main__':
+        port = int(os.environ.get('PORT', '8080'))
+        server = HTTPServer(('0.0.0.0', port), TurnstileHandler)
+        print(f"Turnstile service starting on :{port}")
+        server.serve_forever()
+---
+# Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: turnstile
+  namespace: traefik-system
+  labels:
+    app.kubernetes.io/name: turnstile
+    app.kubernetes.io/component: captcha-gate
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: turnstile
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: turnstile
+    spec:
+      containers:
+        - name: turnstile
+          image: python:3.11-alpine
+          command:
+            - python
+            - /etc/turnstile/server.py
+          env:
+            - name: PYTHONUNBUFFERED
+              value: "1"
+            - name: PORT
+              value: "8080"
+            - name: TURNSTILE_SITE_KEY
+              valueFrom:
+                configMapKeyRef:
+                  name: turnstile
+                  key: TURNSTILE_SITE_KEY
+            - name: SESSION_SECRET
+              valueFrom:
+                configMapKeyRef:
+                  name: turnstile
+                  key: SESSION_SECRET
+            - name: CLOUDFLARE_TURNSTILE_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: turnstile-secret
+                  key: secret
+          ports:
+            - name: http
+              containerPort: 8080
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
+          volumeMounts:
+            - name: config
+              mountPath: /etc/turnstile
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: turnstile
+---
+# Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: turnstile
+  namespace: traefik-system
+  labels:
+    app.kubernetes.io/name: turnstile
+spec:
+  selector:
+    app.kubernetes.io/name: turnstile
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+---
+# Traefik ForwardAuth middleware — wraps the Turnstile service
+# Applied to Special: page routes in the IngressRoute.
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: turnstile-check
+  namespace: mediawiki
+spec:
+  forwardAuth:
+    # Traefik Helm values set dnsPolicy: ClusterFirstWithHostNet and
+    # allowCrossNamespace: true, so cluster DNS names resolve correctly
+    # even though Traefik runs with hostNetwork.
+    address: http://turnstile.traefik-system.svc:8080/auth
+    trustForwardHeader: true
+    authResponseHeaders:
+      - Set-Cookie

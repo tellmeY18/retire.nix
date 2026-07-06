@@ -1,0 +1,130 @@
+---
+# Network policies for the traefik-system namespace.
+#
+# Traefik itself runs with hostNetwork and binds directly to the node's
+# public IP. kube-router enforces iptables rules even for hostNetwork pods'
+# outbound connections, so we need explicit allow rules for:
+#
+#   1. Traefik pod → Turnstile pod     (ForwardAuth check, /challenge, /verify)
+#   2. Traefik pod → Anubis pod        (PoW challenge → proxy to MediaWiki)
+#   3. Turnstile pod → Cloudflare API  (Turnstile token verification)
+#   4. Anubis pod → MediaWiki service  (reverse-proxy after challenge passes)
+#
+# ────────────────────────────────────────────────────────────────────────
+# Ingress: Turnstile (port 8080)
+# ────────────────────────────────────────────────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-turnstile-ingress
+  namespace: traefik-system
+  labels:
+    app.kubernetes.io/name: turnstile
+    app.kubernetes.io/component: captcha-gate
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: turnstile
+  policyTypes:
+    - Ingress
+  ingress:
+    # Traefik's ForwardAuth calls /auth on the Turnstile service.
+    # Also the turnstile-challenge IngressRoute routes /challenge, /verify trail
+    # here. Both originate from the Traefik pod (same namespace).
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: traefik
+      ports:
+        - port: 8080
+          protocol: TCP
+---
+# ────────────────────────────────────────────────────────────────────────
+# Ingress: Anubis (port 8080)
+# ────────────────────────────────────────────────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-anubis-ingress
+  namespace: traefik-system
+  labels:
+    app.kubernetes.io/name: anubis
+    app.kubernetes.io/component: bot-protection
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: anubis
+  policyTypes:
+    - Ingress
+  ingress:
+    # Traefik routes all wiki.fosscell.org requests to the Anubis service
+    # (both the main IngressRoute and the Special: IngressRoute).
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: traefik
+      ports:
+        - port: 8080
+          protocol: TCP
+---
+# ────────────────────────────────────────────────────────────────────────
+# Egress: Turnstile → Cloudflare API
+# ────────────────────────────────────────────────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-turnstile-egress
+  namespace: traefik-system
+  labels:
+    app.kubernetes.io/name: turnstile
+    app.kubernetes.io/component: captcha-gate
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: turnstile
+  policyTypes:
+    - Egress
+  egress:
+    # DNS resolution (kube-dns)
+    - ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    # Cloudflare Turnstile API for token verification
+    - ports:
+        - port: 443
+          protocol: TCP
+---
+# ────────────────────────────────────────────────────────────────────────
+# Egress: Anubis → MediaWiki (cross-namespace)
+# ────────────────────────────────────────────────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-anubis-egress
+  namespace: traefik-system
+  labels:
+    app.kubernetes.io/name: anubis
+    app.kubernetes.io/component: bot-protection
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: anubis
+  policyTypes:
+    - Egress
+  egress:
+    # DNS resolution (kube-dns)
+    - ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    # MediaWiki web service in the mediawiki namespace
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: mediawiki
+      ports:
+        - port: 80
+          protocol: TCP

@@ -234,15 +234,18 @@ data:
     $wgGroupPermissions['sysop']['checkuser-log'] = true;
     $wgGroupPermissions['sysop']['abusefilter-modify'] = true;
     $wgGroupPermissions['sysop']['abusefilter-log-detail'] = true;
+    $wgGroupPermissions['sysop']['viewuserprivateinfo'] = true;
     $wgGroupPermissions['wiki-admins']['editprotected'] = true;
     $wgGroupPermissions['wiki-admins']['editinterface'] = true;
+
+    $wgGroupPermissions['suppress']['delete'] = true;
+    $wgGroupPermissions['suppress']['deletecargodata'] = true;
 
     # Template editors — a narrow group holding ONLY the right that
     # $wgNamespaceProtection[NS_TEMPLATE] requires. Kept separate from
     # wiki-admins so it doesn't also carry editprotected (edit-any-
     # protected-page). This is the group cargo-admins can grant/revoke
     $wgGroupPermissions['template-editors']['editinterface'] = true;
-
     # Cargo admins — create/recreate Cargo tables, but NOT delete/drop them.
     # Assign users to this group via Special:UserRights on the wiki.
     $wgGroupPermissions['cargo-admins']['recreatecargodata'] = true;
@@ -307,6 +310,7 @@ data:
     wfLoadExtension( 'SpamBlacklist' );
     wfLoadExtension( 'Cite' );
     wfLoadExtension( 'CiteThisPage' );
+    wfLoadExtension( 'Gadgets' );
     wfLoadExtension( 'InputBox' );
     wfLoadExtension( 'Scribunto' );
     wfLoadExtension( 'TemplateStyles' );
@@ -569,28 +573,30 @@ data:
     # Don't run jobs on web requests — the sidecar handles them.
     $wgJobRunRate = 0;
 
-    ## Bot lockdown: block ALL Special: pages for anonymous users.
-    # During the active bot attack (scrapers saturating PHP-FPM via Special:Drilldown
-    # and Special:RecentChangesLinked), ALL Special: pages are restricted to
-    # logged-in users. Only the four pages needed to actually log in are accessible
-    # anonymously. This is enforced at three layers:
-    #   1. Anubis: DENY expensive Special: outright; CHALLENGE rest at difficulty 5
-    #   2. Traefik: 1 req/s + 3 concurrent InFlightReq cap per IP on /Special:
-    #   3. HERE: PHP-level block so nothing touches the DB unless authenticated
-    # To lift the lockdown: remove or expand $loginPages below.
+    ## Bot lockdown: DENY only the most expensive Special: pages for anonymous users.
+    # Turnstile CAPTCHA at the Traefik layer is now the primary anonymous gate.
+    # Only the pages that caused crash loops (Drilldown, RecentChangesLinked, Browse)
+    # are still blocked at PHP level as a final safety net — these run unbounded
+    # multi-table JOINs and full table scans. Login/account pages stay accessible.
     $wgHooks['SpecialPageBeforeExecute'][] = function ( $special, $subPage ) {
-        static $loginPages = [
-            'UserLogin',     // login form (also 'Userlogin' alias)
-            'Userlogin',
-            'CreateAccount', // registration
-            'PasswordReset', // password recovery
-            'Userlogout',    // logout
-            'ConfirmEmail',  // email confirmation link (also 'Confirmemail' alias)
-            'Confirmemail',  // clicked from email while possibly logged out
+        static $blockedPages = [
+            'Drilldown',             // Cargo multi-table JOINs (5-10s each)
+            'RecentChangesLinked',   // full table scan on recentchanges
+            'Browse',                // SemanticMediaWiki property browser
         ];
+        static $loginPages = [
+            'UserLogin',
+            'Userlogin',
+            'CreateAccount',
+            'PasswordReset',
+            'Userlogout',
+            'ConfirmEmail',
+            'Confirmemail',
+        ];
+        $name = $special->getName();
         if (
             !$special->getUser()->isRegistered()
-            && !in_array( $special->getName(), $loginPages, true )
+            && in_array( $name, $blockedPages, true )
         ) {
             $out = $special->getOutput();
             $out->setPageTitle( wfMessage( 'accmailtitle' )->text() );

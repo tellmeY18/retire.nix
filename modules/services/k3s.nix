@@ -30,9 +30,10 @@
 #
 #   sops.secrets.k3s-token.sopsFile = ../../secrets/chopper/k3s-token;
 
-{ config
-, lib
-, ...
+{
+  config,
+  lib,
+  ...
 }:
 
 let
@@ -132,10 +133,17 @@ in
       default = "";
       example = "100.64.0.1";
       description = ''
-        Static Tailscale IP of this node. When non-empty, passes
-        --node-ip, --bind-address, and --advertise-address to k3s so that the
-        apiserver, etcd, and flannel all bind to the tailnet interface rather than
-        the default (which would pick the primary physical interface).
+        Static Tailscale IP for k3s node registration. When non-empty, passes
+        --node-ip to k3s so the kubelet registers the node with this IP.
+        On server nodes, also passes --advertise-address so the apiserver
+        advertises this IP.
+
+        --bind-address is deliberately NOT set from this option — it would lock
+        all k3s HTTP servers (kubelet health, controller-manager, scheduler,
+        apiserver local health) to the tailscale IP, which breaks hostNetwork
+        pods (Traefik) that need to reach these endpoints via the public IP.
+        If a host needs to restrict k3s HTTP bind for security reasons, add
+        --bind-address to extraFlags explicitly.
 
         This value rarely changes on a homelab tailnet (Tailscale tends to keep the
         same IP per device), so it is safe to declare statically here.
@@ -144,7 +152,7 @@ in
         write a systemd ExecStartPre script to populate
         /etc/rancher/k3s/config.yaml before k3s starts — see the comment below.
 
-        # --node-ip / --bind-address / --advertise-address cannot be set statically
+        # --node-ip / --advertise-address cannot be set statically
         # here because the Tailscale IP is only known at runtime.
         # These are configured via /etc/rancher/k3s/config.yaml written by a
         # systemd oneshot in modules/services/k3s-bootstrap-manifests.nix, or set
@@ -293,11 +301,21 @@ in
           ]
 
           # Static tailscale IP — bind k3s traffic to the tailnet interface.
-          # --advertise-address is server-only (apiserver bind).
+          # --node-ip registers the node with this IP for flannel/kubelet.
+          # --advertise-address controls the apiserver's advertised address
+          #   (server-only).
+          # --bind-address is deliberately NOT set here: it would lock all k3s
+          #   HTTP servers (kubelet health, controller-manager, scheduler,
+          #   apiserver local health) to the tailscale IP, which breaks
+          #   hostNetwork pods (Traefik) that need to reach these endpoints
+          #   via the public IP. Leave it unset so k3s listens on 0.0.0.0;
+          #   the NixOS firewall controls public access.
+          #
+          # If a host needs to restrict k3s HTTP bind for security reasons,
+          # add --bind-address to extraFlags explicitly.
           ++ optionals (cfg.nodeIP != "") (
             [
               "--node-ip=${cfg.nodeIP}"
-              "--bind-address=${cfg.nodeIP}"
             ]
             ++ optionals isServer [
               "--advertise-address=${cfg.nodeIP}"

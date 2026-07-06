@@ -4,7 +4,7 @@
     ./hardware-configuration.nix
     ./disko-config.nix
     ../../modules/zfs.nix
-    ../../modules/nextcloud.nix
+
     ../../modules/care.nix
     ../../modules/arr.nix
     ../../modules/neondb.nix

@@ -4,6 +4,10 @@
 # entirely. The token is injected by the FOSS Cell Wiki Access browser extension.
 # Priority 100 beats all other IngressRoutes for wiki.fosscell.org.
 # Token rotation: update the HeaderRegexp value and redeploy.
+#
+# CrowdSec counterpart: hosts/kenobi/parts/crowdsec.nix has a whitelist parser
+# (glug/whitelist-member-ua) that exempts these same User-Agents from local
+# scenario buckets, preventing the firewall bouncer from ever banning them.
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:
@@ -78,10 +82,48 @@ spec:
         - name: mediawiki-svc
           port: 80
 ---
+# Turnstile challenge paths — bypass the Turnstile & Anubis middlewares.
+# These paths are served directly by the Turnstile service so the challenge
+# page + verification endpoint don't get caught in a redirect loop.
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: turnstile-challenge
+  namespace: mediawiki
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    # Traefik's rule parser does not support || grouping inside parentheses,
+    # so split into separate route entries (they are OR'd implicitly).
+    - match: Host(`wiki.fosscell.org`) && PathPrefix(`/challenge`)
+      kind: Rule
+      priority: 30
+      services:
+        - name: turnstile
+          namespace: traefik-system
+          port: 8080
+    - match: Host(`wiki.fosscell.org`) && PathPrefix(`/verify`)
+      kind: Rule
+      priority: 30
+      services:
+        - name: turnstile
+          namespace: traefik-system
+          port: 8080
+    - match: Host(`wiki.fosscell.org`) && PathPrefix(`/healthz`)
+      kind: Rule
+      priority: 30
+      services:
+        - name: turnstile
+          namespace: traefik-system
+          port: 8080
+  tls:
+    certResolver: letsencrypt
+---
 # Special: pages IngressRoute — higher priority than the catch-all above.
-# Applies much tighter rate + concurrency limits because every Special: page
-# runs expensive DB/Cargo/SMW queries. Covers both pretty (/Special:Foo) and
-# ugly URL (/index.php?title=Special:Foo) forms.
+# Applies Turnstile CAPTCHA + much tighter rate + concurrency limits because
+# every Special: page runs expensive DB/Cargo/SMW queries. Covers both pretty
+# (/Special:Foo) and ugly URL (/index.php?title=Special:Foo) forms.
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:
@@ -96,6 +138,8 @@ spec:
       kind: Rule
       priority: 20
       middlewares:
+        - name: turnstile-check
+          namespace: mediawiki
         - name: wiki-special-rate-limit
           namespace: mediawiki
         - name: wiki-special-inflight
@@ -111,6 +155,8 @@ spec:
       kind: Rule
       priority: 20
       middlewares:
+        - name: turnstile-check
+          namespace: mediawiki
         - name: wiki-special-rate-limit
           namespace: mediawiki
         - name: wiki-special-inflight

@@ -10,4 +10,6 @@ kind: Kustomization
 resources:
   - namespace.yaml
   - middleware.yaml
+  - networkpolicy.yaml
   - anubis.yaml
+  - turnstile.yaml

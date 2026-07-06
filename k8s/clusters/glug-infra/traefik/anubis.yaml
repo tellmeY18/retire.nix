@@ -45,13 +45,13 @@ spec:
               value: "wiki.fosscell.org"
             - name: COOKIE_DOMAIN
               value: "wiki.fosscell.org"
-            # TEMPORARY LOCKDOWN (2026-07-05): raised 5 → 10 during the second
-            # Drilldown scraper wave (bots bypass the path DENY via
-            # /index.php?title=Special%3ADrilldown and solve the difficulty-5
-            # challenge). 16^10 hashes is unsolvable on phones — this WILL lock
-            # out real users on weak devices. Revert to "5" once the wave stops.
+            # Global difficulty for non-Special: pages.
+            # Difficulty 5 (16^5 ≈ 1M hashes) takes ~1s on a phone with the
+            # `fast` algorithm — acceptable for a one-time challenge.
+            # Special: pages now use Turnstile (Traefik-level CAPTCHA) instead,
+            # with Anubis at difficulty 1 as a lightweight second line of defense.
             - name: DIFFICULTY
-              value: "10"
+              value: "5"
             - name: SERVE_ROBOTS_TXT
               value: "true"
             - name: POLICY_FNAME
@@ -148,51 +148,35 @@ data:
 
       # ── Bot lockdown: path-based Special: page protection ─────────────────
       #
-      # DENY — the most expensive Special: pages have no legitimate anonymous
-      # use and directly caused PHP-FPM saturation + crash loops.
-      # Two past attacks: meta-webindexer on RecentChangesLinked; UA-rotating
-      # scraper on Drilldown. Both are outright denied here so they never
-      # consume a PHP-FPM worker slot at all.
-      # MediaWiki's SpecialPageBeforeExecute hook is a second line of defense
-      # for any request that makes it past this layer.
-      # `Browse` (SemanticMediaWiki) added 2026-07-05 — second scraper wave was
-      # crashing PHP-FPM through it.
+      # Turnstile (Traefik-level CAPTCHA) is now the primary gate for Special:
+      # pages. Anubis provides a lightweight second line of defense:
+      #   - DENY the most expensive pages that caused crash loops (see incident
+      #     report docs/mediawiki-bot-attack-2026-07.md). These have no legitimate
+      #     anonymous use and consume extreme DB resources.
+      #   - CHALLENGE at difficulty 1 (minimal) for all other Special: pages.
+      #     This is a very fast PoW that legitimate clients solve in <0.1s.
+      #     The real bot-stopping power is in Turnstile, not Anubis.
       - name: deny-expensive-special-pages
-        path_regex: "^/(index\\.php/)?Special:(Drilldown|RecentChangesLinked|Browse|Search|Export|AllPages|AllFiles|Statistics|Recentchanges|WhatLinksHere|LinkedPages|Deadendpages|Wantedpages|LongPages|ShortPages|Ancientpages|NewFiles|NewPages|Protectedpages|Listfiles|Unusedfiles|Unusedtemplates|Uncategorizedpages|Uncategorizedcategories|BrokenRedirects|DoubleRedirects)"
+        path_regex: "^/(index\\.php/)?Special:(Drilldown|RecentChangesLinked|Browse)"
         action: DENY
 
-      # Same DENY list for the query-string form. path_regex only matches the
-      # URL path, so the 2026-07-05 second scraper wave bypassed the rule
-      # above with /index.php?title=Special%3ADrilldown%2F... and sailed
-      # through the challenge. This CEL rule inspects the DECODED `title`
-      # query parameter, closing the hole regardless of endpoint
-      # (/index.php?title=, /?title=). (?i) because MediaWiki title matching
-      # is case-insensitive on the namespace.
+      # Query-string form of the same DENY list.
       - name: deny-expensive-special-pages-query-form
         action: DENY
         expression:
           all:
             - '"title" in query'
-            - 'query["title"].matches("(?i)^Special:(Drilldown|RecentChangesLinked|Browse|Search|Export|AllPages|AllFiles|Statistics|Recentchanges|WhatLinksHere|LinkedPages|Deadendpages|Wantedpages|LongPages|ShortPages|Ancientpages|NewFiles|NewPages|Protectedpages|Listfiles|Unusedfiles|Unusedtemplates|Uncategorizedpages|Uncategorizedcategories|BrokenRedirects|DoubleRedirects)")'
+            - 'query["title"].matches("(?i)^Special:(Drilldown|RecentChangesLinked|Browse)")'
 
-      # CHALLENGE — all remaining Special: pages.
-      # Bots must solve a proof-of-work before Anubis lets them through.
-      # Anubis difficulty = leading zero HEX NIBBLES on the SHA-256 hash, so the
-      # expected work is 16^difficulty (NOT 2^difficulty). difficulty 5 ≈ 16^5
-      # ≈ 1M hashes ≈ ~1 s with the multithreaded `fast` algo — solvable on a
-      # phone. 16^10 ≈ 1.1T hashes locks out real users on weak devices, while
-      # a resourced scraper just caches the 7-day cookie or swaps in a
-      # native/GPU solver. The teeth live in the DENY list + Traefik
-      # InFlightReq/rate limits + the PHP anon-block, not in PoW difficulty.
-      # TEMPORARY LOCKDOWN (2026-07-05): raised 5 → 10 during the second
-      # Drilldown scraper wave. Revert to 5 once the wave stops.
-      # Real human browsers cache the cookie for 7 days — one solve per session.
+      # CHALLENGE — all remaining Special: pages at minimal difficulty.
+      # Turnstile is the primary gate; Anubis is just a lightweight second
+      # line for any request that somehow passes Turnstile.
       - name: challenge-all-special-pages
         path_regex: "^/Special:"
         action: CHALLENGE
         challenge:
           algorithm: fast
-          difficulty: 10
+          difficulty: 1
       # Empty-UA bots can't solve the JS PoW, so they keep hitting the
       # challenge wall, which acts as a per-IP rate limiter without out-
       # right denial. Legitimate clients always send a User-Agent.
@@ -284,7 +268,9 @@ metadata:
   namespace: traefik-system
 spec:
   forwardAuth:
-    address: http://10.43.97.18:8080/.within.website/x/cmd/anubis/api/check
+    # Cluster DNS resolves because Traefik is configured with
+    # dnsPolicy: ClusterFirstWithHostNet in the Helm values.
+    address: http://anubis.traefik-system.svc:8080/.within.website/x/cmd/anubis/api/check
     trustForwardHeader: true
     authResponseHeaders:
       - X-Anubis-Status

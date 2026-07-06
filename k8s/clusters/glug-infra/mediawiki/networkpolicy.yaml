@@ -9,6 +9,9 @@ spec:
   policyTypes:
     - Ingress
 ---
+# Allow ingress to MediaWiki pods on port 80 from:
+#   1. Anubis in the traefik-system namespace (the PoW reverse-proxy)
+#   2. Other pods in the mediawiki namespace (maintenance jobs, etc.)
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -21,7 +24,12 @@ spec:
   policyTypes:
     - Ingress
   ingress:
-    - ports:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: traefik-system
+        - podSelector: {} # intra-namespace pods
+      ports:
         - port: 80
           protocol: TCP
 ---

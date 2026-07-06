@@ -19,12 +19,11 @@
         "tailscale0"
         "cni0"
       ];
-      # SSH + OpenClaw gateway for LAN access; all legacy web services
-      # (Nextcloud, conduwuit, care) bind to localhost and are exposed
-      # via Cloudflare Tunnel.
+      # OpenClaw gateway is exposed via Tailscale Serve (port 443, HTTPS);
+      # all legacy web services (Nextcloud, conduwuit, care) bind to
+      # localhost and are exposed via Cloudflare Tunnel.
       allowedTCPPorts = [
         22
-        18789 # OpenClaw gateway — LAN WebSocket access
       ];
 
       # Allow forwarding between tailscale0 and pod networks (cni0).

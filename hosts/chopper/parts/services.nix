@@ -1,4 +1,9 @@
-{ config, pkgs, ... }:
+{
+  config,
+  pkgs,
+  openclaw-signal-plugin,
+  ...
+}:
 {
   ####################
   # NeonDB           #
@@ -102,7 +107,20 @@
 
   # OpenClaw uses LLMs to process untrusted content — upstream marks it
   # insecure due to prompt-injection risk. We accept this intentionally.
-  nixpkgs.config.permittedInsecurePackages = [ "openclaw-2026.6.5" ];
+  # The version MUST match the releaseVersion from the nix-openclaw flake's
+  # openclaw-source.nix (currently 2026.6.11). This applies to nixpkgs-unstable
+  # host packages only; the upstream flake's openclaw-gateway package uses the
+  # upstream flake's own nixpkgs pin and may have a different version string.
+  nixpkgs.config.permittedInsecurePackages = [ "openclaw-2026.6.11" ];
+
+  # Self-heal OpenClaw state directory ownership on every boot. Runtime files
+  # under /var/lib/openclaw/ (paired.json, pending.json, device-auth.json,
+  # etc.) can be created by root-run tooling (e.g. `openclaw devices approve`)
+  # and become unreadable by the openclaw user. The Z directive recursively
+  # resets user:group on every boot.
+  systemd.tmpfiles.rules = [
+    "Z /var/lib/openclaw 0750 openclaw openclaw - -"
+  ];
 
   ####################
   # OpenClaw Gateway #
@@ -111,22 +129,176 @@
     enable = true;
     port = 18789;
 
-    # Bind to all interfaces for LAN access
-    execStart = "${config.services.openclaw-gateway.package}/bin/openclaw gateway --bind all --port ${toString config.services.openclaw-gateway.port}";
-
-    # Basic config — add tokens via sops secrets below
     config = {
-      gateway = {
-        mode = "local";
-        auth.token = { source = "env"; provider = "default"; id = "OPENCLAW_GATEWAY_TOKEN"; };
+      gateway.mode = "local";
+
+      # Instance identity — display name shown in the control UI and chat.
+      ui.assistant.name = "tinaku";
+
+      # Increase signal debounce to prevent session init race in multi-member groups.
+      messages.queue = {
+        mode = "collect";
+        debounceMsByChannel.signal = 3000;
+      };
+
+      # Default agent with group chat behavior.
+      agents.list = [
+        {
+          id = "main";
+          default = true;
+          name = "tinaku";
+          model = "nvidia-build/mistralai/mistral-small-4-119b-2603";
+          groupChat = {
+            mentionPatterns = [ "tinaku" "\\bt\\b" ];
+            historyLimit = 50;
+            unmentionedInbound = "room_event";
+            visibleReplies = "automatic";
+          };
+        }
+      ];
+
+      # Custom provider for NVIDIA-hosted models not in the built-in catalog.
+      # Uses `openai-completions` adapter against the NVIDIA endpoint.
+      # `models.providers` with a non-`nvidia` key creates a standalone provider
+      # (not extending the plugin's catalog), avoiding the routing fallback that
+      # sent `nvidia/...` models to `api.openai.com/v1/responses`.
+      models.providers.nvidia-build = {
+        api = "openai-completions";
+        baseUrl = "https://integrate.api.nvidia.com/v1";
+        apiKey = "\${NVIDIA_API_KEY}";
+        models = [
+          {
+            id = "mistralai/mistral-small-4-119b-2603";
+            name = "Mistral Small 4 (119B)";
+            input = [ "text" ];
+            contextWindow = 128000;
+            maxTokens = 32768;
+            cost = {
+              input = 0;
+              output = 0;
+              cacheRead = 0;
+              cacheWrite = 0;
+            };
+            compat = {
+              requiresStringContent = true;
+            };
+          }
+        ];
+      };
+
+      # Load the official @openclaw/signal runtime plugin from the Nix store.
+      # This is the upstream built-in Signal channel (not the custom fork).
+      plugins.load.paths = [
+        "${openclaw-signal-plugin}"
+      ];
+      # Explicitly enable the Signal plugin (loaded from plugins.load.paths).
+      # Non-bundled plugins are NOT auto-enabled by channels.<id>.enabled — that
+      # bypass only works for bundled extensions. Without this entry the Signal
+      # channel config is read but no signal-cli process is spawned.
+      plugins.entries.signal.enabled = true;
+
+      # Signal messenger channel.
+      # The phone number is injected at runtime by the wrapper script
+      # (reads the sops secret and patches the config with jq) because
+      # the Signal plugin's schema requires account to be a string, not
+      # a SecretRef ({ source, provider, id }) object.
+      channels.signal = {
+        enabled = true;
+        configPath = "/var/lib/signal-cli";
+        autoStart = true;
+        account = "__INJECTED_BY_WRAPPER__";
+        dmPolicy = "allowlist";
+        allowFrom = [ "__INJECTED_BY_WRAPPER__" ];
+        groupPolicy = "open";
       };
     };
 
-    environment = {
-      # Point these to sops-decrypted runtime paths when secrets are created:
-      # OPENCLAW_GATEWAY_TOKEN = config.sops.secrets.openclaw-gateway-token.path;
-      # ANTHROPIC_API_KEY       = config.sops.secrets.openclaw-anthropic-key.path;
-      # TELEGRAM_BOT_TOKEN      = config.sops.secrets.openclaw-telegram-token.path;
+    # Secrets are read from sops-decrypted files in the wrapper script (rather
+    # than systemd Environment=) because the upstream module passes env vars as
+    # literal strings that would leak into the world-readable Nix store.
+    execStart =
+      let
+        pkg = config.services.openclaw-gateway.package;
+        port = toString config.services.openclaw-gateway.port;
+        tokenPath = config.sops.secrets.openclaw-gateway-token.path;
+        anthropicPath = config.sops.secrets.openclaw-anthropic-key.path;
+        openaiPath = config.sops.secrets.openclaw-openai-key.path;
+        nvidiaPath = config.sops.secrets.openclaw-nvidia-key.path;
+        signalNumberPath = config.sops.secrets.openclaw-signal-number.path;
+        allowlistPath = config.sops.secrets.openclaw-signal-allowlist.path;
+
+
+        wrapper = pkgs.writeScript "openclaw-gateway-wrapper" ''
+          #!${pkgs.bash}/bin/bash
+          set -e
+          error_exit() { echo "openclaw-wrapper: $1" >&2; exit 1; }
+          [ -r "${tokenPath}"       ] || error_exit "missing token: ${tokenPath}"
+          [ -r "${anthropicPath}"   ] || error_exit "missing anthropic key: ${anthropicPath}"
+          [ -r "${openaiPath}"      ] || error_exit "missing openai key: ${openaiPath}"
+          [ -r "${nvidiaPath}"      ] || error_exit "missing nvidia key: ${nvidiaPath}"
+          [ -r "${signalNumberPath}" ] || error_exit "missing signal number: ${signalNumberPath}"
+          [ -r "${allowlistPath}"     ] || error_exit "missing signal allowlist: ${allowlistPath}"
+          export OPENCLAW_GATEWAY_TOKEN="$(cat ${tokenPath})"
+          export ANTHROPIC_API_KEY="$(cat ${anthropicPath})"
+          export OPENAI_API_KEY="$(cat ${openaiPath})"
+          export NVIDIA_API_KEY="$(cat ${nvidiaPath})"
+          SIGNAL_NUMBER="$(cat ${signalNumberPath})"
+          export OPENCLAW_SIGNAL_NUMBER="$SIGNAL_NUMBER"
+          # Inject signal number and DM allowlist into the Nix-generated config.
+          # Signal plugin requires account as a plain string, not a SecretRef.
+          # allowFrom is a JSON array of phone numbers from sops.
+          ALLOWLIST="$(cat ${allowlistPath})"
+          MERGED_CONFIG="/var/lib/openclaw/merged-config.json"
+          ${pkgs.jq}/bin/jq --arg num "$SIGNAL_NUMBER" --argjson allow "$ALLOWLIST" \
+            '.channels.signal.account = $num | .channels.signal.allowFrom = $allow' \
+            "${config.services.openclaw-gateway.configPath}" \
+            > "$MERGED_CONFIG" \
+            || error_exit "jq merge failed"
+          chmod 0644 "$MERGED_CONFIG"
+          export OPENCLAW_CONFIG_PATH="$MERGED_CONFIG"
+          # Set Signal profile name to match the bot identity.
+          ${pkgs.signal-cli}/bin/signal-cli --config /var/lib/signal-cli \
+            -u "$SIGNAL_NUMBER" updateProfile --given-name "tinaku" \
+            2>/dev/null || true
+          exec ${pkg}/bin/openclaw gateway --auth token --port ${port}
+        '';
+      in
+      "${wrapper}";
+
+    # signal-cli on PATH for the gateway process (needed by the Signal channel).
+    servicePath = [ pkgs.signal-cli ];
+  };
+
+  # signal-cli on root's interactive PATH for registration and debugging.
+  # openclaw CLI for admin tasks (pairing, device management, etc.).
+  environment.systemPackages = [
+    pkgs.signal-cli
+    config.services.openclaw-gateway.package
+  ];
+
+  ##############################
+  # Tailscale Serve — OpenClaw #
+  ##############################
+  # Proxies https://chopper.tail477f2f.ts.net to the OpenClaw gateway so
+  # browsers can use WebRTC device identity (requires a secure context).
+  # This is preferred over gateway.controlUi.allowInsecureAuth because the
+  # browser-enforced secure-context requirement can't be bypassed server-side.
+  systemd.services.tailscale-serve-openclaw = {
+    description = "Tailscale Serve proxy for OpenClaw gateway";
+    after = [ "tailscaled.service" ];
+    wants = [ "tailscaled.service" ];
+    wantedBy = [ "multi-user.target" ];
+    path = [
+      pkgs.tailscale
+      pkgs.iproute2
+    ];
+    serviceConfig = {
+      Type = "oneshot";
+      # Wait for tailscale0 to be up before configuring serve
+      ExecStartPre = ''
+        /bin/sh -c "until ip link show tailscale0 2>/dev/null | grep -q UP; do sleep 1; done"
+      '';
+      ExecStart = "${pkgs.tailscale}/bin/tailscale serve --bg --https 443 http://127.0.0.1:18789";
     };
   };
 

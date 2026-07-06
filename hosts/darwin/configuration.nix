@@ -18,8 +18,7 @@
     ../../profiles/base.nix
     ../../packages/darwin
     ./defaults.nix
-    ./programs.nix
-    ./services.nix
+
   ];
   system = {
     defaults = { };

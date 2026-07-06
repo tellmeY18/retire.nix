@@ -113,10 +113,13 @@ spec:
               cpu: "1"
               memory: 512Mi
 
-          livenessProbe:
-            tcpSocket:
+          startupProbe:
+            httpGet:
+              path: /favicon.ico
               port: 2368
-            initialDelaySeconds: 30
+              httpHeaders:
+                - name: X-Forwarded-Proto
+                  valinitialDelaySeconds: 30
             periodSeconds: 30
 
           readinessProbe:

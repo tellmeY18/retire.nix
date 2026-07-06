@@ -49,6 +49,60 @@
       # Scopes: devices:write, auth_keys:write   Tag: tag:k8s
       "tailscale-operator-client-id" = { };
       "tailscale-operator-client-secret" = { };
+
+      # -----------------------------------------------------------------------
+      # OpenClaw secrets
+      # -----------------------------------------------------------------------
+
+      # Gateway authentication token — readable by the openclaw user since the
+      # wrapper script reads it at startup to set OPENCLAW_GATEWAY_TOKEN.
+      # Key in secrets/chopper/secrets.yaml: openclaw-gateway-token
+      "openclaw-gateway-token" = {
+        owner = "openclaw";
+        group = "openclaw";
+        mode = "0400";
+      };
+
+      # Anthropic API key — read directly by the gateway process from the path
+      # set in the ANTHROPIC_API_KEY environment variable.
+      "openclaw-anthropic-key" = {
+        owner = "openclaw";
+        group = "openclaw";
+        mode = "0400";
+      };
+
+      # Signal phone number — read by the gateway wrapper script to set the
+      # OPENCLAW_SIGNAL_NUMBER env var for the @openclaw/signal channel.
+      "openclaw-signal-number" = {
+        owner = "openclaw";
+        group = "openclaw";
+        mode = "0400";
+      };
+
+      # OpenAI API key — passed to the gateway as OPENAI_API_KEY.
+      "openclaw-openai-key" = {
+        owner = "openclaw";
+        group = "openclaw";
+        mode = "0400";
+      };
+
+      # NVIDIA AI API key — used with the OpenAI-compatible endpoint at
+      # https://integrate.api.nvidia.com/v1 for the NVIDIA model backend.
+      "openclaw-nvidia-key" = {
+        owner = "openclaw";
+        group = "openclaw";
+        mode = "0400";
+      };
+
+      # Signal DM allowlist — JSON array of phone numbers allowed to DM the bot
+      # when dmPolicy = "allowlist". Read by the wrapper script and injected into
+      # the merged config via jq. Re-encrypt with your age key when adding numbers.
+      "openclaw-signal-allowlist" = {
+        owner = "openclaw";
+        group = "openclaw";
+        mode = "0400";
+      };
+
     };
   };
 }

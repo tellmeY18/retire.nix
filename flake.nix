@@ -56,6 +56,10 @@
       url = "github:nix-community/emacs-overlay";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    # Pinned nixpkgs commit that ships signal-cli 0.14.5 (fixes NPE on inbound
+    # messages where server omits serverGuid from sealed-sender envelopes).
+    # Used only for pkgs.signal-cli via the custom-packages overlay.
+    nixpkgs-signal.url = "github:NixOS/nixpkgs/c6e1d1e0eebf3a5338abc4bde24e4e88d58a6f01";
     nix-openclaw = {
       url = "github:openclaw/nix-openclaw";
       # Intentionally NOT following nixpkgs — lets the upstream flake use its
@@ -65,23 +69,24 @@
   };
 
   outputs =
-    inputs@{ self
-    , nix-homebrew
-    , nix-index-database
-    , nixvim
-    , fenix
-    , disko
-    , sops-nix
-    , deploy-rs
-    , emacs-overlay
-    , ...
+    inputs@{
+      self,
+      nix-homebrew,
+      nix-index-database,
+      nixvim,
+      fenix,
+      disko,
+      sops-nix,
+      deploy-rs,
+      emacs-overlay,
+      ...
     }:
     let
       myLib = import ./lib { inherit inputs; };
     in
     {
       ## Overlays — importable by downstream flakes
-      overlays = import ./overlays;
+      overlays = import ./overlays { inherit inputs; };
 
       ## Per-system outputs
       formatter = myLib.forAllSystems ({ pkgs, ... }: pkgs.nixpkgs-fmt);
@@ -167,7 +172,7 @@
           chopper = [
             {
               nixpkgs.overlays = [
-                (import ./overlays).custom-packages
+                self.overlays.custom-packages
               ];
             }
             ./hosts/chopper/hardware-configuration.nix
@@ -179,9 +184,13 @@
             # pin so Garnix binary cache hits. The nixpkgs-unstable version of
             # openclaw (2026.6.5) has to build its pnpm deps from source (~1GB)
             # and times out over SSH-remote-build.
+            # Also expose the official signal runtime plugin so the gateway can
+            # load it declaratively via plugins.load.paths.
             ({ lib, ... }: {
-              services.openclaw-gateway.package = lib.mkForce
-                inputs.nix-openclaw.packages.x86_64-linux.openclaw-gateway;
+              _module.args = {
+                openclaw-signal-plugin = inputs.nix-openclaw.packages.x86_64-linux."openclaw-runtime-plugin-signal";
+              };
+              services.openclaw-gateway.package = lib.mkForce inputs.nix-openclaw.packages.x86_64-linux.openclaw-gateway;
             })
           ];
           kenobi = [

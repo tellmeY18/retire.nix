@@ -104,6 +104,14 @@ in
 
       parsers.s02Enrich = [
         {
+          name = "glug/whitelist-member-ua";
+          description = "Never ban FOSSCell Wiki Access extension users";
+          whitelist = {
+            reason = "FOSSCell Wiki member browser extension";
+            expression = "evt.Parsed.http_user_agent matches '^FOSSCellWiki/token='";
+          };
+        }
+        {
           name = "glug/whitelist-internal";
           description = "Whitelist tailnet + k3s cluster CIDRs";
           whitelist = {
@@ -113,6 +121,7 @@ in
               "10.42.0.0/16" # k3s pod CIDR
               "10.43.0.0/16" # k3s service CIDR
               "127.0.0.0/8"
+              "27.63.223.218/32" # admin home IP (dynamic — update if it changes)
             ];
           };
         }
@@ -120,19 +129,23 @@ in
 
       # fail2ban behavior for the bot walls: an IP that keeps slamming into
       # 403/429 (Anubis DENY rules, Traefik rate limits) earns a firewall ban
-      # (default profile: 4h). Bucket = 10 denials, leaking 1/min — sustained
-      # abuse overflows in minutes; a human hitting a wall a few times never
-      # does. The 2026-07 Drilldown botnet IPs each re-offended well past this.
+      # (default profile: 4h).
+      #
+      # NOTE: deliberately lenient (capacity=30, 5min leak) to avoid false
+      # positives. Real users hitting Traefik's 429 rate-limiter while navigating
+      # (or getting stuck on the Turnstile challenge page) would need 30+
+      # rate-limited requests over 2.5+ hours to overflow. Only sustained
+      # scraper abuse — hundreds of requests in minutes — triggers a ban.
       scenarios = [
         {
           type = "leaky";
           name = "glug/http-deny-flood";
-          description = "IPs repeatedly hitting 403/429 (bot-wall recidivists)";
+          description = "Sustained 403/429 abuse (high threshold for real users)";
           filter = "evt.Meta.log_type == 'http_access-log' && evt.Meta.http_status in ['403', '429']";
           groupby = "evt.Meta.source_ip";
-          capacity = 10;
-          leakspeed = "1m";
-          blackhole = "5m";
+          capacity = 30;
+          leakspeed = "5m";
+          blackhole = "10m";
           labels = {
             service = "http";
             confidence = 2;
