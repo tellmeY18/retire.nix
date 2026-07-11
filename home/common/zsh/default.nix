@@ -235,21 +235,9 @@
         "fzf"
         "gh"
         "globalias"
-        "gcloud"
         "golang"
-        "node"
-        "npm"
-        "nvm"
       ];
       extraConfig = ''
-        # Oh-My-Zsh theme customization
-        AGNOSTER_PROMPT_SEGMENTS[1]="prompt_status"
-        AGNOSTER_PROMPT_SEGMENTS[2]="prompt_virtualenv"
-        AGNOSTER_PROMPT_SEGMENTS[3]="prompt_context"
-        AGNOSTER_PROMPT_SEGMENTS[4]="prompt_dir"
-        AGNOSTER_PROMPT_SEGMENTS[5]="prompt_git"
-        AGNOSTER_PROMPT_SEGMENTS[6]="prompt_end"
-
         # Disable oh-my-zsh auto-update
         DISABLE_AUTO_UPDATE="true"
         DISABLE_UPDATE_PROMPT="true"
@@ -263,35 +251,6 @@
     };
 
     # Custom functions
-    siteFunctions = {
-      mkcd = ''
-        mkdir -p "$1" && cd "$1"
-      '';
-
-      extract = ''
-        if [ -f "$1" ] ; then
-          case "$1" in
-            *.tar.bz2)   , tar xjf "$1"     ;;
-            *.tar.gz)    , tar xzf "$1"     ;;
-            *.bz2)       , bunzip2 "$1"     ;;
-            *.rar)       , unrar x "$1"     ;;
-            *.gz)        , gunzip "$1"      ;;
-            *.tar)       , tar xf "$1"      ;;
-            *.tbz2)      , tar xjf "$1"     ;;
-            *.tgz)       , tar xzf "$1"     ;;
-            *.zip)       , unzip "$1"       ;;
-            *.Z)         , uncompress "$1"  ;;
-            *.7z)        , 7z x "$1"        ;;
-            *.deb)       , ar x "$1"        ;;
-            *.xz)        , xz -d "$1"       ;;
-            *.lzma)      , lzma -d "$1"     ;;
-            *.zst)       , zstd -d "$1"     ;;
-            *)           echo "'$1' cannot be extracted via extract function" ;;
-          esac
-        else
-          echo "'$1' is not a valid file"
-        fi
-      '';
-    };
+    siteFunctions = { };
   };
 }

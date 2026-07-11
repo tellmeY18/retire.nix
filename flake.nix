@@ -9,14 +9,7 @@
   };
 
   inputs = {
-    # Channel strategy:
-    #   - nixpkgs (unstable): default for most packages — latest features
-    #   - nixpkgs-stable (25.11): pinned for services that need stability
-    #     (Nextcloud, PostgreSQL, etc.) — see docs/channels.md
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
-    nixpkgs-stable = {
-      url = "github:NixOS/nixpkgs/nixos-25.11";
-    };
     home-manager = {
       url = "github:nix-community/home-manager";
       inputs.nixpkgs.follows = "nixpkgs";

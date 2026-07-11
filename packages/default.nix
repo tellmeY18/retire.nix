@@ -6,8 +6,4 @@
 {
   # Platform package sets (imported by their respective host configs)
   darwin = import ./darwin;
-  chopper = import ./chopper;
-
-  # Cross-platform packages
-  neondb = ./neondb;
 }

@@ -31,12 +31,15 @@ spec:
 # TLS: Let's Encrypt via Traefik ACME.
 #
 # Bot lockdown architecture (inner → outer):
-#   Internet → Cloudflare → Traefik (rate+inflight) → Anubis (PoW) → PHP-FPM
+#   Internet → CrowdSec (firewall drop) → Traefik → Anubis (PoW) → PHP-FPM
 #
-# Three layers stop bots before they touch PHP-FPM:
-#   1. Traefik:    per-IP rate limit + concurrent request cap (InFlightReq)
+# Layers that stop bots before they touch PHP-FPM:
+#   1. CrowdSec:   permanent bans (bot farms) + behavioral bans at iptables
 #   2. Anubis:     PoW challenge (difficulty 8 global, 10 for Special:)
-#   3. MediaWiki:  SpecialPageBeforeExecute hook denies all anon Special: access
+#   3. Turnstile:  CAPTCHA for Special: pages
+#   4. MediaWiki:  SpecialPageBeforeExecute hook denies all anon Special: access
+#
+# Rate limits removed 2026-07 — CrowdSec handles abuse at the firewall now.
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:
@@ -50,10 +53,6 @@ spec:
       kind: Rule
       priority: 10
       middlewares:
-        - name: wiki-rate-limit
-          namespace: mediawiki
-        - name: wiki-inflight
-          namespace: mediawiki
         - name: wiki-bot-headers
           namespace: mediawiki
       services:
@@ -140,10 +139,6 @@ spec:
       middlewares:
         - name: turnstile-check
           namespace: mediawiki
-        - name: wiki-special-rate-limit
-          namespace: mediawiki
-        - name: wiki-special-inflight
-          namespace: mediawiki
         - name: wiki-bot-headers
           namespace: mediawiki
       services:
@@ -157,10 +152,6 @@ spec:
       middlewares:
         - name: turnstile-check
           namespace: mediawiki
-        - name: wiki-special-rate-limit
-          namespace: mediawiki
-        - name: wiki-special-inflight
-          namespace: mediawiki
         - name: wiki-bot-headers
           namespace: mediawiki
       services:
@@ -169,71 +160,7 @@ spec:
           port: 8080
   tls:
     certResolver: letsencrypt
----
-# Global rate limit — 8 req/s per real client IP, burst 15.
-# Enough for rapid human navigation (tab/click < 8 req/s).
-# Kills high-rate scrapers even when they rotate User-Agents.
-# sourceCriterion depth:1 reads the first X-Forwarded-For entry (real IP via Cloudflare).
-apiVersion: traefik.io/v1alpha1
-kind: Middleware
-metadata:
-  name: wiki-rate-limit
-  namespace: mediawiki
-spec:
-  rateLimit:
-    average: 8
-    burst: 15
-    period: 1s
-    sourceCriterion:
-      ipStrategy:
-        depth: 1
----
-# Global concurrent request cap — 10 simultaneous in-flight requests per IP.
-# Humans rarely open > 10 tabs at once. Bots that pass the PoW challenge and
-# try to fire 20–50 parallel requests hit a 503 wall here.
-apiVersion: traefik.io/v1alpha1
-kind: Middleware
-metadata:
-  name: wiki-inflight
-  namespace: mediawiki
-spec:
-  inFlightReq:
-    amount: 10
-    sourceCriterion:
-      ipStrategy:
-        depth: 1
----
-# Special: page rate limit — 1 req/s per IP, burst 3.
-# Special: pages run multi-join SQL (Cargo Drilldown), full table scans
-# (RecentChangesLinked), or large exports. No human navigates >1 Special:/s.
-apiVersion: traefik.io/v1alpha1
-kind: Middleware
-metadata:
-  name: wiki-special-rate-limit
-  namespace: mediawiki
-spec:
-  rateLimit:
-    average: 1
-    burst: 3
-    period: 1s
-    sourceCriterion:
-      ipStrategy:
-        depth: 1
----
-# Special: page concurrent cap — 3 simultaneous in-flight per IP.
-# Even with slow 10-second Cargo queries, a human opens 1–2 tabs at a time.
-# Returns HTTP 503 immediately when exceeded — fast-fail, no PHP-FPM slot wasted.
-apiVersion: traefik.io/v1alpha1
-kind: Middleware
-metadata:
-  name: wiki-special-inflight
-  namespace: mediawiki
-spec:
-  inFlightReq:
-    amount: 3
-    sourceCriterion:
-      ipStrategy:
-        depth: 1
+
 ---
 # Response headers: signal no AI/LLM scraping.
 apiVersion: traefik.io/v1alpha1

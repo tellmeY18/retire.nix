@@ -9,7 +9,6 @@
 { inputs }: {
   # Custom packages overlay — adds our own derivations to nixpkgs
   custom-packages = final: prev: {
-    neondb = final.callPackage ../packages/neondb/default.nix { };
     gomuks = final.callPackage ../packages/gomuks/default.nix { };
 
     # Pull signal-cli from nixpkgs-signal (pinned to a master commit with 0.14.5)

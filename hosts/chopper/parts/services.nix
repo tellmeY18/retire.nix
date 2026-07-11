@@ -6,16 +6,6 @@
 }:
 {
   ####################
-  # NeonDB           #
-  ####################
-  services.neondb = {
-    enable = false;
-    package = pkgs.neondb-bin;
-    tenant = "default";
-    dataDir = "/var/lib/neondb";
-  };
-
-  ####################
   # OpenSSH          #
   ####################
   services.openssh = {
@@ -29,16 +19,6 @@
       X11UseLocalhost = false; # Allows remote X connections
       PubkeyAuthentication = true;
     };
-  };
-
-  ####################
-  # Care             #
-  ####################
-  services.care = {
-    enable = false;
-    django.allowedHosts = [ "localhost" ];
-    cors.allowedOrigins = [ "https://example.com" ];
-    database.createLocally = true;
   };
 
   ####################
@@ -147,7 +127,7 @@
           id = "main";
           default = true;
           name = "tinaku";
-          model = "nvidia-build/mistralai/mistral-small-4-119b-2603";
+          model = "copilot/claude-opus-4.6";
           groupChat = {
             mentionPatterns = [ "tinaku" "\\bt\\b" ];
             historyLimit = 50;
@@ -157,33 +137,28 @@
         }
       ];
 
-      # Custom provider for NVIDIA-hosted models not in the built-in catalog.
-      # Uses `openai-completions` adapter against the NVIDIA endpoint.
-      # `models.providers` with a non-`nvidia` key creates a standalone provider
-      # (not extending the plugin's catalog), avoiding the routing fallback that
-      # sent `nvidia/...` models to `api.openai.com/v1/responses`.
-      models.providers.nvidia-build = {
+      # GitHub Copilot Enterprise — direct bearer auth against the Copilot API.
+      models.providers.copilot = {
         api = "openai-completions";
-        baseUrl = "https://integrate.api.nvidia.com/v1";
-        apiKey = "\${NVIDIA_API_KEY}";
+        baseUrl = "https://api.githubcopilot.com";
+        apiKey = "\${GITHUB_TOKEN}";
         models = [
           {
-            id = "mistralai/mistral-small-4-119b-2603";
-            name = "Mistral Small 4 (119B)";
+            id = "claude-opus-4.6";
+            name = "Claude Opus 4.6 (Copilot)";
             input = [ "text" ];
-            contextWindow = 128000;
+            contextWindow = 200000;
             maxTokens = 32768;
-            cost = {
-              input = 0;
-              output = 0;
-              cacheRead = 0;
-              cacheWrite = 0;
-            };
-            compat = {
-              requiresStringContent = true;
-            };
           }
         ];
+      };
+
+      # Android TV remote control MCP server — lets the assistant
+      # discover, pair, navigate, and control Android TV devices on the
+      # local network. Spawned via uvx (uv must be on servicePath).
+      mcp.servers.androidtv = {
+        command = "uvx";
+        args = [ "androidtvmcp" "serve" ];
       };
 
       # Load the official @openclaw/signal runtime plugin from the Nix store.
@@ -223,7 +198,7 @@
         tokenPath = config.sops.secrets.openclaw-gateway-token.path;
         anthropicPath = config.sops.secrets.openclaw-anthropic-key.path;
         openaiPath = config.sops.secrets.openclaw-openai-key.path;
-        nvidiaPath = config.sops.secrets.openclaw-nvidia-key.path;
+        githubTokenPath = config.sops.secrets.openclaw-github-token.path;
         signalNumberPath = config.sops.secrets.openclaw-signal-number.path;
         allowlistPath = config.sops.secrets.openclaw-signal-allowlist.path;
 
@@ -235,13 +210,13 @@
           [ -r "${tokenPath}"       ] || error_exit "missing token: ${tokenPath}"
           [ -r "${anthropicPath}"   ] || error_exit "missing anthropic key: ${anthropicPath}"
           [ -r "${openaiPath}"      ] || error_exit "missing openai key: ${openaiPath}"
-          [ -r "${nvidiaPath}"      ] || error_exit "missing nvidia key: ${nvidiaPath}"
+          [ -r "${githubTokenPath}" ] || error_exit "missing github token: ${githubTokenPath}"
           [ -r "${signalNumberPath}" ] || error_exit "missing signal number: ${signalNumberPath}"
           [ -r "${allowlistPath}"     ] || error_exit "missing signal allowlist: ${allowlistPath}"
           export OPENCLAW_GATEWAY_TOKEN="$(cat ${tokenPath})"
           export ANTHROPIC_API_KEY="$(cat ${anthropicPath})"
           export OPENAI_API_KEY="$(cat ${openaiPath})"
-          export NVIDIA_API_KEY="$(cat ${nvidiaPath})"
+          export GITHUB_TOKEN="$(cat ${githubTokenPath})"
           SIGNAL_NUMBER="$(cat ${signalNumberPath})"
           export OPENCLAW_SIGNAL_NUMBER="$SIGNAL_NUMBER"
           # Inject signal number and DM allowlist into the Nix-generated config.
@@ -266,7 +241,10 @@
       "${wrapper}";
 
     # signal-cli on PATH for the gateway process (needed by the Signal channel).
-    servicePath = [ pkgs.signal-cli ];
+    servicePath = [
+      pkgs.signal-cli
+      pkgs.uv # uvx for MCP servers (androidtvmcp)
+    ];
   };
 
   # signal-cli on root's interactive PATH for registration and debugging.

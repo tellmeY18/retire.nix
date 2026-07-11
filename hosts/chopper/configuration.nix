@@ -3,11 +3,9 @@
   imports = [
     ./hardware-configuration.nix
     ./disko-config.nix
+    ../../profiles/base.nix
     ../../modules/zfs.nix
 
-    ../../modules/care.nix
-    ../../modules/arr.nix
-    ../../modules/neondb.nix
     ../../modules/services/cloudflared-bootstrap.nix
     ../../modules/services/cloudflared-dns.nix
     ../../profiles/k3s-storage-node.nix
@@ -32,21 +30,5 @@
   };
   nixpkgs.config = {
     allowUnfree = true;
-  };
-  nix = {
-    settings = {
-      trusted-users = [
-        "root"
-        "vysakh"
-      ];
-      experimental-features = "nix-command flakes";
-    };
-  };
-
-  security.sudo = {
-    enable = true;
-    # Require password for sudo. If passwordless is needed for automation,
-    # use a targeted sudoers rule instead of blanket NOPASSWD.
-    wheelNeedsPassword = true;
   };
 }

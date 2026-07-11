@@ -86,9 +86,9 @@
         mode = "0400";
       };
 
-      # NVIDIA AI API key — used with the OpenAI-compatible endpoint at
-      # https://integrate.api.nvidia.com/v1 for the NVIDIA model backend.
-      "openclaw-nvidia-key" = {
+      # GitHub PAT — used with the OpenAI-compatible GitHub Models endpoint
+      # at https://models.inference.ai.azure.com for the Copilot model backend.
+      "openclaw-github-token" = {
         owner = "openclaw";
         group = "openclaw";
         mode = "0400";

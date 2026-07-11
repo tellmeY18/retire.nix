@@ -22,5 +22,9 @@
 
     # Tailscale IP — binds flannel to the tailnet.
     nodeIP = "100.109.132.76";
+
+    extraFlags = [
+      "--node-label=node-role.glug.infra/compute=true"
+    ];
   };
 }

@@ -36,6 +36,24 @@ let
   # Constants from the nixpkgs crowdsec-firewall-bouncer module (not exported).
   apiKeyFile = "/var/lib/crowdsec-firewall-bouncer-register/api-key.cred";
   bouncerName = config.services.crowdsec-firewall-bouncer.registerBouncer.bouncerName;
+
+  # Permanent ban list — ranges/IPs that are blocked forever at the firewall.
+  # Add entries here; the crowdsec-permanent-bans oneshot ensures they are
+  # always present after every boot (idempotent).
+  permanentBans = [
+    {
+      range = "57.141.0.0/16";
+      reason = "MediaWiki scraper bot farm - spoofed Chrome UAs, 17k+ reqs across .0/24 and .18/24 (2026-07)";
+    }
+    {
+      range = "139.59.231.238/32";
+      reason = "LeakIX vulnerability scanner infrastructure (l9scan)";
+    }
+    {
+      range = "34.106.201.42/32";
+      reason = "GCP-hosted recon - .git/config and .git/HEAD probing";
+    }
+  ];
 in
 {
   services.crowdsec = {
@@ -214,6 +232,34 @@ in
   systemd.services.crowdsec-firewall-bouncer-register.serviceConfig = {
     DynamicUser = lib.mkForce false;
     StateDirectory = lib.mkForce "crowdsec-firewall-bouncer-register";
+  };
+
+  # Declarative permanent bans — applied on every boot after CrowdSec starts.
+  # Uses 87600h (10 years) as "forever" since cscli doesn't support infinite.
+  # Idempotent: skips ranges that already have an active decision.
+  systemd.services.crowdsec-permanent-bans = {
+    description = "Apply declarative permanent CrowdSec bans";
+    after = [ "crowdsec.service" ];
+    requires = [ "crowdsec.service" ];
+    wantedBy = [ "multi-user.target" ];
+    serviceConfig = {
+      Type = "oneshot";
+      RemainAfterExit = true;
+    };
+    path = [ config.services.crowdsec.package pkgs.jq ];
+    script =
+      let
+        cscli = "${lib.getExe' config.services.crowdsec.package "cscli"} -c=${crowdsecConfigFile}";
+        banCmds = lib.concatMapStringsSep "\n" (entry: ''
+          if ! ${cscli} decisions list -r ${entry.range} --output json | jq -e 'length > 0' >/dev/null 2>&1; then
+            echo "Adding permanent ban: ${entry.range} (${entry.reason})"
+            ${cscli} decisions add -r ${entry.range} --duration 87600h --reason '${entry.reason}'
+          else
+            echo "Already banned: ${entry.range}"
+          fi
+        '') permanentBans;
+      in
+      banCmds;
   };
 
   # Traefik never rotates its access log file. copytruncate avoids having

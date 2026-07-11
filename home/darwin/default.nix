@@ -10,9 +10,7 @@
     ./packages/default.nix
     ./zsh/default.nix
     ./emacs/default.nix
-    ./pulse/default.nix
     ./gomuks/default.nix
-    ./kitty-launcher/default.nix
     ./skhd/default.nix
     ../common/packages/dev-k8s.nix
   ];

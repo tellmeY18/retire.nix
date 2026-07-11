@@ -20,5 +20,9 @@
 
     # Join token — sops-nix decrypts at activation.
     tokenFile = config.sops.secrets.k3s-token.path;
+
+    extraFlags = [
+      "--node-label=node-role.glug.infra/compute=true"
+    ];
   };
 }

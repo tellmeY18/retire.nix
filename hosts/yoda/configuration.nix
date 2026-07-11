@@ -7,6 +7,7 @@
 { ... }:
 {
   imports = [
+    ../../profiles/base.nix
     ../../profiles/k3s-compute-node.nix
     ./default.nix
   ];
@@ -22,10 +23,6 @@
   nixpkgs.config.allowUnfree = true;
 
   nix.settings = {
-    trusted-users = [
-      "root"
-      "vysakh"
-    ];
     substituters = [
       "https://tellmey18.cachix.org"
       "https://nix-community.cachix.org"
@@ -34,11 +31,5 @@
       "tellmey18.cachix.org-1:udK9FzY4ZOHz4OapcTUHkwb/b10+5eQzCi44ZA6oFLw="
       "nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs="
     ];
-    experimental-features = "nix-command flakes";
-  };
-
-  security.sudo = {
-    enable = true;
-    wheelNeedsPassword = true;
   };
 }

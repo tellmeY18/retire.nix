@@ -2,7 +2,7 @@
 #
 # Provides the absolute baseline: nix daemon settings, flakes,
 # and a minimal set of CLI tools that should exist everywhere.
-{ pkgs, ... }:
+{ lib, pkgs, ... }:
 {
   # Nix settings
   nix.settings = {
@@ -14,6 +14,13 @@
       "root"
       "@wheel"
     ];
+  };
+
+  # Require password for sudo. If passwordless is needed for automation,
+  # use a targeted sudoers rule instead of blanket NOPASSWD.
+  security.sudo = lib.mkIf pkgs.stdenv.isLinux {
+    enable = true;
+    wheelNeedsPassword = true;
   };
 
   # Common packages available on all systems

@@ -2,12 +2,9 @@
 {
   environment.systemPackages = lib.optionals pkgs.stdenv.isDarwin [
     # Editors & Development
-    pkgs.vim
     pkgs.emacs-macport
 
     # Media & Graphics
-    #pkgs.mpv
-    #    pkgs.ffmpeg_6-full
     pkgs.imagemagick
     pkgs.sox
 
@@ -33,8 +30,6 @@
     pkgs.just
 
     # Runtime & Languages
-    pkgs.cargo
-    pkgs.rustc
     pkgs.python312Packages.grip
     pkgs.bun
     pkgs.postgresql_16
@@ -55,13 +50,10 @@
     pkgs.ncdu
     pkgs.sops
     pkgs.age
-    pkgs.htop
     pkgs.btop
-    pkgs.tree
     pkgs.yazi
     pkgs.tealdeer
     pkgs.rclone
-    pkgs.bat
     pkgs.comma
     pkgs.glow
     pkgs.qrencode
@@ -70,23 +62,18 @@
     pkgs.mkalias
     pkgs.inetutils
     pkgs.yt-dlp
-    pkgs.ripgrep
 
     # Build Tools
     pkgs.cmake
     pkgs.meson
     pkgs.ninja
     pkgs.gcc14
-    pkgs.zig          # straight.el needs zig to build ghostel's native module
+    pkgs.zig
 
     # Documentation & Text Processing
     pkgs.pandoc
     pkgs.poppler-utils
     pkgs.ghostscript
-
-    # Applications
-    pkgs.kitty
-    #pkgs.thunderbird-esr
 
     # Development Tools
     pkgs.lazygit
