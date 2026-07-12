@@ -196,7 +196,7 @@ let
     ,
     }:
     inputs.home-manager.lib.homeManagerConfiguration {
-      pkgs = inputs.nixpkgs.legacyPackages.${system}.extend (import ../overlays).custom-packages;
+      pkgs = inputs.nixpkgs.legacyPackages.${system}.extend (import ../overlays { inherit inputs; }).custom-packages;
       modules = modules;
     };
 
