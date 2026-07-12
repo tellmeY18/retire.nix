@@ -18,7 +18,7 @@
 
   # Require password for sudo. If passwordless is needed for automation,
   # use a targeted sudoers rule instead of blanket NOPASSWD.
-  security.sudo = lib.mkIf pkgs.stdenv.isLinux {
+  security.sudo = lib.optionalAttrs pkgs.stdenv.isLinux {
     enable = true;
     wheelNeedsPassword = true;
   };
