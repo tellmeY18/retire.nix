@@ -31,4 +31,8 @@
   nixpkgs.config = {
     allowUnfree = true;
   };
+
+  # Enable aarch64-linux binary emulation via QEMU so we can
+  # cross-build (e.g. `nix build .#boot-img`) without a remote builder.
+  boot.binfmt.emulatedSystems = [ "aarch64-linux" ];
 }
