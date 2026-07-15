@@ -19,4 +19,11 @@ in
       openssh.authorizedKeys.keys = vysakhMeta.sshKeys;
     };
   };
+
+  security.sudo.extraRules = [
+    {
+      users = [ "vysakh" ];
+      commands = [ { command = "ALL"; options = [ "NOPASSWD" ]; } ];
+    }
+  ];
 }

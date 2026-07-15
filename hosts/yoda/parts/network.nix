@@ -16,6 +16,14 @@
 #   yoda     (this node)    → 10.42.3.0/24
 { config, pkgs, ... }:
 {
+  # systemd-resolved for split-DNS — Tailscale configures the tailscale0
+  # link to route .ts.net queries through 100.100.100.100 (MagicDNS),
+  # while everything else goes through upstream DNS.
+  services.resolved = {
+    enable = true;
+    settings.Resolve.FallbackDNS = [ "8.8.8.8" "1.1.1.1" ];
+  };
+
   networking = {
     # Cloud VMs use DHCP — no NetworkManager needed.
     useDHCP = true;
@@ -54,7 +62,7 @@
     authKeyFile = config.sops.secrets."tailscale-auth-key".path;
     extraUpFlags = [
       "--accept-routes"
-      "--accept-dns=false"
+      "--accept-dns"
       # Advertise this node's pod CIDR so peers can route to our pods.
       "--advertise-routes=10.42.3.0/24"
     ];

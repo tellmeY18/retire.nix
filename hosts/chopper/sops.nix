@@ -94,6 +94,13 @@
         mode = "0400";
       };
 
+      # OpenRouter API key — passed to the gateway as OPENROUTER_API_KEY.
+      "openclaw-openrouter-token" = {
+        owner = "openclaw";
+        group = "openclaw";
+        mode = "0400";
+      };
+
       # Signal DM allowlist — JSON array of phone numbers allowed to DM the bot
       # when dmPolicy = "allowlist". Read by the wrapper script and injected into
       # the merged config via jq. Re-encrypt with your age key when adding numbers.

@@ -1,20 +1,21 @@
 { config, pkgs, ... }:
 {
+  # systemd-resolved for split-DNS — Tailscale configures the tailscale0
+  # link to route .ts.net queries through 100.100.100.100 (MagicDNS),
+  # while everything else goes through upstream DNS.
+  services.resolved = {
+    enable = true;
+    # Fallback DNS if upstream is unavailable.
+    settings.Resolve.FallbackDNS = [ "8.8.8.8" "1.1.1.1" ];
+  };
+
   networking = {
-    nameservers = [
-      "8.8.8.8"
-      "1.1.1.1"
-    ];
-    resolvconf = {
-      enable = true;
-      # Override Tailscale DNS management
-      extraConfig = ''
-        name_servers="8.8.8.8 1.1.1.1"
-      '';
-    };
     firewall = {
       enable = true;
-      allowedUDPPorts = [ config.services.tailscale.port ];
+      allowedUDPPorts = [
+        config.services.tailscale.port
+        5353 # mDNS — needed for Android TV device discovery (zeroconf)
+      ];
       trustedInterfaces = [
         "tailscale0"
         "cni0"

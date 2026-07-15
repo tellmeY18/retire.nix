@@ -5,6 +5,13 @@
 # - Static route for chopper's pod CIDR via Tailscale (host-gw flannel)
 { config, pkgs, ... }:
 {
+  # systemd-resolved for split-DNS — Tailscale configures the tailscale0
+  # link to route .ts.net queries through 100.100.100.100 (MagicDNS),
+  # while everything else goes through upstream DNS.
+  services.resolved = {
+    enable = true;
+    settings.Resolve.FallbackDNS = [ "8.8.8.8" "1.1.1.1" ];
+  };
   networking = {
     # Cloud VMs use DHCP — no NetworkManager needed.
     useDHCP = true;
@@ -83,7 +90,7 @@
     authKeyFile = "/run/secrets/tailscale-auth-key";
     extraUpFlags = [
       "--accept-routes"
-      "--accept-dns=false"
+      "--accept-dns"
       # Advertise this node's pod CIDR so other nodes can route to our pods
       "--advertise-routes=10.42.1.0/24"
     ];

@@ -4,6 +4,14 @@
 # - Static routes for other nodes' pod CIDRs via Tailscale (host-gw flannel)
 { config, pkgs, ... }:
 {
+  # systemd-resolved for split-DNS — Tailscale configures the tailscale0
+  # link to route .ts.net queries through 100.100.100.100 (MagicDNS),
+  # while everything else goes through upstream DNS.
+  services.resolved = {
+    enable = true;
+    settings.Resolve.FallbackDNS = [ "8.8.8.8" "1.1.1.1" ];
+  };
+
   networking = {
     # Proxmox DHCP
     useDHCP = true;
@@ -35,7 +43,7 @@
     authKeyFile = config.sops.secrets."tailscale-auth-key".path;
     extraUpFlags = [
       "--accept-routes"
-      "--accept-dns=false"
+      "--accept-dns"
       "--advertise-routes=10.42.3.0/24"
     ];
   };

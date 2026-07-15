@@ -12,8 +12,10 @@
 # Architecture:
 #   CI → pushes via https://cache.tellmey.fyi (public Traefik ingress)
 #   NixOS nodes → pull via http://attic.tail477f2f.ts.net:8080 (tailnet, fast)
-#   darwin (mac) → pull via https://cache.tellmey.fyi (public; accept-dns=false
-#                  means the nix daemon can't resolve .tail477f2f.ts.net)
+#                 MagicDNS resolves via systemd-resolved split-DNS (--accept-dns)
+#   darwin (mac) → pull via https://cache.tellmey.fyi (public; the nix daemon
+#                  can't resolve .tail477f2f.ts.net because it reads
+#                  /etc/resolv.conf which bypasses Tailscale's resolver)
 #
 # Fallback behaviour:
 #   fallback = true  — if a substituter errors (DNS failure, 5xx, timeout),
@@ -31,10 +33,11 @@
   nix.settings = {
     substituters = [
       "https://cache.nixos.org"
-      # Direct tailnet endpoint (fast, lowest latency). Resolvable on NixOS
-      # nodes that resolve MagicDNS via their own nameserver config.
-      # On darwin the nix daemon reads /etc/resolv.conf (192.168.1.1) and
-      # can't resolve this; fallback=true lets it skip to the public endpoint.
+      # Direct tailnet endpoint (fast, lowest latency). NixOS nodes resolve
+      # this via systemd-resolved split-DNS (Tailscale configures the
+      # tailscale0 link to route .ts.net to 100.100.100.100).
+      # On darwin the nix daemon reads /etc/resolv.conf (router) and can't
+      # resolve this; fallback=true lets it skip to the public endpoint.
       "http://attic.tail477f2f.ts.net:8080/system"
       # Public Traefik ingress — resolvable everywhere. Same store, same key.
       "https://cache.tellmey.fyi/system"

@@ -127,7 +127,7 @@
           id = "main";
           default = true;
           name = "tinaku";
-          model = "copilot/claude-opus-4.6";
+          model = "openrouter/anthropic/claude-opus-4";
           groupChat = {
             mentionPatterns = [ "tinaku" "\\bt\\b" ];
             historyLimit = 50;
@@ -136,6 +136,22 @@
           };
         }
       ];
+
+      # OpenRouter — default provider for the main agent.
+      models.providers.openrouter = {
+        api = "openai-completions";
+        baseUrl = "https://openrouter.ai/api/v1";
+        apiKey = "\${OPENROUTER_API_KEY}";
+        models = [
+          {
+            id = "anthropic/claude-opus-4";
+            name = "Claude Opus 4 (OpenRouter)";
+            input = [ "text" ];
+            contextWindow = 200000;
+            maxTokens = 32768;
+          }
+        ];
+      };
 
       # GitHub Copilot Enterprise — direct bearer auth against the Copilot API.
       models.providers.copilot = {
@@ -155,10 +171,23 @@
 
       # Android TV remote control MCP server — lets the assistant
       # discover, pair, navigate, and control Android TV devices on the
-      # local network. Spawned via uvx (uv must be on servicePath).
+      # local network. Spawned via uvx (uv + python3 on servicePath).
+      # UV_PYTHON_PREFERENCE=only-system forces uv to use Nix's Python
+      # instead of downloading a dynamically linked one (NixOS can't run
+      # generic FHS binaries). C_INCLUDE_PATH provides kernel headers for
+      # the evdev C extension (pulled in by pynput).
       mcp.servers.androidtv = {
         command = "uvx";
-        args = [ "androidtvmcp" "serve" ];
+        args = [
+          "--from"
+          "androidtvmcp @ https://github.com/tellmeY18/androidtvmcp/archive/refs/heads/main.zip"
+          "androidtvmcp"
+          "serve"
+        ];
+        env = {
+          UV_PYTHON_PREFERENCE = "only-system";
+          C_INCLUDE_PATH = "${pkgs.linuxHeaders}/include";
+        };
       };
 
       # Load the official @openclaw/signal runtime plugin from the Nix store.
@@ -198,6 +227,7 @@
         tokenPath = config.sops.secrets.openclaw-gateway-token.path;
         anthropicPath = config.sops.secrets.openclaw-anthropic-key.path;
         openaiPath = config.sops.secrets.openclaw-openai-key.path;
+        openrouterPath = config.sops.secrets.openclaw-openrouter-token.path;
         githubTokenPath = config.sops.secrets.openclaw-github-token.path;
         signalNumberPath = config.sops.secrets.openclaw-signal-number.path;
         allowlistPath = config.sops.secrets.openclaw-signal-allowlist.path;
@@ -211,12 +241,14 @@
           [ -r "${anthropicPath}"   ] || error_exit "missing anthropic key: ${anthropicPath}"
           [ -r "${openaiPath}"      ] || error_exit "missing openai key: ${openaiPath}"
           [ -r "${githubTokenPath}" ] || error_exit "missing github token: ${githubTokenPath}"
+          [ -r "${openrouterPath}" ] || error_exit "missing openrouter token: ${openrouterPath}"
           [ -r "${signalNumberPath}" ] || error_exit "missing signal number: ${signalNumberPath}"
           [ -r "${allowlistPath}"     ] || error_exit "missing signal allowlist: ${allowlistPath}"
           export OPENCLAW_GATEWAY_TOKEN="$(cat ${tokenPath})"
           export ANTHROPIC_API_KEY="$(cat ${anthropicPath})"
           export OPENAI_API_KEY="$(cat ${openaiPath})"
           export GITHUB_TOKEN="$(cat ${githubTokenPath})"
+          export OPENROUTER_API_KEY="$(cat ${openrouterPath})"
           SIGNAL_NUMBER="$(cat ${signalNumberPath})"
           export OPENCLAW_SIGNAL_NUMBER="$SIGNAL_NUMBER"
           # Inject signal number and DM allowlist into the Nix-generated config.
@@ -244,6 +276,8 @@
     servicePath = [
       pkgs.signal-cli
       pkgs.uv # uvx for MCP servers (androidtvmcp)
+      pkgs.python3 # system Python for uv (NixOS can't run downloaded FHS binaries)
+      pkgs.gcc # C compiler for building native Python extensions (evdev)
     ];
   };
 
@@ -269,12 +303,17 @@
     path = [
       pkgs.tailscale
       pkgs.iproute2
+      pkgs.coreutils
     ];
     serviceConfig = {
       Type = "oneshot";
-      # Wait for tailscale0 to be up before configuring serve
+      RemainAfterExit = true;
+      # Wait for Tailscale to reach Running state (not just interface UP).
+      # After a tailscaled restart, the interface appears before the daemon
+      # finishes authenticating — `tailscale serve` fails with "unexpected
+      # state: NoState" if called too early.
       ExecStartPre = ''
-        /bin/sh -c "until ip link show tailscale0 2>/dev/null | grep -q UP; do sleep 1; done"
+        /bin/sh -c "until tailscale status --json 2>/dev/null | grep -q 'BackendState.*Running'; do sleep 2; done"
       '';
       ExecStart = "${pkgs.tailscale}/bin/tailscale serve --bg --https 443 http://127.0.0.1:18789";
     };
