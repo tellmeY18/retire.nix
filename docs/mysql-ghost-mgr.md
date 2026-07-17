@@ -133,7 +133,9 @@ SET PERSIST group_replication_ssl_mode='DISABLED';
 SET PERSIST group_replication_recovery_use_ssl=OFF;
 SET PERSIST group_replication_recovery_get_public_key=ON;
 SET PERSIST group_replication_consistency='BEFORE_ON_PRIMARY_FAILOVER';
-SET PERSIST group_replication_autorejoin_tries=3;
+SET PERSIST group_replication_autorejoin_tries=2016;
+SET PERSIST group_replication_member_expel_timeout=30;
+SET PERSIST group_replication_unreachable_majority_timeout=300;
 SET PERSIST group_replication_exit_state_action='READ_ONLY';
 SET PERSIST group_replication_ip_allowlist='10.42.0.0/16,127.0.0.1/8';
 SET PERSIST group_replication_group_seeds='${SEEDS}';
@@ -320,3 +322,22 @@ kubectl delete namespace pxc-clusters
 - **After a kenobi reboot:** member-c rejoins automatically
   (`group_replication_start_on_boot=ON`, hostPath persisted). If it landed in
   ERROR state, `m c -e "STOP GROUP_REPLICATION; START GROUP_REPLICATION;"`.
+
+### Self-healing tuning
+
+These settings (applied via `SET PERSIST` in §3a) are critical for
+unattended recovery:
+
+| Setting | Value | Why |
+|---|---|---|
+| `autorejoin_tries` | **2016** | Retry every 5 min for 7 days before giving up |
+| `member_expel_timeout` | **30** | Tolerate 30s network blip before expelling |
+| `unreachable_majority_timeout` | **300** | Don't hang forever on quorum loss; go read-only after 5 min so auto-rejoin can kick in |
+| `start_on_boot` | **ON** | Rejoin after pod/node restart |
+
+With the defaults (`autorejoin_tries=3`) a member gives up after ~15 min
+and sits in READ_ONLY permanently until a human intervenes. The values
+above keep the cluster self-healing for up to a week of downtime.
+
+If all members end up OFFLINE/ERROR simultaneously (total quorum loss),
+manual re-bootstrap is still required — see §3b.

@@ -32,6 +32,7 @@
     casks = [
       "cyberduck"
       "caffeine"
+      "simplex"
       "gimp"
       "obs"
       "lens"
