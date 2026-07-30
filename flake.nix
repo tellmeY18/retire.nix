@@ -53,6 +53,9 @@
     # messages where server omits serverGuid from sealed-sender envelopes).
     # Used only for pkgs.signal-cli via the custom-packages overlay.
     nixpkgs-signal.url = "github:NixOS/nixpkgs/c6e1d1e0eebf3a5338abc4bde24e4e88d58a6f01";
+    # Pinned nixpkgs commit that ships entire 0.9.0 (0.8.42 -> 0.9.0 bump).
+    # Used only for pkgs.entire via the custom-packages overlay.
+    nixpkgs-entire.url = "github:NixOS/nixpkgs/48fc23dc48b10db27c7b206c0dfcf42118e290c3";
     nix-openclaw = {
       url = "github:openclaw/nix-openclaw";
       # Intentionally NOT following nixpkgs — lets the upstream flake use its
@@ -62,17 +65,16 @@
   };
 
   outputs =
-    inputs@{
-      self,
-      nix-homebrew,
-      nix-index-database,
-      nixvim,
-      fenix,
-      disko,
-      sops-nix,
-      deploy-rs,
-      emacs-overlay,
-      ...
+    inputs@{ self
+    , nix-homebrew
+    , nix-index-database
+    , nixvim
+    , fenix
+    , disko
+    , sops-nix
+    , deploy-rs
+    , emacs-overlay
+    , ...
     }:
     let
       myLib = import ./lib { inherit inputs; };

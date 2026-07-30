@@ -311,6 +311,22 @@
         "type": "github"
       }
     },
+    "nixpkgs-entire": {
+      "locked": {
+        "lastModified": 1785392586,
+        "narHash": "sha256-TmXyLAhaYpfLmpI5QSn3VNhlg5LaDtTeZBJnWD2CEQw=",
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "rev": "48fc23dc48b10db27c7b206c0dfcf42118e290c3",
+        "type": "github"
+      },
+      "original": {
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "rev": "48fc23dc48b10db27c7b206c0dfcf42118e290c3",
+        "type": "github"
+      }
+    },
     "nixpkgs-signal": {
       "locked": {
         "lastModified": 1783538183,
@@ -449,6 +465,7 @@
         "nix-index-database": "nix-index-database",
         "nix-openclaw": "nix-openclaw",
         "nixpkgs": "nixpkgs_3",
+        "nixpkgs-entire": "nixpkgs-entire",
         "nixpkgs-signal": "nixpkgs-signal",
         "nixvim": "nixvim",
         "sops-nix": "sops-nix"

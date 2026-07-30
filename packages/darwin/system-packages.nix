@@ -79,6 +79,7 @@
     pkgs.lazygit
     pkgs.gh
     pkgs.k9s
+    pkgs.entire
 
     # Fun & Games
     pkgs.cmatrix
