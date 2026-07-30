@@ -237,9 +237,24 @@ data:
     $wgGroupPermissions['wiki-admins']['editprotected'] = true;
     $wgGroupPermissions['wiki-admins']['editinterface'] = true;
 
+    # Template editors — a narrow group holding ONLY the right that
+    # $wgNamespaceProtection[NS_TEMPLATE] requires. Kept separate from
+    # wiki-admins so it doesn't also carry editprotected (edit-any-
+    # protected-page). This is the group cargo-admins can grant/revoke
+    $wgGroupPermissions['template-editors']['editinterface'] = true;
+
     # Cargo admins — create/recreate Cargo tables, but NOT delete/drop them.
     # Assign users to this group via Special:UserRights on the wiki.
     $wgGroupPermissions['cargo-admins']['recreatecargodata'] = true;
+
+    # Cargo admins oversee template-editors: they can grant/revoke ONLY
+    # membership of 'template-editors' (the sole holder of 'editinterface').
+    # Scoped via $wgAddGroups/$wgRemoveGroups so cargo-admins cannot touch
+    # wiki-admins, sysop, bureaucrat, checkuser, etc. — just this one group.
+    $wgGroupPermissions['cargo-admins']['userrights'] = true;
+    $wgAddGroups['cargo-admins']    = [ 'template-editors' ];
+    $wgRemoveGroups['cargo-admins'] = [ 'template-editors' ];
+
 
     ## Skins
     wfLoadSkin( 'Vector' );
