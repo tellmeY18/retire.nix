@@ -6,6 +6,7 @@ Context for AI assistants and contributors. `ROADMAP.md` has the milestone plan.
 
 ## Conventions
 
+- **kubectl / helm / k8s commands:** Always set `KUBECONFIG=~/.kube/glug-infra.yaml` before any cluster action (`kubectl`, `helm`, `helmfile`, etc.).
 - **One module = one concern.** No "kitchen sink" host files.
 - **No hard-coded user paths.** Use sops or `config.users.users.<name>.home`.
 - **Per-host metadata** in `hosts/<name>/metadata.nix` (hostname, system, roles, etc.).
