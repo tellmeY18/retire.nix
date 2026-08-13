@@ -34,22 +34,30 @@ jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: DeterminateSystems/nix-installer-action@main
-
-      - uses: DeterminateSystems/magic-nix-cache-action@main
+      # No Magic Nix Cache: it conflicts with our Attic substituter setup and
+      # has broken evaluation before (FlakeHub auth + invalid store paths).
+      - uses: DeterminateSystems/nix-installer-action@ef8a148080ab6020fd15196c2084a2eea5ff2d25 # v22
+        with:
+          flakehub: false
+          extra-conf: |
+            extra-substituters = https://cache.tellmey.fyi/system
+            extra-trusted-public-keys = system:mvnfTi6w7gvX6oksJ4JhHLL4wVUa576bgtLJ6lh9C2Y=
+            fallback = true
+            connect-timeout = 5
 
       - name: Nix flake check
         run: nix flake check --no-build
 
       - name: Statix lint
-        run: nix run nixpkgs#statix -- check . --config .statix.toml
+        run: nix run --inputs-from . nixpkgs#statix -- check . --config .statix.toml
 
       - name: Deadnix check
-        run: nix run nixpkgs#deadnix -- --fail .
+        run: nix run --inputs-from . nixpkgs#deadnix -- --fail .
 
       - name: Format check (nixpkgs-fmt)
         run: |
           nix fmt
+          # shellcheck disable=SC2016 # backticks are literal markdown
           git diff --exit-code || (echo '::error::Files need formatting. Run `nix fmt` locally and commit.' && exit 1)

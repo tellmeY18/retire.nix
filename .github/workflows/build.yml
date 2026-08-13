@@ -1,16 +1,34 @@
-# CI: Build Configurations — validate that all hosts build cleanly.
+# CI: Build & Cache — the single build/cache gate for every host config.
 #
-# On pull_request → develop:
-#   Evaluate-only (--dry-run). Fast feedback on syntax errors, missing
-#   attributes, and type mismatches. No secrets needed.
+# The host inventory is NOT hard-coded: a `plan` job evaluates the flake's
+# `ciMatrix` output (auto-derived from hosts/*/metadata.nix +
+# homeConfigurations), so new hosts are picked up with zero workflow edits.
+# Every job checks out the one immutable SHA resolved by `plan` — a later
+# branch update can never mix results across candidates.
 #
-# On push → develop:
-#   Real builds (no --dry-run). Verifies nothing is broken. Does NOT
-#   push to binary cache — that's the flake-update workflow's job.
+# Modes:
+#   full — native builds of every config + Attic push (with retries) +
+#          fresh-store substitution verification. Runs on:
+#            • push to develop (keeps the cache complete for direct pushes)
+#            • pull_request from automation/flake-update (the weekly updater)
+#            • a `/build` comment on any other PR (write-access users)
+#            • workflow_dispatch
+#   eval — `nix build --dry-run` only. Runs on ordinary pull_requests.
 #
-# Note: Most packages are substituted from cache.nixos.org. Only custom
-# packages (overlays, nixvim config, etc.) are actually compiled here.
-name: Build Configurations
+# Cache-first: Attic is configured as a substituter BEFORE any build, so CI
+# itself never recompiles what a previous run already pushed. Magic Nix
+# Cache is intentionally absent (it conflicts with Attic and broke evals).
+#
+# The `all hosts built and cached` gate only exists in full mode, fails on
+# any non-success (including skipped pushes), and posts a commit status on
+# the exact tested SHA. Merging is manual — merge the flake-update PR when
+# that status is green. While it is green, the weekly updater won't touch
+# the candidate.
+#
+# Invariant: `develop` always contains a flake.lock that builds for every
+# host AND is fully substitutable from the production cache set — no host
+# should ever compile anything locally.
+name: Build & Cache
 
 on:
   push:
@@ -35,16 +53,123 @@ on:
       - "home/**"
       - "lib/**"
       - "packages/**"
+  issue_comment:
+    types: [created]
+  workflow_dispatch:
 
 concurrency:
-  group: build-${{ github.ref }}
+  # One run per candidate; a new push to the same ref supersedes the old run.
+  group: build-${{ github.event_name == 'issue_comment' && format('pr-{0}', github.event.issue.number) || github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+  statuses: write
+
+env:
+  ATTIC_SERVER: https://cache.tellmey.fyi
+  ATTIC_CACHE: system
+  # Production substituter set (mirrors modules/binary-cache.nix, minus the
+  # tailnet URL that runners can't reach). Used both for builds and for the
+  # fresh-store verification that proves hosts will never compile.
+  NIX_SUBSTITUTERS: >-
+    https://cache.nixos.org
+    https://cache.tellmey.fyi/system
+    https://nix-community.cachix.org
+  NIX_TRUSTED_KEYS: >-
+    cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY=
+    system:mvnfTi6w7gvX6oksJ4JhHLL4wVUa576bgtLJ6lh9C2Y=
+    nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs=
+  GATE_CONTEXT: all hosts built and cached
+
 jobs:
-  build-x86_64-linux:
+  # ---------------------------------------------------------------------------
+  # 1. Plan — resolve ONE immutable SHA, pick the mode, derive the matrix
+  # ---------------------------------------------------------------------------
+  plan:
+    # For comments: only PR comments saying `/build` from users with write access.
+    if: >-
+      github.event_name != 'issue_comment' ||
+      (github.event.issue.pull_request &&
+       startsWith(github.event.comment.body, '/build') &&
+       contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association))
     runs-on: ubuntu-latest
+    outputs:
+      sha: ${{ steps.resolve.outputs.sha }}
+      mode: ${{ steps.resolve.outputs.mode }}
+      matrix: ${{ steps.matrix.outputs.matrix }}
     steps:
-      - name: Free disk space
+      - name: Resolve tested SHA and mode
+        id: resolve
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        run: |
+          set -euo pipefail
+          case "${{ github.event_name }}" in
+            issue_comment)
+              # Comment-triggered: resolve the PR's current head SHA once;
+              # every later job uses exactly this commit.
+              sha=$(gh api "repos/$GITHUB_REPOSITORY/pulls/${{ github.event.issue.number }}" --jq .head.sha)
+              mode="full"
+              ;;
+            pull_request)
+              sha="$PR_HEAD_SHA"
+              if [[ "$PR_HEAD_REF" == "automation/flake-update" ]]; then
+                mode="full"
+              else
+                mode="eval"
+              fi
+              ;;
+            *)
+              sha="${{ github.sha }}"
+              mode="full"
+              ;;
+          esac
+          echo "sha=$sha"   >> "$GITHUB_OUTPUT"
+          echo "mode=$mode" >> "$GITHUB_OUTPUT"
+          echo "Testing $sha in $mode mode"
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ steps.resolve.outputs.sha }}
+
+      - uses: DeterminateSystems/nix-installer-action@ef8a148080ab6020fd15196c2084a2eea5ff2d25 # v22
+        with:
+          flakehub: false
+
+      - name: Derive build matrix from flake
+        id: matrix
+        run: |
+          set -euo pipefail
+          matrix=$(nix eval .#ciMatrix --json)
+          echo "$matrix" | jq .
+          # Cross-check: every declared configuration must appear in the matrix.
+          declared=$( (nix eval .#nixosConfigurations --apply builtins.attrNames --json | jq -r '.[]';
+                       nix eval .#darwinConfigurations --apply builtins.attrNames --json | jq -r '.[]') | sort)
+          covered=$(echo "$matrix" | jq -r '.include[].targets[].name' | sort)
+          missing=$(comm -23 <(echo "$declared") <(echo "$covered"))
+          if [[ -n "$missing" ]]; then
+            echo "::error::Configurations missing from CI matrix: $missing"
+            exit 1
+          fi
+          [[ $(echo "$matrix" | jq '.include | length') -gt 0 ]]
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+
+  # ---------------------------------------------------------------------------
+  # 2. Build (+ push + verify in full mode) — one job per architecture
+  # ---------------------------------------------------------------------------
+  build:
+    needs: plan
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    name: build (${{ matrix.system }})
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: Free disk space (Linux)
+        if: runner.os == 'Linux'
         run: |
           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
             /usr/share/swift /usr/local/share/powershell \
@@ -52,61 +177,9 @@ jobs:
             /opt/hostedtoolcache 2>/dev/null || true
           timeout 30 sudo docker image prune -af 2>/dev/null || true
           df -h / | tail -1
-      - uses: actions/checkout@v4
-      - uses: DeterminateSystems/nix-installer-action@main
-        with:
-          flakehub: false
-      - uses: DeterminateSystems/magic-nix-cache-action@main
 
-      - name: Build NixOS (chopper)
-        run: >
-          nix build .#nixosConfigurations.chopper.config.system.build.toplevel
-          --print-build-logs
-          ${{ github.event_name == 'pull_request' && '--dry-run' || '' }}
-
-
-      - name: Build NixOS (c3po)
-        run: >
-          nix build .#nixosConfigurations.c3po.config.system.build.toplevel
-          --print-build-logs
-          ${{ github.event_name == 'pull_request' && '--dry-run' || '' }}
-
-
-      - name: Build Home Manager (vysakh@chopper)
-        run: >
-          nix build .#homeConfigurations."vysakh@chopper".activationPackage
-          --print-build-logs
-          ${{ github.event_name == 'pull_request' && '--dry-run' || '' }}
-
-
-  build-aarch64-linux:
-    runs-on: ubuntu-24.04-arm
-    steps:
-      - name: Free disk space
-        run: |
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
-            /usr/share/swift /usr/local/share/powershell \
-            /usr/local/share/chromium /usr/local/lib/node_modules \
-            /opt/hostedtoolcache 2>/dev/null || true
-          timeout 30 sudo docker image prune -af 2>/dev/null || true
-          df -h / | tail -1
-      - uses: actions/checkout@v4
-      - uses: DeterminateSystems/nix-installer-action@main
-        with:
-          flakehub: false
-      # magic-nix-cache disabled on arm64 — causes rate-limit crashes
-
-      - name: Build NixOS (kenobi)
-        run: >
-          nix build .#nixosConfigurations.kenobi.config.system.build.toplevel
-          --print-build-logs
-          ${{ github.event_name == 'pull_request' && '--dry-run' || '' }}
-
-
-  build-aarch64-darwin:
-    runs-on: macos-14
-    steps:
-      - name: Free disk space
+      - name: Free disk space (macOS)
+        if: runner.os == 'macOS'
         run: |
           sudo rm -rf /Users/runner/Library/Android \
             /Applications/Xcode_*.app \
@@ -115,22 +188,130 @@ jobs:
             /Library/Frameworks/Mono.framework \
             /usr/local/share/dotnet 2>/dev/null || true
           df -h / | tail -1
-      - uses: actions/checkout@v4
-      - uses: DeterminateSystems/nix-installer-action@main
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.plan.outputs.sha }}
+
+      # Attic (and the rest of the production substituter set) is configured
+      # BEFORE any build so previous CI pushes accelerate this run.
+      - uses: DeterminateSystems/nix-installer-action@ef8a148080ab6020fd15196c2084a2eea5ff2d25 # v22
         with:
           flakehub: false
-      # magic-nix-cache skipped on macOS — dyld symbol incompatibility
+          extra-conf: |
+            substituters = ${{ env.NIX_SUBSTITUTERS }}
+            trusted-public-keys = ${{ env.NIX_TRUSTED_KEYS }}
+            fallback = true
+            connect-timeout = 5
 
-      - name: Build macOS (darwin)
-        run: >
-          nix build .#darwinConfigurations."Vysakhs-MacBook-Pro".system
-          --print-build-logs
-          ${{ github.event_name == 'pull_request' && '--dry-run' || '' }}
+      - name: Build all ${{ matrix.system }} targets
+        env:
+          TARGETS: ${{ toJSON(matrix.targets) }}
+          MODE: ${{ needs.plan.outputs.mode }}
+        run: |
+          set -euo pipefail
+          : > "$RUNNER_TEMP/roots.txt"
+          while IFS=$'\t' read -r name attr; do
+            echo "::group::build $name"
+            if [[ "$MODE" == "eval" ]]; then
+              nix build ".#$attr" --dry-run
+            else
+              nix build ".#$attr" --no-link --print-out-paths --print-build-logs \
+                | tee -a "$RUNNER_TEMP/roots.txt"
+            fi
+            echo "::endgroup::"
+          done < <(jq -r '.[] | [.name, .attr] | @tsv' <<<"$TARGETS")
 
+      - name: Setup Attic
+        if: needs.plan.outputs.mode == 'full'
+        uses: ./.github/actions/attic-setup
+        with:
+          sops-age-key: ${{ secrets.SOPS_AGE_KEY }}
 
-      - name: Build Home Manager (darwin)
-        run: >
-          nix build .#homeConfigurations."mathewalex@Vysakhs-MacBook-Pro".activationPackage
-          --print-build-logs
-          ${{ github.event_name == 'pull_request' && '--dry-run' || '' }}
+      - name: Push to Attic (${{ matrix.system }})
+        if: needs.plan.outputs.mode == 'full'
+        timeout-minutes: 45
+        run: |
+          set -euo pipefail
+          # Store paths never contain whitespace, so word-splitting is safe
+          # (macOS runners ship bash 3.2 — no mapfile).
+          roots=$(sort -u "$RUNNER_TEMP/roots.txt")
+          [[ -n "$roots" ]] || { echo "::error::no build roots collected"; exit 1; }
+          echo "Pushing to $ATTIC_CACHE:"; echo "$roots"
+          ok=""
+          for attempt in 1 2 3 4; do
+            # shellcheck disable=SC2086 # store paths contain no whitespace
+            if attic push -j 4 "$ATTIC_CACHE" $roots; then
+              ok=1; break
+            fi
+            echo "::warning::attic push attempt $attempt failed; retrying"
+            sleep $((attempt * 20))
+          done
+          # Never `|| true` — a failed push must fail the job and block merge.
+          [[ -n "$ok" ]]
 
+      # Prove the "never compile on a host again" promise: realize every root
+      # into a fresh store from the production substituter set only, with
+      # local builds disabled. If this passes, deployment hosts can too.
+      - name: Verify substitutability (fresh store, no builds)
+        if: needs.plan.outputs.mode == 'full'
+        timeout-minutes: 60
+        run: |
+          set -euo pipefail
+          roots=$(sort -u "$RUNNER_TEMP/roots.txt")
+          [[ -n "$roots" ]] || { echo "::error::no build roots collected"; exit 1; }
+          # Free the local store first — the roots are in Attic now, and the
+          # fresh-store realization below re-downloads the closures. Without
+          # this the runner would hold two copies of every closure.
+          nix store gc --quiet || true
+          df -h "$RUNNER_TEMP" | tail -1
+          # shellcheck disable=SC2086 # store paths contain no whitespace
+          nix build $roots \
+            --no-link \
+            --max-jobs 0 \
+            --store "$RUNNER_TEMP/verify-store" \
+            --substituters "$NIX_SUBSTITUTERS" \
+            --trusted-public-keys "$NIX_TRUSTED_KEYS"
+          echo "All roots substitutable from the production cache set."
+
+  # ---------------------------------------------------------------------------
+  # 3. Stable aggregate gate — the ONE check that means "safe to merge/deploy"
+  # ---------------------------------------------------------------------------
+  gate:
+    name: all hosts built and cached
+    needs: [plan, build]
+    # Full mode only: eval-only runs must never produce this signal, so a
+    # build-only run can never look mergeable.
+    if: always() && needs.plan.result == 'success' && needs.plan.outputs.mode == 'full'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Evaluate results
+        id: result
+        env:
+          BUILD_RESULT: ${{ needs.build.result }}
+        run: |
+          echo "build: $BUILD_RESULT"
+          if [[ "$BUILD_RESULT" == "success" ]]; then
+            echo "state=success" >> "$GITHUB_OUTPUT"
+          else
+            echo "state=failure" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Commit status on the exact tested SHA. This is what shows up on the
+      # PR for comment-triggered runs, and what the weekly updater's
+      # freeze-when-green logic reads.
+      - name: Publish commit status
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ needs.plan.outputs.sha }}
+          STATE: ${{ steps.result.outputs.state }}
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/statuses/$SHA" \
+            -f state="$STATE" \
+            -f context="$GATE_CONTEXT" \
+            -f description="Build & Cache: every host built, pushed to Attic, and verified substitutable" \
+            -f target_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+
+      - name: Fail gate on any non-success
+        if: steps.result.outputs.state != 'success'
+        run: exit 1

@@ -1,5 +1,5 @@
 name: Attic Setup
-description: Install attic-client, decrypt CI token, and authenticate with cache
+description: Install pinned attic-client, decrypt CI token via sops, and authenticate
 inputs:
   sops-age-key:
     required: true
@@ -19,17 +19,21 @@ outputs:
 runs:
   using: composite
   steps:
+    # --inputs-from . pins both tools to THIS repo's flake.lock instead of
+    # the runner's floating nixpkgs registry.
     - name: Install attic-client
-      run: nix profile install nixpkgs#attic-client
+      run: nix profile install --inputs-from . nixpkgs#attic-client
       shell: bash
 
     - name: Decrypt CI token and login
       env:
         SOPS_AGE_KEY: ${{ inputs.sops-age-key }}
       run: |
-        nix run nixpkgs#sops -- -d secrets/ci/actions.yaml > /tmp/ci.yaml
-        ATTIC_TOKEN=$(grep '^attic_token:' /tmp/ci.yaml | awk '{print $2}')
-        rm /tmp/ci.yaml
+        set -euo pipefail
+        # sops --extract prints only the one value: no plaintext file on
+        # disk, no brittle grep/awk YAML parsing.
+        ATTIC_TOKEN=$(nix run --inputs-from . nixpkgs#sops -- \
+          --decrypt --extract '["attic_token"]' secrets/ci/actions.yaml)
+        echo "::add-mask::$ATTIC_TOKEN"
         attic login ci "${{ inputs.attic-server }}" "$ATTIC_TOKEN"
-        attic use "${{ inputs.attic-cache }}"
       shell: bash

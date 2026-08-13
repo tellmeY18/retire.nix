@@ -1,286 +1,117 @@
-# CI: Flake Update — automated nixpkgs-unstable upgrade pipeline.
+# CI: Flake Update — weekly updater. Creates/refreshes the lock PR, nothing else.
 #
-# Every 3 days (or on manual trigger), this workflow:
-#   1. Runs `nix flake update` to pull the latest nixpkgs-unstable + inputs
-#   2. Opens a PR with the updated flake.lock
-#   3. Builds EVERY host config on native-arch runners (3 parallel jobs)
-#   4. Each job pushes its closures to Attic in a named step
-#   5. Finalize: auto-merges if all builds + pushes pass, closes PR if any fail
+# Responsibilities (deliberately tiny — see docs/ci-cache.md):
+#   1. Weekly (Mon 02:37 UTC — non-round time to dodge GitHub's cron congestion)
+#      or on manual trigger, run `nix flake update`.
+#   2. Open or update ONE PR on branch automation/flake-update.
+#   3. Nothing else. Builds, Attic pushes, and verification happen in the
+#      ordinary pull_request CI (.github/workflows/build.yml), attached to
+#      the PR's immutable head SHA. Merging is manual.
 #
-# Architecture:
-#   Each arch job is SELF-CONTAINED: build then push. This means:
-#   - Re-running a single failed job doesn't redo successful ones
-#   - Push is a named step with `set -euo pipefail` — if it fails,
-#     the job fails, and finalize will NOT merge.
-#   - skipped via `skip_cache` input for build-only validation.
+# Freeze-when-green: if an open flake-update PR already has a successful
+# "all hosts built and cached" check, this workflow exits WITHOUT touching
+# the branch — a green, ready-to-merge candidate is never replaced by the
+# timer. Manual dispatch with force_update=true overrides this.
 #
-# On transient failures (rate limits, etc.): use "Re-run failed jobs"
-# in the GitHub Actions UI. Only the failed arch re-runs.
-#
-# Hosts built:
-#   x86_64-linux   — chopper, c3po, vysakh@chopper (HM)
-#   aarch64-linux  — kenobi
-#   aarch64-darwin — Vysakhs-MacBook-Pro, mathewalex@MacBook (HM)
-#
-# Invariant: `develop` always contains a flake.lock that builds for
-# every host. If an update breaks any config, the PR never merges.
+# Token: the PR is created with a PAT (sops: secrets/ci/actions.yaml
+# `github_pat`), NOT the workflow GITHUB_TOKEN — PRs created by
+# GITHUB_TOKEN do not trigger pull_request workflows, which would silently
+# skip the entire build/cache gate.
 name: Flake Update
 
 on:
   schedule:
-    - cron: "0 6 */3 * *"
+    - cron: "37 2 * * 1"
   workflow_dispatch:
     inputs:
-      skip_cache:
-        description: "Skip pushing to Attic (build-only)"
+      force_update:
+        description: "Update the candidate even if the open PR is green"
         required: false
         type: boolean
         default: false
 
 concurrency:
   group: flake-update
-  cancel-in-progress: true
+  cancel-in-progress: false
 
+# The PAT does all the writing; the workflow token needs nothing.
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
 
 env:
-  CACHIX_CACHE: tellmey18
-  # Attic via Traefik public ingress (direct HTTPS to the kenobi OCI VM).
-  # Replaces the Tailscale Funnel, which is bandwidth-limited and timed out
-  # on large closure pushes. (Joining the runner to the tailnet was also
-  # tried and didn't work reliably.)
-  ATTIC_SERVER: https://cache.tellmey.fyi
-  ATTIC_CACHE: system
   PR_BRANCH: automation/flake-update
+  GATE_CHECK_NAME: all hosts built and cached
 
 jobs:
-  # ---------------------------------------------------------------------------
-  # 1. Update flake.lock and open/update a PR
-  # ---------------------------------------------------------------------------
-  prepare:
+  update:
     runs-on: ubuntu-latest
-    outputs:
-      pr_number: ${{ steps.pr.outputs.pull-request-number }}
-      has_changes: ${{ steps.check.outputs.has_changes }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: DeterminateSystems/nix-installer-action@main
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: DeterminateSystems/nix-installer-action@ef8a148080ab6020fd15196c2084a2eea5ff2d25 # v22
         with:
           flakehub: false
 
-      - name: Run nix flake update
-        run: nix flake update
-
-      - name: Check for flake.lock changes
-        id: check
+      - name: Read GitHub PAT from sops
+        id: pat
+        env:
+          SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
         run: |
-          if git diff --quiet flake.lock; then
-            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+          set -euo pipefail
+          pat=$(nix run --inputs-from . nixpkgs#sops -- \
+            --decrypt --extract '["github_pat"]' secrets/ci/actions.yaml)
+          echo "::add-mask::$pat"
+          echo "token=$pat" >> "$GITHUB_OUTPUT"
+
+      # Freeze-when-green: a ready-to-merge candidate must not be replaced
+      # by the timer (merge is manual).
+      - name: Check for a green open PR
+        id: freeze
+        if: ${{ !inputs.force_update }}
+        env:
+          GH_TOKEN: ${{ steps.pat.outputs.token }}
+        run: |
+          set -euo pipefail
+          pr=$(gh pr list --repo "$GITHUB_REPOSITORY" \
+            --head "$PR_BRANCH" --state open \
+            --json number,headRefOid --jq '.[0] // empty')
+          if [[ -z "$pr" ]]; then
+            echo "No open flake-update PR — proceeding."
+            echo "frozen=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          number=$(jq -r .number <<<"$pr")
+          head_sha=$(jq -r .headRefOid <<<"$pr")
+          state=$(gh api "repos/$GITHUB_REPOSITORY/commits/$head_sha/status" \
+            --jq "[.statuses[] | select(.context == \"$GATE_CHECK_NAME\")] | first | .state // \"none\"")
+          echo "PR #$number head $head_sha gate status: $state"
+          if [[ "$state" == "success" ]]; then
+            echo "PR #$number is green and awaiting manual merge — leaving it untouched."
+            echo "frozen=true" >> "$GITHUB_OUTPUT"
           else
-            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+            echo "frozen=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Create or update PR
-        if: steps.check.outputs.has_changes == 'true'
-        id: pr
-        uses: peter-evans/create-pull-request@v7
+      - name: Update flake.lock and open/update PR
+        if: ${{ inputs.force_update || steps.freeze.outputs.frozen != 'true' }}
+        uses: DeterminateSystems/update-flake-lock@834c491b2ece4de0bbd00d85214bb5e83b4da5c6 # v28
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ steps.pat.outputs.token }}
           branch: ${{ env.PR_BRANCH }}
-          commit-message: "chore(flake): update flake.lock"
-          title: "chore(flake): update flake.lock"
-          body: |
-            Automated `nix flake update` — builds + Attic push running for all systems.
-            Use **Re-run failed jobs** if a single arch fails transiently.
-          labels: flake-update
-          delete-branch: true
+          commit-msg: "chore(flake): update flake.lock"
+          pr-title: "chore(flake): update flake.lock"
+          pr-labels: flake-update
+          pr-body: |
+            Automated `nix flake update`.
 
-  # ---------------------------------------------------------------------------
-  # 2. Build + push per architecture (self-contained, independently re-runnable)
-  # ---------------------------------------------------------------------------
-  build-x86_64-linux:
-    needs: prepare
-    if: needs.prepare.outputs.has_changes == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Free disk space
-        run: |
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
-            /usr/share/swift /usr/local/share/powershell \
-            /usr/local/share/chromium /usr/local/lib/node_modules \
-            /opt/hostedtoolcache 2>/dev/null || true
-          timeout 30 sudo docker image prune -af 2>/dev/null || true
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ env.PR_BRANCH }}
-      - uses: DeterminateSystems/nix-installer-action@main
-        with:
-          flakehub: false
-      - uses: DeterminateSystems/magic-nix-cache-action@main
+            ```
+            {{ env.GIT_COMMIT_MESSAGE }}
+            ```
 
-      - name: Evaluate flake checks
-        run: nix flake check --no-build
+            Builds + Attic push + substitution verification run as ordinary
+            PR checks (`Build & Cache`) against this PR's head SHA.
 
-      - name: Build NixOS (chopper)
-        run: nix build .#nixosConfigurations.chopper.config.system.build.toplevel --print-build-logs $ATTIC_SUBSTITUTER
-
-      - name: Build NixOS (c3po)
-        run: nix build .#nixosConfigurations.c3po.config.system.build.toplevel --print-build-logs $ATTIC_SUBSTITUTER
-
-      - name: Build Home Manager (vysakh@chopper)
-        run: nix build .#homeConfigurations."vysakh@chopper".activationPackage --print-build-logs $ATTIC_SUBSTITUTER
-
-      - name: Setup Attic
-        if: ${{ !inputs.skip_cache }}
-        uses: ./.github/actions/attic-setup
-        with:
-          sops-age-key: ${{ secrets.SOPS_AGE_KEY }}
-
-      - name: Push to Attic (x86_64-linux)
-        if: ${{ !inputs.skip_cache }}
-        timeout-minutes: 25
-        run: |
-          set -euo pipefail
-          chopper=$(nix build .#nixosConfigurations.chopper.config.system.build.toplevel \
-            --no-link --print-out-paths $ATTIC_SUBSTITUTER)
-          c3po=$(nix build .#nixosConfigurations.c3po.config.system.build.toplevel \
-            --no-link --print-out-paths $ATTIC_SUBSTITUTER)
-          hm=$(nix build .#homeConfigurations."vysakh@chopper".activationPackage \
-            --no-link --print-out-paths $ATTIC_SUBSTITUTER)
-
-          attic push -j 6 "$ATTIC_CACHE" "$chopper" "$c3po" "$hm"
-
-  build-aarch64-linux:
-    needs: prepare
-    if: needs.prepare.outputs.has_changes == 'true'
-    runs-on: ubuntu-24.04-arm
-    steps:
-      - name: Free disk space
-        run: |
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
-            /usr/share/swift /usr/local/share/powershell \
-            /usr/local/share/chromium /usr/local/lib/node_modules \
-            /opt/hostedtoolcache 2>/dev/null || true
-          timeout 30 sudo docker image prune -af 2>/dev/null || true
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ env.PR_BRANCH }}
-      - uses: DeterminateSystems/nix-installer-action@main
-        with:
-          flakehub: false
-      # magic-nix-cache disabled on arm64 — causes rate-limit crashes
-
-      - name: Build NixOS (kenobi)
-        run: nix build .#nixosConfigurations.kenobi.config.system.build.toplevel --print-build-logs $ATTIC_SUBSTITUTER
-
-      - name: Setup Attic
-        if: ${{ !inputs.skip_cache }}
-        uses: ./.github/actions/attic-setup
-        with:
-          sops-age-key: ${{ secrets.SOPS_AGE_KEY }}
-
-      - name: Push to Attic (aarch64-linux)
-        if: ${{ !inputs.skip_cache }}
-        timeout-minutes: 25
-        run: |
-          set -euo pipefail
-          kenobi=$(nix build .#nixosConfigurations.kenobi.config.system.build.toplevel \
-            --no-link --print-out-paths $ATTIC_SUBSTITUTER)
-          attic push -j 6 "$ATTIC_CACHE" "$kenobi"
-
-  build-aarch64-darwin:
-    needs: prepare
-    if: needs.prepare.outputs.has_changes == 'true'
-    runs-on: macos-14
-    steps:
-      - name: Free disk space
-        run: |
-          sudo rm -rf /Users/runner/Library/Android \
-            /Applications/Xcode_*.app \
-            /usr/local/share/powershell \
-            /usr/local/lib/node_modules \
-            /Library/Frameworks/Mono.framework \
-            /usr/local/share/dotnet 2>/dev/null || true
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ env.PR_BRANCH }}
-      - uses: DeterminateSystems/nix-installer-action@main
-        with:
-          flakehub: false
-      # magic-nix-cache skipped on macOS — dyld incompatibility
-
-      - name: Build macOS (darwin)
-        run: nix build .#darwinConfigurations."Vysakhs-MacBook-Pro".system --print-build-logs $ATTIC_SUBSTITUTER
-
-      - name: Build Home Manager (darwin)
-        run: nix build .#homeConfigurations."mathewalex@Vysakhs-MacBook-Pro".activationPackage --print-build-logs $ATTIC_SUBSTITUTER
-
-      - name: Setup Attic
-        if: ${{ !inputs.skip_cache }}
-        uses: ./.github/actions/attic-setup
-        with:
-          sops-age-key: ${{ secrets.SOPS_AGE_KEY }}
-
-      - name: Push to Attic (aarch64-darwin)
-        if: ${{ !inputs.skip_cache }}
-        timeout-minutes: 45
-        run: |
-          set -euo pipefail
-          darwin_sys=$(nix build .#darwinConfigurations."Vysakhs-MacBook-Pro".system \
-            --no-link --print-out-paths $ATTIC_SUBSTITUTER)
-          darwin_hm=$(nix build .#homeConfigurations."mathewalex@Vysakhs-MacBook-Pro".activationPackage \
-            --no-link --print-out-paths $ATTIC_SUBSTITUTER)
-
-          attic push -j 8 "$ATTIC_CACHE" "$darwin_sys" "$darwin_hm"
-
-  # ---------------------------------------------------------------------------
-  # 3. Finalize — merge only when all builds and pushes succeed
-  # ---------------------------------------------------------------------------
-  finalize:
-    needs:
-      [prepare, build-x86_64-linux, build-aarch64-linux, build-aarch64-darwin]
-    if: always() && needs.prepare.outputs.has_changes == 'true'
-    runs-on: ubuntu-latest
-    env:
-      PR_NUMBER: ${{ needs.prepare.outputs.pr_number }}
-    steps:
-      - name: Determine result
-        id: result
-        env:
-          R_X86: ${{ needs.build-x86_64-linux.result }}
-          R_ARM: ${{ needs.build-aarch64-linux.result }}
-          R_DAR: ${{ needs.build-aarch64-darwin.result }}
-        run: |
-          echo "x86_64-linux:   $R_X86"
-          echo "aarch64-linux:  $R_ARM"
-          echo "aarch64-darwin: $R_DAR"
-          if [[ "$R_X86" == "success" && "$R_ARM" == "success" && "$R_DAR" == "success" ]]; then
-            echo "outcome=success" >> "$GITHUB_OUTPUT"
-          else
-            echo "outcome=failure" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Auto-merge
-        if: steps.result.outputs.outcome == 'success'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh pr comment "$PR_NUMBER" --repo "${{ github.repository }}" \
-            --body "✅ All builds passed and pushed to Attic. Auto-merging."
-          gh pr merge "$PR_NUMBER" --repo "${{ github.repository }}" \
-            --squash --auto --delete-branch
-
-      - name: Comment on failure
-        if: steps.result.outputs.outcome == 'failure'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          R_X86: ${{ needs.build-x86_64-linux.result }}
-          R_ARM: ${{ needs.build-aarch64-linux.result }}
-          R_DAR: ${{ needs.build-aarch64-darwin.result }}
-        run: |
-          gh pr comment "$PR_NUMBER" --repo "${{ github.repository }}" --body "❌ Build failed.
-          x86_64: $R_X86 | arm64: $R_ARM | darwin: $R_DAR
-          PR stays open — use **Re-run failed jobs** for transient failures.
-          Next cron run will replace this PR if inputs have moved."
+            - ✅ Merge manually once **all hosts built and cached** is green.
+            - ♻️ Transient failure? Re-run the whole check suite (not
+              individual jobs) from the Actions UI.
+            - 🧊 While this PR is green, the weekly timer will not touch it.
