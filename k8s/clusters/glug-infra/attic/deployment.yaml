@@ -8,9 +8,13 @@ metadata:
     app.kubernetes.io/component: cache
     app.kubernetes.io/part-of: nix-infra
 spec:
-  # Attic is stateless (state in PostgreSQL + S3). Single replica reduces
-  # resource pressure on kenobi when CI is idle. HPA manages scaling:
-  # min 1, max 4 based on CPU.
+  # Attic is stateless (state in PostgreSQL + S3), but every replica is
+  # pinned to kenobi (2 CPUs, also the only etcd voter while chopper is
+  # down). Horizontal scaling on one node adds NO compute — 4 pods share
+  # the same 2 cores as 1 pod — while multiplying memory pressure and DB
+  # connections. The old HPA (70% of a 50m request ≈ 35m!) pinned itself
+  # to 4 replicas under any CI push and could starve etcd. One replica
+  # with an honest request and a hard CPU cap that leaves etcd headroom.
   replicas: 1
   strategy:
     type: RollingUpdate
@@ -98,13 +102,18 @@ spec:
               mountPath: /tmp
           resources:
             requests:
-              cpu: 50m
+              # kenobi is a packed 2-core node (~90% CPU already requested by
+              # other pods) — a bigger request simply cannot schedule. The
+              # limit below still allows bursting during CI pushes.
+              cpu: 100m
               memory: 768Mi
             limits:
               # CI pushes entire NixOS closures (hundreds of paths).
               # Attic buffers chunks in memory for dedup before writing
               # to S3. 512Mi OOMKills during bulk pushes.
-              cpu: "2"
+              # CPU capped at 1.25 of kenobi's 2 cores so etcd/apiserver
+              # always keep headroom during concurrent CI pushes.
+              cpu: 1250m
               memory: 2Gi
           securityContext:
             allowPrivilegeEscalation: false
