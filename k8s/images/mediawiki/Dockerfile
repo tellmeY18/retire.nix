@@ -248,6 +248,29 @@ RUN cd /var/www/html/includes/Rest && \
 RUN sed -i 's/public function write( \$string ) {/public function write( string \$string ): int {/' \
     /var/www/html/includes/http/MWCallbackStream.php
 
+# Guard BlogPage against a missing SocialProfile (UserStatsTrack class).
+# SocialProfile is intentionally NOT loaded (see LocalSettings.php — it
+# hijacks User: page rendering), but REL1_45 BlogPage calls
+# `new UserStatsTrack(...)` unconditionally in two places — unlike VoteNY/
+# Comments, which already guard with class_exists(). Without this,
+# Special:CreateBlogPost (and every save of a Blog: page, via the
+# PageSaveComplete hook) fatals with "Class UserStatsTrack not found".
+RUN cd /var/www/html/extensions/BlogPage && \
+    sed -i "s/\$stats = new UserStatsTrack( \$user->getID(), \$user->getName() );/if ( class_exists( 'UserStatsTrack' ) ) { \$stats = new UserStatsTrack( \$user->getID(), \$user->getName() ); }/" \
+        includes/specials/SpecialCreateBlogPost.php && \
+    sed -i "s/\$stats->updateWeeklyPoints( \$stats->point_values\['opinions_created'\] );/if ( class_exists( 'UserStatsTrack' ) ) { \$stats->updateWeeklyPoints( \$stats->point_values['opinions_created'] ); }/" \
+        includes/specials/SpecialCreateBlogPost.php && \
+    sed -i "s/\$stats->updateMonthlyPoints( \$stats->point_values\['opinions_created'\] );/if ( class_exists( 'UserStatsTrack' ) ) { \$stats->updateMonthlyPoints( \$stats->point_values['opinions_created'] ); }/" \
+        includes/specials/SpecialCreateBlogPost.php && \
+    awk '/\$at = \$wikiPage->getTitle\(\);/ && !done { \
+        print "\t\tif ( !class_exists( \"UserStatsTrack\" ) ) {"; \
+        print "\t\t\treturn true;"; \
+        print "\t\t}"; \
+        print ""; \
+        done=1 \
+    } { print }' includes/BlogPage.hooks.php > /tmp/BlogPage.hooks.php && \
+    mv /tmp/BlogPage.hooks.php includes/BlogPage.hooks.php
+
 # Create a static health check file (served by Caddy, no PHP needed)
 RUN echo 'OK' > /var/www/html/health.txt
 
