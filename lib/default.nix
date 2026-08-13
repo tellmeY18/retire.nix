@@ -282,7 +282,15 @@ let
     ,
     }:
     inputs.home-manager.lib.homeManagerConfiguration {
-      pkgs = inputs.nixpkgs.legacyPackages.${system}.extend (import ../overlays { inherit inputs; }).custom-packages;
+      # import (not legacyPackages): legacyPackages is built with the default
+      # nixpkgs config and cannot allow unfree. Every host config in this
+      # repo sets allowUnfree = true — standalone HM matches that policy
+      # (e.g. copilot-language-server pulled in via zed/nixvim).
+      pkgs = import inputs.nixpkgs {
+        inherit system;
+        config.allowUnfree = true;
+        overlays = [ (import ../overlays { inherit inputs; }).custom-packages ];
+      };
       modules = modules;
     };
 

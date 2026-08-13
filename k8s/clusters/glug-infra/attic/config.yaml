@@ -17,9 +17,17 @@ data:
     # Disable proof-of-possession for simpler CI integration
     require-proof-of-possession = false
 
-    # Database connection
+    # Database connection — DIRECT to the CNPG primary service, NOT the
+    # PgBouncer pooler. Two reasons:
+    #   1. The pooler runs in transaction mode; Attic's SQLx layer uses
+    #      prepared statements, a known bad fit for transaction pooling.
+    #   2. The pooler caps server connections at default_pool_size=25.
+    #      Multiple Attic replicas (~10 internal SQLx conns each) queue
+    #      behind those 25 slots during CI pushes and time out after 30s
+    #      ("Connection pool timed out" → HTTP 500 on reads AND writes).
+    # Postgres max_connections=100 has ample headroom for Attic's pods.
     [database]
-    url = "postgresql://attic:${ATTIC_DB_PASSWORD}@postgres-cluster-pooler-rw.cnpg-clusters.svc:5432/attic"
+    url = "postgresql://attic:${ATTIC_DB_PASSWORD}@postgres-cluster-rw.cnpg-clusters.svc:5432/attic"
 
     # S3-compatible object storage (Cloudflare R2)
     [storage]
@@ -29,14 +37,18 @@ data:
     region = "APAC"
 
     # Content-addressed chunking for deduplication.
-    # R2 has low latency vs the old RustFS backend, so smaller chunks are
-    # fine — better dedup at the cost of more S3 PUTs (R2's 1M free writes
-    # per month can handle this easily).
+    # Tuned for DB-pool survival, not maximal dedup: Attic's internal SQLx
+    # pool is small (~10 conns/pod, not configurable) and every chunk costs
+    # DB roundtrips. At 256KB average, a firefox-sized NAR (hundreds of MB)
+    # generated thousands of chunk transactions and two concurrent CI
+    # pushes exhausted the pool ("Connection pool timed out" → 500s).
+    # 1MiB average quarters that load; dedup on big binary blobs was
+    # marginal anyway.
     [chunking]
     nar-size-threshold = 262144
-    min-size = 65536
-    avg-size = 262144
-    max-size = 1048576
+    min-size = 262144
+    avg-size = 1048576
+    max-size = 4194304
 
     # Compression
     [compression]

@@ -8,10 +8,14 @@ metadata:
     app.kubernetes.io/component: cache
     app.kubernetes.io/part-of: nix-infra
 spec:
-  # Attic is stateless (state in PostgreSQL + S3). Single replica reduces
-  # resource pressure on kenobi when CI is idle. HPA manages scaling:
-  # min 1, max 4 based on CPU.
-  replicas: 1
+  # Attic is stateless (state in PostgreSQL + S3). Four replicas spread
+  # across chopper + c3po (8-core boxes with plenty of headroom). Each
+  # replica carries its own internal SQLx DB pool (~10 conns, hardcoded
+  # upstream), so replicas also scale DB throughput — they connect
+  # directly to Postgres (max_connections=100), not the PgBouncer pooler.
+  # Do NOT reintroduce an HPA — it pinned itself to max under any push
+  # load and starved the node.
+  replicas: 4
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -35,10 +39,36 @@ spec:
         fsGroup: 1000
         seccompProfile:
           type: RuntimeDefault
-      # All Attic pods on kenobi — our beefiest machine (compute powerhouse).
-      # No topology spread needed; kenobi has the resources for it.
-      nodeSelector:
-        kubernetes.io/hostname: kenobi
+      # Run on the storage nodes (chopper, c3po — 8 cores each, lightly
+      # loaded) and keep OFF kenobi: it has 2 cores and is the only etcd
+      # voter, so a push-load burst there starves the control plane.
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: In
+                    values: [chopper, c3po]
+        podAntiAffinity:
+          # Spread replicas across the two nodes (soft — still schedules
+          # if one node is down).
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: attic
+                topologyKey: kubernetes.io/hostname
+      tolerations:
+        - key: node-role.glug.infra/storage
+          operator: Equal
+          value: "true"
+          effect: NoSchedule
+        - key: node-role.glug.infra/storage-only
+          operator: Equal
+          value: "true"
+          effect: PreferNoSchedule
       initContainers:
         - name: render-config
           # Pinned digest — `latest` can silently change server/client/schema
@@ -98,7 +128,9 @@ spec:
               mountPath: /tmp
           resources:
             requests:
-              cpu: 50m
+              # chopper/c3po are 8-core nodes under 10% requested — honest
+              # requests are affordable here.
+              cpu: 500m
               memory: 768Mi
             limits:
               # CI pushes entire NixOS closures (hundreds of paths).
