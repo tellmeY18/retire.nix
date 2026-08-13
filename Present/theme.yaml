@@ -1,0 +1,144 @@
+# Starter presenterm theme for the "Cloud Native Summit Kerala 2026" deck,
+# derived from the source pptx palette/type scale.
+#
+# presenterm applies ONE theme to the whole deck and cannot swap fonts (it
+# renders in the terminal's font), so the per-slide dark/brand/lilac statement
+# backgrounds and the Manrope/JetBrains-Mono pairing are approximated with
+# palette classes — slides reference them via <span class="...">.
+#
+# Base bg is `surface` (the deck's most common bg). For a terminal-native dark
+# look (like the source deck's section-break/code/closing slides), add
+# `extends: dark` and swap the `default` colors to `ink`/`code-text`.
+
+palette:
+  colors:
+    ink: "12132A"
+    muted: "5A5E7A"
+    brand: "3928D9"
+    white: "FFFFFF"
+    line: "DCDFE9"
+    surface: "F4F5F9"
+    lilac: "E7E4FB"
+    navy_panel: "1B1C3A"
+    navy_panel_border: "2E2F58"
+    violet: "8E86F2"
+    code_text: "D7D8EC"
+    mint: "9BE6C8"
+    lilac_text: "CFCAF7"
+    lilac_text_dim: "BDB6F4"
+    purple_navy: "2C2A5C"
+  classes:
+    kicker: # eyebrow label on light slides
+      foreground: "p:brand"
+      background: "p:surface"
+    kicker-dark: # eyebrow pill on section-break slides
+      foreground: "p:violet"
+      background: "p:ink"
+    stat: # big headline numbers / column headers
+      foreground: "p:brand"
+      background: "p:surface"
+    on-brand: # text on the brand statement slides
+      foreground: "p:lilac_text"
+      background: "p:brand"
+    plate-ink: # big white-on-navy statement titles
+      foreground: "p:white"
+      background: "p:ink"
+    plate-brand: # white-on-brand (URL on the closing slide)
+      foreground: "p:white"
+      background: "p:brand"
+    pull: # pull-quote text on lilac
+      foreground: "p:ink"
+      background: "p:lilac"
+    meta: # small dim captions on light slides
+      foreground: "p:muted"
+      background: "p:surface"
+    meta-on-brand: # dim captions on brand slides
+      foreground: "p:lilac_text_dim"
+      background: "p:brand"
+
+default:
+  margin:
+    percent: 8
+  colors:
+    foreground: "p:ink"
+    background: "p:surface"
+
+intro_slide:
+  title:
+    alignment: left
+    margin:
+      percent: 8
+    colors:
+      foreground: "p:ink"
+  subtitle:
+    alignment: left
+    colors:
+      foreground: "p:muted"
+  event:
+    colors:
+      foreground: "p:muted"
+  location:
+    colors:
+      foreground: "p:muted"
+  date:
+    colors:
+      foreground: "p:muted"
+  author:
+    positioning: below_title
+    colors:
+      foreground: "p:muted"
+  footer: false
+
+slide_title:
+  alignment: left
+  font_size: 2
+  padding_top: 1
+  padding_bottom: 1
+  separator: false
+  bold: true
+  colors:
+    foreground: "p:ink"
+    background: "p:surface"
+
+headings:
+  h1:
+    prefix: ""
+    bold: true
+    colors:
+      foreground: "p:ink"
+  h2:
+    prefix: ""
+    bold: true
+    colors:
+      foreground: "p:ink"
+  h3:
+    prefix: ""
+    bold: true
+    colors:
+      foreground: "p:brand"
+
+code:
+  theme_name: base16-eighties.dark
+  padding:
+    horizontal: 2
+    vertical: 1
+  background: true
+  line_numbers: false
+
+block_quote:
+  prefix: "▍ "
+
+bold:
+  colors:
+    foreground: "p:ink"
+
+italics:
+  colors:
+    foreground: "p:muted"
+
+footer:
+  style: template
+  left: "{event}"
+  center: ""
+  right: "{current_slide} / {total_slides}"
+  height: 2

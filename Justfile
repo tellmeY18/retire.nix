@@ -31,7 +31,7 @@ mod k8s 'k8s/Justfile'
 # Launch presenterm inside kitty with a large, presentation-friendly font.
 [doc('Present slides (kitty + Iosevka 22pt)')]
 present:
-    kitty --config KochiFoss/kitty-present.conf presenterm -x KochiFoss/Slides.md
+    kitty --config Present/kitty-present.conf presenterm -x Present/Slides.md
 
 # ═══════════════════════════════════════════════════════════════════════════
 #  DEPLOY — push NixOS configs to remote hosts via deploy-rs
