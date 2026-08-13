@@ -17,9 +17,17 @@ data:
     # Disable proof-of-possession for simpler CI integration
     require-proof-of-possession = false
 
-    # Database connection
+    # Database connection — DIRECT to the CNPG primary service, NOT the
+    # PgBouncer pooler. Two reasons:
+    #   1. The pooler runs in transaction mode; Attic's SQLx layer uses
+    #      prepared statements, a known bad fit for transaction pooling.
+    #   2. The pooler caps server connections at default_pool_size=25.
+    #      Multiple Attic replicas (~10 internal SQLx conns each) queue
+    #      behind those 25 slots during CI pushes and time out after 30s
+    #      ("Connection pool timed out" → HTTP 500 on reads AND writes).
+    # Postgres max_connections=100 has ample headroom for Attic's pods.
     [database]
-    url = "postgresql://attic:${ATTIC_DB_PASSWORD}@postgres-cluster-pooler-rw.cnpg-clusters.svc:5432/attic"
+    url = "postgresql://attic:${ATTIC_DB_PASSWORD}@postgres-cluster-rw.cnpg-clusters.svc:5432/attic"
 
     # S3-compatible object storage (Cloudflare R2)
     [storage]
