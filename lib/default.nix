@@ -187,6 +187,92 @@ let
       deployableHosts;
 
   # ---------------------------------------------------------------------------
+  # CI build matrix
+  # ---------------------------------------------------------------------------
+
+  # Authoritative CI inventory, derived from the same host discovery that
+  # produces nixosConfigurations/darwinConfigurations — so a new host under
+  # hosts/ is automatically built (and cached) by CI with zero workflow edits.
+  #
+  # Output shape (consumed by .github/workflows/build.yml):
+  #   {
+  #     include = [
+  #       {
+  #         system  = "x86_64-linux";
+  #         runner  = "ubuntu-latest";
+  #         targets = [ { name = "chopper"; attr = "nixosConfigurations.\"chopper\".config.system.build.toplevel"; } ... ];
+  #       }
+  #       ...
+  #     ];
+  #   }
+  #
+  # Fails evaluation if the matrix is empty, a system has no runner mapping,
+  # or two entries share a name — CI cannot silently drop a host.
+  mkCiMatrix =
+    { hostsDir
+    , homeConfigurations ? { }
+    ,
+    }:
+    let
+      # GitHub-hosted runner per Nix system. Native builds only — no QEMU.
+      runnerFor = {
+        "x86_64-linux" = "ubuntu-latest";
+        "aarch64-linux" = "ubuntu-24.04-arm";
+        "aarch64-darwin" = "macos-14";
+      };
+
+      allHosts = discoverHosts hostsDir;
+
+      hostEntries = lib.mapAttrsToList
+        (
+          _dirName: meta: {
+            name = meta.hostname;
+            system = meta.system;
+            attr =
+              if meta.type == "darwin"
+              then "darwinConfigurations.\"${meta.hostname}\".system"
+              else "nixosConfigurations.\"${meta.hostname}\".config.system.build.toplevel";
+          }
+        )
+        allHosts;
+
+      # Home Manager entries — derived from what actually exists in
+      # homeConfigurations, so CI can never reference a missing attribute.
+      homeEntries = lib.mapAttrsToList
+        (
+          name: cfg: {
+            name = "hm-${name}";
+            system = cfg.activationPackage.system;
+            attr = "homeConfigurations.\"${name}\".activationPackage";
+          }
+        )
+        homeConfigurations;
+
+      entries = hostEntries ++ homeEntries;
+
+      names = map (e: e.name) entries;
+      dupNames = lib.subtractLists (lib.unique names) names;
+
+      systems = lib.unique (map (e: e.system) entries);
+
+      include = map
+        (
+          system: {
+            inherit system;
+            runner =
+              runnerFor.${system}
+                or (throw "ciMatrix: no GitHub runner mapped for system '${system}'");
+            targets = map (e: { inherit (e) name attr; })
+              (lib.filter (e: e.system == system) entries);
+          }
+        )
+        systems;
+    in
+    assert lib.assertMsg (entries != [ ]) "ciMatrix: matrix is empty — host discovery found nothing";
+    assert lib.assertMsg (dupNames == [ ]) "ciMatrix: duplicate entry names: ${toString dupNames}";
+    { inherit include; };
+
+  # ---------------------------------------------------------------------------
   # Standalone Home Manager factory
   # ---------------------------------------------------------------------------
 
@@ -212,5 +298,6 @@ in
     mkDarwinConfigurations
     mkDeployNodes
     mkHome
+    mkCiMatrix
     ;
 }

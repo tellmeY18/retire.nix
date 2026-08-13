@@ -238,5 +238,14 @@
 
       ## ── Flake checks (includes deploy-rs validation) ─────────────────
       checks = myLib.forAllSystems ({ system, ... }: deploy-rs.lib.${system}.deployChecks self.deploy);
+
+      ## ── CI build matrix ─────────────────────────────────────────────
+      #  Authoritative host inventory for GitHub Actions, derived from the
+      #  same auto-discovery as the configurations above. Consumed by
+      #  .github/workflows/build.yml via `nix eval .#ciMatrix --json`.
+      ciMatrix = myLib.mkCiMatrix {
+        hostsDir = ./hosts;
+        homeConfigurations = self.homeConfigurations;
+      };
     };
 }
