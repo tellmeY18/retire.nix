@@ -12,19 +12,17 @@
 # FreeBSD devil-inspired dark theme with demonic aesthetics.
 # Palette: void blacks, devil reds, trident gold, dark magic purples.
 
-{ lib, ... }:
+{ ... }:
 {
   programs.nixvim = {
     enable = true;
 
-    # Allow wezterm.nvim (used by neotest adapter tree)
-    nixpkgs.config.allowUnfreePredicate =
-      pkg:
-      builtins.elem (lib.getName pkg) [
-        "wezterm.nvim"
-        "jupytext.nvim"
-        "vim-jupyter"
-      ];
+    # nixvim builds its OWN nixpkgs instance (the flake input deliberately
+    # does not follow our nixpkgs), so the repo-wide allowUnfree does not
+    # reach it. Match the global policy here — a per-package predicate
+    # kept breaking on new unfree deps (wezterm.nvim, then
+    # copilot-language-server pulled in by copilot-lua/copilot-chat).
+    nixpkgs.config.allowUnfree = true;
 
     # ── Import modular configuration ───────────────────────
     # Each module handles a specific concern. Import order
