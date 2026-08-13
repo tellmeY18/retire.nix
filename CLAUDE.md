@@ -6,6 +6,10 @@ Context for AI assistants and contributors. `ROADMAP.md` has the milestone plan.
 
 ## Conventions
 
+- **VCS is Jujutsu (jj), not raw git.** The mandatory first action of every
+  AI-agent session (Zed, Claude Code, opencode, …) is `jj new` — before
+  touching any file — so the session's work lands in its own commit instead
+  of polluting whatever `@` holds. Full workflow: `.agents/skills/jujutsu/SKILL.md`.
 - **kubectl / helm / k8s commands:** Always set `KUBECONFIG=~/.kube/glug-infra.yaml` before any cluster action (`kubectl`, `helm`, `helmfile`, etc.).
 - **One module = one concern.** No "kitchen sink" host files.
 - **No hard-coded user paths.** Use sops or `config.users.users.<name>.home`.

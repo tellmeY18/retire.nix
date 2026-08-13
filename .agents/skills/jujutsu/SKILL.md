@@ -1,6 +1,6 @@
 ---
 name: jujutsu
-description: "**REQUIRED** - Always activate on any VCS operations. This repo uses Jujutsu (jj) — raw git commands can corrupt data. Essential jj workflow instructions inside. DO NOT IGNORE."
+description: "**REQUIRED** - Always activate on any VCS operations. This repo uses Jujutsu (jj) — raw git commands can corrupt data. MANDATORY FIRST ACTION of EVERY agent session (Zed, Claude Code, opencode, or any other): run `jj new` BEFORE touching any file. Essential jj workflow instructions inside. DO NOT IGNORE."
 ---
 
 # Jujutsu (jj) Version Control System
@@ -33,11 +33,26 @@ jj new -m "message"
 
 4. **Always use `jj diff --git`** — the default jj diff format uses side-by-side line numbers. `--git` gives standard unified diff with `+`/`-`.
 
-5. **On session start — create a fresh commit first.** Before any work, always run:
+5. **MANDATORY FIRST ACTION of every session — `jj new` before touching any file.**
+   This applies to Zed, Claude Code, opencode, and every other AI agent, no
+   matter how small the task. Because jj auto-snapshots the working copy,
+   an edit made before `jj new` silently lands in whatever commit `@`
+   happens to be — mixing unrelated sessions into one revision that later
+   needs painful non-interactive splitting.
+
    ```bash
-   jj new
+   jj --no-pager st   # see what @ currently holds
+   jj new             # ALWAYS start your own empty commit on top
    ```
-   This ensures you start on an empty anonymous commit, avoiding accidental attachment to a previous session's changes.
+
+   Rules:
+   - Run `jj new` even if `@` looks clean — it may be a described commit
+     from a previous session that should not grow.
+   - If `@` already contains changes (yours from a previous session or
+     someone else's WIP): do NOT describe, squash, absorb, or clean them
+     up. Leave them exactly where they are and `jj new` on top.
+   - Only skip `jj new` if `@` is an empty, undescribed commit you just
+     created in this same session.
 
 ## Core Concepts
 
@@ -56,7 +71,11 @@ Your working directory is always a commit (`@`). Changes are auto-snapshotted. T
 
 ### 1. Agent initiation — start fresh
 
-Every new agent session begins with a clean empty commit. This is already enforced by the environment rules above (rule 5). Run `jj new` if it hasn't been done yet.
+Every new agent session begins with `jj new` — see rule 5 above; it is the
+mandatory first action before any file is touched. If you realize you
+forgot and have already edited files on top of pre-existing changes, stop
+and rebuild the revision into separate commits (see “Periodic commit
+hygiene”) before continuing.
 
 ### 2. Describe, then code
 
