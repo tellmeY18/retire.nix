@@ -1,0 +1,52 @@
+---
+# Default deny ingress.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: job-ops
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+---
+# Allow ingress from the Tailscale proxy only (tailnet-only, no public exposure).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-job-ops-ingress
+  namespace: job-ops
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: job-ops
+  policyTypes:
+    - Ingress
+  ingress:
+    - ports:
+        - port: 3001
+          protocol: TCP
+---
+# Allow egress: DNS, HTTPS (job boards, LLM APIs, Gmail OAuth, RxResume, GitHub).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-job-ops-egress
+  namespace: job-ops
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: job-ops
+  policyTypes:
+    - Egress
+  egress:
+    - ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    - ports:
+        - port: 443
+          protocol: TCP
+        - port: 80
+          protocol: TCP

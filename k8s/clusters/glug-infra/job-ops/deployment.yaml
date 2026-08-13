@@ -1,0 +1,118 @@
+---
+# deployment.yaml — JobOps (github.com/DaKheera47/job-ops).
+#
+# Single-user self-hosted instance, single replica. Recreate strategy
+# because /app/data + /app/codex-home are ReadWriteOnce PVCs — a rolling
+# update would try to schedule the new pod before the old one releases
+# the volumes.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: job-ops
+  namespace: job-ops
+  labels:
+    app.kubernetes.io/name: job-ops
+    app.kubernetes.io/component: server
+    app.kubernetes.io/part-of: job-ops
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: job-ops
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: job-ops
+        app.kubernetes.io/component: server
+        app.kubernetes.io/part-of: job-ops
+    spec:
+      tolerations:
+        - key: node-role.glug.infra/storage
+          operator: Equal
+          value: "true"
+          effect: NoSchedule
+      containers:
+        - name: job-ops
+          image: ghcr.io/dakheera47/job-ops:latest
+          ports:
+            - name: http
+              containerPort: 3001
+              protocol: TCP
+
+          env:
+            - name: NODE_ENV
+              value: production
+            - name: PORT
+              value: "3001"
+            - name: PYTHON_PATH
+              value: /usr/bin/python3
+            - name: CODEX_HOME
+              value: /app/codex-home
+            # Tailnet-only URL used to build tracer links in background PDFs.
+            # Fill in with https://job-ops.<tailnet>.ts.net once the
+            # Tailscale ingress below has provisioned its MagicDNS name.
+            - name: JOBOPS_PUBLIC_BASE_URL
+              value: ""
+
+          envFrom:
+            - secretRef:
+                name: job-ops-credentials
+
+          volumeMounts:
+            - name: data
+              mountPath: /app/data
+            - name: codex-home
+              mountPath: /app/codex-home
+
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop:
+                - ALL
+
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3001
+            initialDelaySeconds: 15
+            periodSeconds: 30
+
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3001
+            initialDelaySeconds: 10
+            periodSeconds: 10
+
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: job-ops-data
+        - name: codex-home
+          persistentVolumeClaim:
+            claimName: job-ops-codex-home
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: job-ops-svc
+  namespace: job-ops
+spec:
+  selector:
+    app.kubernetes.io/name: job-ops
+  ports:
+    - name: http
+      port: 3001
+      targetPort: 3001
+      protocol: TCP

@@ -1,0 +1,31 @@
+---
+# pvc.yaml — persistent storage for JobOps.
+#
+# State (SQLite DB, generated PDFs, Codex CLI session) lives here — there
+# is no external database, matching upstream's docker-compose (bind-mounted
+# ./data + codex-home volume).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: job-ops-data
+  namespace: job-ops
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: zfs-localpv
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: job-ops-codex-home
+  namespace: job-ops
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: zfs-localpv
+  resources:
+    requests:
+      storage: 1Gi

@@ -1,0 +1,30 @@
+---
+# kustomization.yaml — JobOps (stateful, tailnet-only).
+#
+# Deploys JobOps (github.com/DaKheera47/job-ops) with:
+#   - PVCs for /app/data (SQLite + PDFs) and /app/codex-home
+#   - Tailscale ingress only — no public Traefik/funnel exposure
+#
+# First-time setup:
+#   1. Fill in and encrypt credentials-secret.enc.yaml:
+#        sops --encrypt --in-place credentials-secret.enc.yaml
+#   2. just k8s-apply   (or: kubectl apply -k k8s/clusters/glug-infra/job-ops)
+#   3. sops --decrypt credentials-secret.enc.yaml | kubectl apply -f -
+#   4. Visit https://job-ops.<tailnet>.ts.net and run the onboarding wizard
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: job-ops
+
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: job-ops
+      app.kubernetes.io/managed-by: kustomize
+    includeSelectors: false
+
+resources:
+  - namespace.yaml
+  - networkpolicy.yaml
+  - pvc.yaml
+  - deployment.yaml
+  - tailscale-service.yaml
