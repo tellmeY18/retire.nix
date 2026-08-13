@@ -11,6 +11,10 @@
   custom-packages = final: prev: {
     gomuks = final.callPackage ../packages/gomuks/default.nix { };
 
+    # Prebuilt release .app instead of the source build (which compiles 15 npm
+    # plugins locally and flakes on a libuv/kqueue assertion on macOS).
+    super-productivity = final.callPackage ../packages/super-productivity-bin.nix { };
+
     # Pull signal-cli from nixpkgs-signal (pinned to a master commit with 0.14.5)
     # instead of nixpkgs-unstable (which still ships 0.14.3 as of July 2026).
     # 0.14.5 fixes NPE on inbound messages caused by the server omitting
