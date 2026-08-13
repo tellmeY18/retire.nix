@@ -24,6 +24,66 @@ in
       autoshare = false;
       autoupdate = true;
       default_agent = "auto";
+      provider = {
+        greenpt = {
+          npm = "@ai-sdk/openai-compatible";
+          name = "GreenPT";
+          options = {
+            baseURL = "https://api.greenpt.ai/v1";
+            apiKey = "{env:GREEN_KEY}";
+          };
+          models = {
+            # ── Coding-first models ──
+            "kimi-k3" = { name = "Kimi K3"; };
+            "kimi-k2.7-code" = { name = "Kimi K2.7 Code"; };
+            "kimi-k2.6" = { name = "Kimi K2.6"; };
+            "devstral-2-123b-instruct-2512" = { name = "Devstral 2 123B"; };
+            "devstral-small-2505" = { name = "Devstral Small 24B"; };
+            "qwen3-coder-30b-a3b-instruct" = { name = "Qwen3 Coder 30B"; };
+            "deepseek-v4-flash-0731" = { name = "DeepSeek V4 Flash"; };
+            "gpt-oss-120b" = { name = "GPT-OSS 120B"; };
+
+            # ── General frontier models ──
+            "qwen3.5-397b-a17b" = { name = "Qwen 3.5 397B"; };
+            "qwen3.6-35b-a3b" = { name = "Qwen 3.6 35B"; };
+            "qwen3-235b-a22b-instruct-2507" = { name = "Qwen3 235B"; };
+            "glm-5.2" = { name = "GLM 5.2"; };
+            "glm-5.2-ponytail" = { name = "GLM 5.2 Ponytail"; };
+            "glm-5.2-ponytail-ultra" = { name = "GLM 5.2 Ponytail Ultra"; };
+            "glm-5.2-ponytail-lite" = { name = "GLM 5.2 Ponytail Lite"; };
+            "glm-5.2-honey" = { name = "GLM 5.2 Honey"; };
+            "glm-5.2-honey-ultra" = { name = "GLM 5.2 Honey Ultra"; };
+            "glm-5.2-honey-lite" = { name = "GLM 5.2 Honey Lite"; };
+            "glm-5.2-caveman" = { name = "GLM 5.2 Caveman"; };
+            "glm-5.2-caveman-ultra" = { name = "GLM 5.2 Caveman Ultra"; };
+            "glm-5.2-caveman-lite" = { name = "GLM 5.2 Caveman Lite"; };
+            "minimax-m2.5" = { name = "MiniMax M2.5"; };
+            "gemma4" = { name = "Gemma 4"; };
+            "gemma-3-27b-it" = { name = "Gemma 3 27B"; };
+            "holo2-30b-a3b" = { name = "Holo2 30B"; };
+
+            # ── Mistral family ──
+            "mistral-medium-3.5-128b" = { name = "Mistral Medium 3.5 128B"; };
+            "mistral-small-3.2-24b-instruct-2506" = { name = "Mistral Small 3.2 24B"; };
+            "mistral-nemo-instruct-2407" = { name = "Mistral Nemo 12B"; };
+            "voxtral-small-24b-2507" = { name = "Voxtral Small 24B"; };
+            "pixtral-12b-2409" = { name = "Pixtral 12B"; };
+
+            # ── Meta Llama ──
+            "llama-3.3-70b-instruct" = { name = "Llama 3.3 70B"; };
+            "llama-3.1-8b-instruct" = { name = "Llama 3.1 8B"; };
+            "deepseek-r1-distill-llama-70b" = { name = "DeepSeek R1 Distill 70B"; };
+
+            # ── GreenPT native ──
+            "green-l" = { name = "Green L"; };
+            "green-l-raw" = { name = "Green L Raw"; };
+            "green-r" = { name = "Green R"; };
+            "green-r-raw" = { name = "Green R Raw"; };
+            "green-s" = { name = "Green S"; };
+            "green-s-pro" = { name = "Green S Pro"; };
+          };
+        };
+      };
     };
 
     tui = {

@@ -10,6 +10,9 @@
       # GitHub API token for Homebrew (avoids rate limiting on brew bundle, nix flake update)
       export HOMEBREW_GITHUB_API_TOKEN="$(gh auth token 2>/dev/null || true)"
 
+      # GreenPT API key for opencode custom provider (sops-encrypted in secrets/laptop/greenpt.yaml)
+      export GREEN_KEY="$(sops --decrypt --extract '["green_key"]' ~/.config/nix/secrets/laptop/greenpt.yaml 2>/dev/null || true)"
+
       # Add Homebrew to PATH
       eval "$(/opt/homebrew/bin/brew shellenv)"
 
