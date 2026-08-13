@@ -62,7 +62,8 @@
     onActivation = {
       # autoUpdate triggers `brew update` which git-pulls into the nix-store-backed
       # brew installation, causing corruption and "Failed to fetch" on brew bundle.
-      # Keep brew fresh via `nix flake update` instead — it's pinned to 6.0.1 already.
+      # brew version is pinned via the nix-homebrew `inputs.brew-src` override in
+      # flake.nix (must be recent enough for the homebrew/cask DSL, e.g. command_wrapper).
       autoUpdate = false;
       upgrade = true;
       # --cleanup is deprecated in modern Homebrew; leave it to default behavior.

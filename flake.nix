@@ -18,7 +18,13 @@
       url = "github:LnL7/nix-darwin";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-    nix-homebrew.url = "github:zhaofengli/nix-homebrew";
+    nix-homebrew = {
+      # Pin the brew version nix-homebrew builds. brew 6.0.1 cannot parse
+      # current homebrew/cask casks (undefined method 'command_wrapper').
+      url = "github:zhaofengli/nix-homebrew/de7953a08ed4bb9245be043e468561c17b89130d";
+      inputs.brew-src.url = "github:Homebrew/brew/6.0.17";
+      inputs.brew-src.flake = false;
+    };
     fenix = {
       url = "github:nix-community/fenix";
       inputs.nixpkgs.follows = "nixpkgs";
