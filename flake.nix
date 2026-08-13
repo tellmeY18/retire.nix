@@ -1,13 +1,6 @@
 {
   description = "Unified flake: macOS (nix-darwin) + NixOS-on-ZFS (Disko)";
 
-  nixConfig = {
-    extra-substituters = [ "https://cache.garnix.io" ];
-    extra-trusted-public-keys = [
-      "cache.garnix.io:CTFPyKSLcx5RMJKfLo5EEPUObbA78b0YQ2DTCJXqr9g="
-    ];
-  };
-
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
     home-manager = {
@@ -65,8 +58,9 @@
     nix-openclaw = {
       url = "github:openclaw/nix-openclaw";
       # Intentionally NOT following nixpkgs — lets the upstream flake use its
-      # own pinned revision so Garnix binary cache hits. Following our unstable
-      # nixpkgs would change every derivation hash and defeat caching.
+      # own pinned revision so derivation hashes stay stable and our Attic
+      # cache hits. Following our unstable nixpkgs would change every
+      # derivation hash on each flake update and defeat caching.
     };
   };
 
@@ -182,7 +176,8 @@
             disko.nixosModules.disko
             inputs.nix-openclaw.nixosModules.openclaw-gateway
             # Force openclaw-gateway from the nix-openclaw flake's own nixpkgs
-            # pin so Garnix binary cache hits. The nixpkgs-unstable version of
+            # pin so derivation hashes stay stable across our flake updates
+            # (cache hits). The nixpkgs-unstable version of
             # openclaw (2026.6.5) has to build its pnpm deps from source (~1GB)
             # and times out over SSH-remote-build.
             # Also expose the official signal runtime plugin so the gateway can

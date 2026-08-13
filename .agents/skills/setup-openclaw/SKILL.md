@@ -21,7 +21,7 @@ Add `nix-openclaw` to `flake.nix` inputs (done on this repo already):
 nix-openclaw = {
   url = "github:openclaw/nix-openclaw";
   # Intentionally NOT following nixpkgs — lets the upstream flake use its
-  # own pinned revision so Garnix binary cache hits.
+  # own pinned revision so derivation hashes stay stable (cache hits).
 };
 ```
 
@@ -42,8 +42,8 @@ inputs.nix-openclaw.nixosModules.openclaw-gateway
 })
 ```
 
-Add `cache.garnix.io` to `nix.settings.substituters` and `trusted-public-keys`
-— see `../modules/binary-cache.nix`.
+The openclaw closure is cached by CI in the self-hosted Attic cache — see
+`../modules/binary-cache.nix` for the substituter setup.
 
 ---
 
@@ -394,6 +394,6 @@ journalctl -u openclaw-gateway --no-pager -n 50 | grep -i signal
 | `hosts/<name>/parts/network.nix` | Firewall (remove port 18789) |
 | `secrets/<host>/secrets.yaml` | Encrypted secret values |
 | `.sops.yaml` | Encryption key groups (master + host keys) |
-| `modules/binary-cache.nix` | Garnix cache for nix-openclaw |
+| `modules/binary-cache.nix` | Binary cache substituters (Attic) for nix-openclaw |
 | `packages/openclaw-signal-custom/default.nix` | Fetches Signal plugin source |
 | `overlays/default.nix` | Registers openclaw-signal-custom package |
