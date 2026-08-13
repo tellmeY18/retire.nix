@@ -29,7 +29,7 @@ jj desc -m "message"
 jj new -m "message"
 ```
 
-3. **Verify with `jj st`** after mutations (`squash`, `abandon`, `rebase`, `restore`).
+3. **Verify with `jj --no-pager st`** after mutations (`squash`, `abandon`, `rebase`, `restore`).
 
 4. **Always use `jj diff --git`** — the default jj diff format uses side-by-side line numbers. `--git` gives standard unified diff with `+`/`-`.
 
@@ -62,7 +62,7 @@ Every new agent session begins with a clean empty commit. This is already enforc
 
 ```bash
 # Verify you're on a clean revision
-jj st
+jj --no-pager st
 
 # If @ already has content, create a new empty commit
 jj new
@@ -74,7 +74,7 @@ jj desc -m "Add user authentication to login endpoint"
 # ... edit files ...
 
 # Review
-jj st
+jj --no-pager st
 jj --no-pager diff --git
 ```
 
@@ -93,7 +93,7 @@ Update dependencies to latest versions
 
 | Action | Command |
 |--------|---------|
-| Check status | `jj st` |
+| Check status | `jj --no-pager st` |
 | View log | `jj --no-pager log` |
 | View diff | `jj --no-pager diff --git` |
 | Show specific commit | `jj --no-pager show <change-id>` |
@@ -134,6 +134,41 @@ jj absorb       # distribute staged-like changes into matching ancestors
 ### Splitting
 
 Do NOT use `jj split` (interactive). Instead, use `jj restore` to move changes out, then create separate commits manually.
+
+### Periodic commit hygiene
+
+Occasionally clean up the local stack: before pushing, after a substantial session, or whenever one revision contains several unrelated concerns or many newly added files. Do not churn already-atomic revisions, and never rewrite commits reachable from a remote bookmark unless the user explicitly asks.
+
+Group by logical concern, not merely by directory or file type. Keep each implementation with its tests, documentation, configuration, and encrypted secrets. Every changed path must appear in exactly one replacement revision.
+
+Because `jj split` is interactive, rebuild a mixed local revision non-interactively:
+
+```bash
+# Inspect the mixed revision and recent stack.
+jj --no-pager show <mixed> --git --stat
+jj --no-pager log -r 'ancestors(@, 12)' --limit 12
+
+# Start a replacement stack from the mixed revision's parent.
+# Keep <mixed> reachable as the source until verification succeeds.
+jj new <mixed-parent> -m "First logical change"
+jj restore --from <mixed> path/to/first-group
+jj --no-pager st
+
+jj new -m "Second logical change"
+jj restore --from <mixed> path/to/second-group
+jj --no-pager st
+
+# Repeat for every group, then prove no content was lost or added.
+jj --no-pager diff --from <mixed> --to @ --git --stat
+# The comparison above must report 0 files changed.
+
+jj abandon <mixed>
+jj --no-pager st
+jj new
+jj --no-pager st
+```
+
+If Jujutsu reports `Untracked paths` because files exceed `snapshot.max-new-file-size`, do not claim the tree is clean or silently ignore them. Inspect the files, then either commit them with an explicit per-command size override or ask whether they should be ignored. Never raise the repository limit permanently without the user's approval.
 
 ### Rebasing
 
@@ -200,7 +235,7 @@ jj bookmark forget develop
 jj allows committing conflicts. **Do not use `jj resolve`** (interactive). Instead:
 
 1. Edit the conflicted files directly to remove conflict markers
-2. Run `jj st` to verify resolution
+2. Run `jj --no-pager st` to verify resolution
 
 ## Preserving Commit Quality
 
@@ -220,7 +255,7 @@ If you must use a raw git command (e.g. `jj` doesn't support a particular git fe
 
 ```bash
 # Ensure working copy is clean first
-jj st
+jj --no-pager st
 
 # Can now use git
 git <command>
@@ -233,7 +268,7 @@ jj edit <change-id>
 
 | Action | Command |
 |--------|---------|
-| Status | `jj st` |
+| Status | `jj --no-pager st` |
 | Log | `jj --no-pager log` |
 | Diff (git format) | `jj --no-pager diff --git` |
 | Show commit | `jj --no-pager show <id>` |
