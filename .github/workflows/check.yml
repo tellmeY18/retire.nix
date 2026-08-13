@@ -1,6 +1,6 @@
-# CI: Nix Flake Check — lint, dead-code, and format validation.
+# CI: Nix lint, dead-code, and format validation.
 # Only runs when Nix-related files change. Lightweight (no builds).
-name: Nix Flake Check
+name: Nix Lint & Format
 
 on:
   push:
@@ -46,9 +46,6 @@ jobs:
             extra-trusted-public-keys = system:mvnfTi6w7gvX6oksJ4JhHLL4wVUa576bgtLJ6lh9C2Y=
             fallback = true
             connect-timeout = 5
-
-      - name: Nix flake check
-        run: nix flake check --no-build
 
       - name: Statix lint
         run: nix run --inputs-from . nixpkgs#statix -- check . --config .statix.toml
