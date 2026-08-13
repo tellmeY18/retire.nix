@@ -10,12 +10,13 @@ metadata:
 spec:
   # Attic is stateless (state in PostgreSQL + S3), but every replica is
   # pinned to kenobi (2 CPUs, also the only etcd voter while chopper is
-  # down). Horizontal scaling on one node adds NO compute — 4 pods share
-  # the same 2 cores as 1 pod — while multiplying memory pressure and DB
-  # connections. The old HPA (70% of a 50m request ≈ 35m!) pinned itself
-  # to 4 replicas under any CI push and could starve etcd. One replica
-  # with an honest request and a hard CPU cap that leaves etcd headroom.
-  replicas: 1
+  # down), so horizontal scaling adds no compute — what it DOES add is a
+  # second internal SQLx DB pool (~10 conns each, hardcoded upstream),
+  # which is the actual bottleneck during concurrent CI pushes. Two
+  # replicas double the DB pool; per-pod CPU limits below keep the pair
+  # within ~1.5 cores so etcd/apiserver always have headroom. Do NOT
+  # reintroduce an HPA — it pinned itself to max under any push load.
+  replicas: 2
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -111,9 +112,9 @@ spec:
               # CI pushes entire NixOS closures (hundreds of paths).
               # Attic buffers chunks in memory for dedup before writing
               # to S3. 512Mi OOMKills during bulk pushes.
-              # CPU capped at 1.25 of kenobi's 2 cores so etcd/apiserver
-              # always keep headroom during concurrent CI pushes.
-              cpu: 1250m
+              # 750m × 2 replicas = 1.5 of kenobi's 2 cores, leaving
+              # etcd/apiserver headroom during concurrent CI pushes.
+              cpu: 750m
               memory: 2Gi
           securityContext:
             allowPrivilegeEscalation: false

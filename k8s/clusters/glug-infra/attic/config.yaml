@@ -29,14 +29,18 @@ data:
     region = "APAC"
 
     # Content-addressed chunking for deduplication.
-    # R2 has low latency vs the old RustFS backend, so smaller chunks are
-    # fine — better dedup at the cost of more S3 PUTs (R2's 1M free writes
-    # per month can handle this easily).
+    # Tuned for DB-pool survival, not maximal dedup: Attic's internal SQLx
+    # pool is small (~10 conns/pod, not configurable) and every chunk costs
+    # DB roundtrips. At 256KB average, a firefox-sized NAR (hundreds of MB)
+    # generated thousands of chunk transactions and two concurrent CI
+    # pushes exhausted the pool ("Connection pool timed out" → 500s).
+    # 1MiB average quarters that load; dedup on big binary blobs was
+    # marginal anyway.
     [chunking]
     nar-size-threshold = 262144
-    min-size = 65536
-    avg-size = 262144
-    max-size = 1048576
+    min-size = 262144
+    avg-size = 1048576
+    max-size = 4194304
 
     # Compression
     [compression]
