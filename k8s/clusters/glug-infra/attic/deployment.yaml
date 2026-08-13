@@ -41,7 +41,10 @@ spec:
         kubernetes.io/hostname: kenobi
       initContainers:
         - name: render-config
-          image: ghcr.io/zhaofengli/attic:latest
+          # Pinned digest — `latest` can silently change server/client/schema
+          # version on any pod restart. Same digest in gc-cronjob.yaml;
+          # update both together.
+          image: ghcr.io/zhaofengli/attic@sha256:18574aba70fc89d2b695273fbe2e7b2f8ad7e8e786b4cc535124fbe14bada1d0
           command: ["sh", "-c"]
           args:
             - |
@@ -77,7 +80,7 @@ spec:
               memory: 32Mi
       containers:
         - name: atticd
-          image: ghcr.io/zhaofengli/attic:latest
+          image: ghcr.io/zhaofengli/attic@sha256:18574aba70fc89d2b695273fbe2e7b2f8ad7e8e786b4cc535124fbe14bada1d0
           command: ["atticd"]
           args: ["--config", "/etc/attic/server.toml"]
           ports:

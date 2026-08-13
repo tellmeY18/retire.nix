@@ -1,10 +1,16 @@
 ---
 # gc-cronjob.yaml — Weekly garbage collection for the Attic binary cache.
 #
-# Attic's server-side `default-retention-period` marks paths as eligible
-# for deletion, but the actual pruning requires a client-side `attic gc`
-# call. This CronJob connects to the local atticd, generates a short-lived
-# JWT from the shared HS256 secret, and runs GC on the `system` cache.
+# Attic's server-side `default-retention-period` (config.yaml, 14 days) only
+# marks paths as eligible; actual pruning is done by atticd itself running in
+# `garbage-collector-once` mode. GC is NOT a client API call — the previous
+# design (hand-crafted `{"scope":"delete"}` JWT + `attic gc`) was invalid on
+# both sides: the claim schema was wrong for Attic authorization, and the
+# client has no gc command. This job never succeeded.
+#
+# This job renders the same server.toml as the deployment (DB + S3 creds from
+# the attic-credentials secret) and runs the GC pass directly against
+# PostgreSQL/R2. No tokens involved.
 #
 # Schedule: 6 AM UTC every Sunday — outside working hours.
 # Retention: 14 days (set in config.yaml).
@@ -24,11 +30,14 @@ spec:
   concurrencyPolicy: Forbid
   startingDeadlineSeconds: 300
   successfulJobsHistoryLimit: 3
-  failedJobsHistoryLimit: 1
+  # Keep failed Jobs around long enough to actually diagnose them (≥7 days;
+  # see ttlSecondsAfterFinished below which enforces the time-based cleanup).
+  failedJobsHistoryLimit: 7
   jobTemplate:
     spec:
       backoffLimit: 2
-      ttlSecondsAfterFinished: 86400
+      # 7 days — a failed weekend run must still be inspectable the next week.
+      ttlSecondsAfterFinished: 604800
       template:
         spec:
           automountServiceAccountToken: false
@@ -39,42 +48,29 @@ spec:
             runAsGroup: 1000
             seccompProfile:
               type: RuntimeDefault
-          containers:
-            - name: attic-gc
-              image: ghcr.io/zhaofengli/attic:latest
-              command:
-                - sh
-                - -c
+          initContainers:
+            # Same config-render pattern as the atticd deployment.
+            - name: render-config
+              # Pinned digest — `latest` can silently change server/schema
+              # version on restart. Same digest as deployment.yaml; update
+              # both together.
+              image: ghcr.io/zhaofengli/attic@sha256:18574aba70fc89d2b695273fbe2e7b2f8ad7e8e786b4cc535124fbe14bada1d0
+              command: ["sh", "-c"]
+              args:
                 - |
-                  set -euo pipefail
-
-                  # Decode the HS256 signing secret
-                  HS256_SECRET=$(echo "$ATTIC_SERVER_TOKEN_HS256_SECRET_BASE64" | base64 -d)
-
-                  # Build a short-lived JWT with delete scope
-                  b64url() { echo -n "$1" | base64 -w0 | tr '+/' '-_' | tr -d '='; }
-                  NOW=$(date +%s)
-                  HEADER='{"alg":"HS256","typ":"JWT"}'
-                  PAYLOAD='{"sub":"gc-bot","scope":"delete","iat":'"$NOW"',"exp":'"$((NOW + 3600))"'}'
-                  HEADER_B64=$(b64url "$HEADER")
-                  PAYLOAD_B64=$(b64url "$PAYLOAD")
-                  SIG_INPUT="$HEADER_B64.$PAYLOAD_B64"
-                  SIG=$(echo -n "$SIG_INPUT" | openssl dgst -sha256 -hmac "$HS256_SECRET" -binary | base64 -w0 | tr '+/' '-_' | tr -d '=')
-                  JWT="$HEADER_B64.$PAYLOAD_B64.$SIG"
-
-                  # Login and run GC
-                  attic login gc-bot "http://attic-svc.attic.svc:8080" "$JWT"
-                  attic gc system
+                  sed \
+                    -e "s|\${ATTIC_SERVER_TOKEN_HS256_SECRET_BASE64}|$ATTIC_SERVER_TOKEN_HS256_SECRET_BASE64|g" \
+                    -e "s|\${ATTIC_DB_PASSWORD}|$ATTIC_DB_PASSWORD|g" \
+                    /etc/attic-template/server.toml > /etc/attic/server.toml
               envFrom:
                 - secretRef:
                     name: attic-credentials
-              resources:
-                requests:
-                  cpu: 50m
-                  memory: 64Mi
-                limits:
-                  cpu: 500m
-                  memory: 256Mi
+              volumeMounts:
+                - name: config-template
+                  mountPath: /etc/attic-template
+                  readOnly: true
+                - name: config-rendered
+                  mountPath: /etc/attic
               securityContext:
                 allowPrivilegeEscalation: false
                 readOnlyRootFilesystem: true
@@ -85,3 +81,50 @@ spec:
                     - ALL
                 seccompProfile:
                   type: RuntimeDefault
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 16Mi
+                limits:
+                  cpu: 100m
+                  memory: 32Mi
+          containers:
+            - name: attic-gc
+              image: ghcr.io/zhaofengli/attic@sha256:18574aba70fc89d2b695273fbe2e7b2f8ad7e8e786b4cc535124fbe14bada1d0
+              command: ["atticd"]
+              args:
+                - "--config"
+                - "/etc/attic/server.toml"
+                - "--mode"
+                - "garbage-collector-once"
+              envFrom:
+                - secretRef:
+                    name: attic-credentials
+              volumeMounts:
+                - name: config-rendered
+                  mountPath: /etc/attic
+                  readOnly: true
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 64Mi
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                runAsNonRoot: true
+                runAsUser: 1000
+                capabilities:
+                  drop:
+                    - ALL
+                seccompProfile:
+                  type: RuntimeDefault
+          volumes:
+            - name: config-template
+              configMap:
+                name: attic-config
+            - name: config-rendered
+              emptyDir:
+                sizeLimit: 1Mi
