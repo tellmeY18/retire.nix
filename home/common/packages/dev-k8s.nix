@@ -11,7 +11,7 @@
 # NOTE: cmctl is packaged as pkgs.cmctl in nixpkgs (>= 24.05).  If the build
 # fails, check nixpkgs for the correct attribute name (it was briefly
 # pkgs.cert-manager in some branches).
-{ pkgs, lib, ... }:
+{ pkgs, ... }:
 
 let
   # Pin to Helm 3.x — helm-secrets and helmfile rely on `helm secrets` which

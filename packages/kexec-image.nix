@@ -11,7 +11,7 @@
 # can reconnect over the tailnet after the kexec jump.
 #
 # Adjust rootDevice/rootFsType for your target.
-{ pkgs, lib }:
+{ pkgs }:
 
 let
   # ════════════════════════════════════════════════

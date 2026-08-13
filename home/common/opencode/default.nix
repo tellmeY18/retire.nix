@@ -1,14 +1,10 @@
 {
   pkgs,
-  lib,
   config,
   self,
   ...
 }:
 
-let
-  inherit (lib) mkIf;
-in
 {
   programs.opencode = {
     enable = true;

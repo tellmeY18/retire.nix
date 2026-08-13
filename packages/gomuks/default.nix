@@ -4,7 +4,6 @@
 , nodejs
 , fetchNpmDeps
 , stdenv
-, go
 ,
 }:
 

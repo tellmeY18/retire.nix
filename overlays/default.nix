@@ -8,7 +8,7 @@
 # in the host's extraModules list.
 { inputs }: {
   # Custom packages overlay — adds our own derivations to nixpkgs
-  custom-packages = final: prev: {
+  custom-packages = final: _prev: {
     gomuks = final.callPackage ../packages/gomuks/default.nix { };
 
     # Prebuilt release .app instead of the source build (which compiles 15 npm

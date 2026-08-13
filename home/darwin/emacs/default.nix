@@ -1,4 +1,4 @@
-{ config, lib, ... }:
+{ config, ... }:
 let
   repoDir = "${config.home.homeDirectory}/.config/nix";
 in
