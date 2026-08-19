@@ -502,7 +502,7 @@ data:
     $wgCaptchaTriggers['create'] = false;
     $wgCaptchaTriggers['createtalk'] = false;
     $wgCaptchaTriggers['addurl'] = false;
-    $wgCaptchaTriggers['createaccount'] = false;
+    $wgCaptchaTriggers['createaccount'] = true;
     $wgCaptchaTriggers['badlogin'] = true;
     $myChallengeString = substr(md5(uniqid(mt_rand(), true)), 0, 8);
     $myChallengeIndex = rand(0, 7) + 1;
@@ -518,6 +518,20 @@ data:
             $result = false;
             return false;
         }
+    };
+
+    ## Block duplicate email registrations
+    $wgHooks['AbortNewAccount'][] = function( $user, &$message ) {
+        $dbr = wfGetDB( DB_REPLICA );
+        $email = $user->getEmail();
+        if ( $email !== '' ) {
+            $exists = $dbr->selectField( 'user', 'user_id', [ 'user_email' => $dbr->strencode( $email ) ], __METHOD__ );
+            if ( $exists !== false ) {
+                $message = wfMessage( 'noemaildefined' )->text() . ' An account with this email already exists.';
+                return false;
+            }
+        }
+        return true;
     };
 
     ## Year-based event namespaces (Wikimania-style)
