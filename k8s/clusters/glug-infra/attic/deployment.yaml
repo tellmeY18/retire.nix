@@ -8,14 +8,19 @@ metadata:
     app.kubernetes.io/component: cache
     app.kubernetes.io/part-of: nix-infra
 spec:
-  # Attic is stateless (state in PostgreSQL + S3). Four replicas spread
-  # across chopper + c3po (8-core boxes with plenty of headroom). Each
-  # replica carries its own internal SQLx DB pool (~10 conns, hardcoded
-  # upstream), so replicas also scale DB throughput — they connect
-  # directly to Postgres (max_connections=100), not the PgBouncer pooler.
+  # Attic is stateless (state in PostgreSQL + S3). Six replicas spread
+  # across chopper + c3po (8-core boxes, <5% CPU used — compute was never
+  # the bottleneck). Each replica carries its own internal SQLx DB pool
+  # (~10 conns, hardcoded upstream, not a k8s resource limit), so replicas
+  # scale DB throughput directly — they connect to Postgres
+  # (max_connections=100) directly, not the PgBouncer pooler. Bumped from
+  # 4->6 (40->60 conns) after CI push bursts saturated the 4-replica pool
+  # ("Connection pool timed out" -> 500s on reads/writes) while Postgres
+  # itself sat under 30 total connections — i.e. per-pod SQLx pool
+  # exhaustion, not a Postgres or node capacity problem.
   # Do NOT reintroduce an HPA — it pinned itself to max under any push
-  # load and starved the node.
-  replicas: 4
+  # load and starved the node without fixing the actual (DB-pool) bottleneck.
+  replicas: 6
   strategy:
     type: RollingUpdate
     rollingUpdate:
