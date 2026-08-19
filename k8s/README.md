@@ -35,7 +35,7 @@ nodes are present; the Tailscale `pg-rw` MagicDNS endpoint stays stable.
 | **NixOS bootstrap** | `nh os switch` | k3s itself; OpenEBS ZFS LocalPV CSI driver; the `zfs-localpv` and `zfs-localpv-16k` StorageClasses; Tailscale Kubernetes operator. Declared via `services.k3s.charts` in `modules/services/k3s.nix` and present on every node the moment k3s starts — no human intervention required after a reboot. |
 | **CNPG operator** | `helmfile` | The `cloudnative-pg` chart in the `cnpg-system` namespace. Provides CRDs + the controller. |
 | **Postgres workloads** | `helmfile` (cnpg/cluster chart) | One Helm release per Postgres cluster. Renders the `Cluster`, `ScheduledBackup`, and `Pooler` CRs from values files in `apps/postgres/`. |
-| **MySQL workloads** | `kustomize` + `sops` | Two independent deployments, no operator. `mysql-ghost` — a 3-member MySQL Group Replication (MGR) cluster (StatefulSets + `proxysql-ghost`) for the `ghost`/`activitypub` DBs. `mysql-mediawiki` — a standalone single-node Percona Server for MediaWiki. Manifests under `clusters/glug-infra/mysql-ghost/` and `clusters/glug-infra/mysql-mediawiki/`; ProxySQL/backup secrets are sops-encrypted. |
+| **MySQL workloads** | `kustomize` + `sops` | Two independent deployments, no operator. `mysql-ghost` — a 3-member MySQL Group Replication (MGR) cluster (StatefulSets + `proxysql-ghost`) for the `ghost` DB. `mysql-mediawiki` — a standalone single-node Percona Server for MediaWiki. Manifests under `clusters/glug-infra/mysql-ghost/` and `clusters/glug-infra/mysql-mediawiki/`; ProxySQL/backup secrets are sops-encrypted. |
 | **RustFS object storage** | `kustomize` + `sops` | Standalone, operator-free. A single RustFS `StatefulSet` (one pod, one ZFS-backed PVC, no erasure coding) + its Services under `clusters/glug-infra/rustfs/`. The `rustfs-credentials` Secret is sops-decrypted and applied before the StatefulSet. |
 | **Monitoring stack** | `helmfile` | `victoria-metrics-k8s-stack` chart (v0.77.0) in the `monitoring` namespace. Provides VMSingle + VMAgent + VMAlert + VMAlertmanager + Grafana + VictoriaMetrics Operator + CRDs (VMRule, VMPodScrape, VMServiceScrape). |
 | **Cluster glue** | `kubectl apply -k` (kustomize) | Namespaces (with PSA labels), NetworkPolicies, and Tailscale LoadBalancer Services (pg-rw, grafana). |
@@ -263,7 +263,7 @@ pg-rw.<tailnet>.ts.net:5432
 ```
 
 For MySQL, there is no tailnet endpoint — the consumers are in-cluster apps.
-Ghost/ActivityPub connect to the MGR cluster via its in-cluster ProxySQL:
+Ghost connects to the MGR cluster via its in-cluster ProxySQL:
 
 ```
 proxysql-ghost.mysql-ghost.svc:3306
@@ -298,7 +298,7 @@ re-pinning is harmless.
 ### MySQL traffic path (`mysql-ghost` MGR)
 
 ```
-Ghost / ActivityPub pod
+Ghost pod
   → proxysql-ghost.mysql-ghost.svc:3306   (in-cluster Service)
   → proxysql-ghost pod (MGR-aware routing, kenobi)
   → writer hostgroup HG10                 (current MGR primary)

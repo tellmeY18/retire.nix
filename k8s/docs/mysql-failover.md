@@ -17,7 +17,7 @@ failover during deployment.
 ## Architecture
 
 ```
-Ghost / ActivityPub
+Ghost
        │
    proxysql-ghost (kenobi, namespace mysql-ghost)
        ├── hostgroup 10 (WRITER) → current MGR primary

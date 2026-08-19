@@ -256,15 +256,15 @@ all `pxc-*` manifests/monitoring are gone). MySQL is now served by two
 independent deployments on the `glug-infra` cluster:
 
 - **`mysql-ghost`** — a 3-member **MySQL Group Replication (MGR)** cluster
-  (single-primary) for the write-sensitive `ghost` (Ghost CMS) and
-  `activitypub` (Ghost ActivityPub/fediverse) databases. Genuinely HA.
+  (single-primary) for the write-sensitive `ghost` (Ghost CMS) database.
+  Genuinely HA. (Also formerly served `activitypub`, now decommissioned.)
 - **`mysql-mediawiki`** — a **standalone single-node Percona Server 8.0**
   for MediaWiki only. Not HA (single node + hourly S3 backups).
 
 Full architecture + bootstrap runbook lives in `docs/mysql-ghost-mgr.md`;
 this section is the summary.
 
-### 8.1 `mysql-ghost` — Group Replication for Ghost + ActivityPub
+### 8.1 `mysql-ghost` — Group Replication for Ghost
 
 Three MGR members, single-primary, fronted by a dedicated MGR-aware
 **`proxysql-ghost`** that auto-routes writes to the current primary by
