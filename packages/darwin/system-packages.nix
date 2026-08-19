@@ -24,7 +24,7 @@
     pkgs.minio-client
     pkgs.nh
     pkgs.podman
-    pkgs.docker
+    pkgs.podman-compose
     pkgs.kubectl
     pkgs.podman-tui
     pkgs.just
