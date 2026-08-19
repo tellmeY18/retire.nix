@@ -3,19 +3,29 @@
 # Adds the self-hosted Attic cache as a substituter so packages built
 # by CI are pulled as pre-built binaries, never compiled locally.
 #
-# All hosts are on the Tailscale network, so they use the direct tailnet
-# URL (WireGuard-encrypted, no relay overhead, full bandwidth).
-#
-# CI (GitHub Actions) uses the Funnel URL instead (public HTTPS) since
-# runners are NOT on the tailnet. See .github/workflows/flake-update.yml.
+# CI (GitHub Actions) uses the public URL since runners are NOT on the
+# tailnet. See .github/workflows/build.yml.
 #
 # Architecture:
 #   CI → pushes via https://cache.tellmey.fyi (public Traefik ingress)
-#   NixOS nodes → pull via http://attic.tail477f2f.ts.net:8080 (tailnet, fast)
+#   NixOS nodes → pull via http://attic.tail477f2f.ts.net:8080 (tailnet;
+#                 direct WireGuard between cluster peers, full bandwidth).
 #                 MagicDNS resolves via systemd-resolved split-DNS (--accept-dns)
-#   darwin (mac) → pull via https://cache.tellmey.fyi (public; the nix daemon
-#                  can't resolve .tail477f2f.ts.net because it reads
-#                  /etc/resolv.conf which bypasses Tailscale's resolver)
+#   darwin (mac) → pull via https://cache.tellmey.fyi ONLY (see below)
+#
+# Why darwin skips the tailnet endpoint:
+#   An earlier version of this comment claimed the darwin nix daemon cannot
+#   resolve .tail477f2f.ts.net and would silently fall through to the public
+#   ingress. That is no longer true — /etc/resolver/tail477f2f.ts.net makes
+#   the name resolve, so nix DOES pick the tailnet substituter, and it is
+#   dramatically slower: the mac has no direct WireGuard path to the attic
+#   node and every byte is relayed through a DERP server
+#   (`tailscale ping attic` → "via DERP(blr)", "direct connection not
+#   established"). Measured on a 329 MB NAR: ~50 KB/s over the relay vs
+#   ~260 KB/s via the public ingress. At 50 KB/s large NARs never finish
+#   before nix's stalled-download-timeout (300 s) kills them, producing
+#   `HTTP error 200 (curl error: Timeout was reached)` and a spurious
+#   fallback to building from source.
 #
 # Fallback behaviour:
 #   fallback = true  — if a substituter errors (DNS failure, 5xx, timeout),
@@ -25,20 +35,24 @@
 #
 #   Substituter order (priority):
 #     1. cache.nixos.org      — always available, most reliable
-#     2. attic tailnet        — fast on NixOS nodes; DNS error on darwin
-#                               (falls through via fallback=true)
+#     2. attic tailnet        — NixOS nodes only (direct WireGuard)
 #     3. attic public ingress — resolvable everywhere via public DNS
-{ ... }:
+{ pkgs, lib, ... }:
+let
+  # The mac reaches the tailnet only over a DERP relay, so the tailnet
+  # substituter is a pessimisation there rather than a fast path.
+  useTailnetCache = !pkgs.stdenv.hostPlatform.isDarwin;
+in
 {
   nix.settings = {
     substituters = [
       "https://cache.nixos.org"
-      # Direct tailnet endpoint (fast, lowest latency). NixOS nodes resolve
-      # this via systemd-resolved split-DNS (Tailscale configures the
-      # tailscale0 link to route .ts.net to 100.100.100.100).
-      # On darwin the nix daemon reads /etc/resolv.conf (router) and can't
-      # resolve this; fallback=true lets it skip to the public endpoint.
-      "http://attic.tail477f2f.ts.net:8080/system"
+    ]
+    # Direct tailnet endpoint (fast, lowest latency) — NixOS nodes only.
+    # They resolve this via systemd-resolved split-DNS (Tailscale routes
+    # .ts.net to 100.100.100.100) and have direct WireGuard peering.
+    ++ lib.optional useTailnetCache "http://attic.tail477f2f.ts.net:8080/system"
+    ++ [
       # Public Traefik ingress — resolvable everywhere. Same store, same key.
       "https://cache.tellmey.fyi/system"
       # Popular community binary caches
@@ -60,6 +74,9 @@
     ];
 
     # Both attic endpoints serve the same store (signed by the key above).
+    # The tailnet URL stays trusted even where it is not a default
+    # substituter, so it can still be opted into ad hoc with
+    # `--substituters` on a host that does have a direct route.
     trusted-substituters = [
       "http://attic.tail477f2f.ts.net:8080/system"
       "https://cache.tellmey.fyi/system"
