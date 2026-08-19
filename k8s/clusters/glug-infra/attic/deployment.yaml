@@ -18,6 +18,21 @@ spec:
   # ("Connection pool timed out" -> 500s on reads/writes) while Postgres
   # itself sat under 30 total connections — i.e. per-pod SQLx pool
   # exhaustion, not a Postgres or node capacity problem.
+  #
+  # The 4->6 bump treated a symptom. The two actual causes were:
+  #   1. Every replica ran in the default `monolithic` mode, which also
+  #      spawns a periodic garbage collector AND runs DB migrations at
+  #      startup. Six replicas therefore meant six background GC loops
+  #      (12h interval) and a six-way migration race against one database.
+  #      Fixed by `--mode api-server` below.
+  #   2. Multi-chunk NARs were reassembled in-process, holding a DB
+  #      connection for the entire multi-minute stream. Fixed by disabling
+  #      chunking in config.yaml so NARs are served as 307 redirects to
+  #      presigned R2 URLs.
+  # With both fixed, connections are held for milliseconds rather than
+  # minutes, so 6 replicas is now generous — revisit dropping back to 4
+  # once the change has soaked.
+  #
   # Do NOT reintroduce an HPA — it pinned itself to max under any push
   # load and starved the node without fixing the actual (DB-pool) bottleneck.
   replicas: 6
@@ -117,7 +132,19 @@ spec:
         - name: atticd
           image: ghcr.io/zhaofengli/attic@sha256:18574aba70fc89d2b695273fbe2e7b2f8ad7e8e786b4cc535124fbe14bada1d0
           command: ["atticd"]
-          args: ["--config", "/etc/attic/server.toml"]
+          # --mode api-server: serve the HTTP API ONLY.
+          #
+          # The default (`monolithic`) additionally runs DB migrations at
+          # startup and spawns a periodic garbage-collection loop
+          # (server/src/main.rs). With 6 replicas that produced 6 competing
+          # GC loops plus a 6-way migration race against one Postgres — GC's
+          # bulk mark/delete transactions starved `get_nar` of connections
+          # and returned 500s after a 30s pool timeout.
+          #
+          # Consequence: migrations are NOT run here. After bumping the
+          # image digest you MUST run db-migrations-job.yaml first, or the
+          # new pods will run against an unmigrated schema. See that file.
+          args: ["--config", "/etc/attic/server.toml", "--mode", "api-server"]
           ports:
             - name: http
               containerPort: 8080

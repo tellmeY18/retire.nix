@@ -1,0 +1,140 @@
+---
+# db-migrations-job.yaml — Applies Attic's database schema migrations.
+#
+# WHY THIS EXISTS
+#
+# The Deployment runs `atticd --mode api-server`, which serves the HTTP API
+# and nothing else. The default `monolithic` mode would also run migrations
+# on startup, but it additionally spawns a periodic garbage collector — with
+# 6 replicas that meant 6 competing GC loops (and a 6-way migration race)
+# hammering one PostgreSQL, starving `get_nar` of pool connections and
+# returning HTTP 500 after a 30s timeout. See deployment.yaml.
+#
+# Splitting the API server out means migrations need their own single-writer
+# runner. That is this Job.
+#
+# WHEN TO RUN IT
+#
+# Any time the pinned image digest changes in deployment.yaml /
+# gc-cronjob.yaml, run this BEFORE rolling the Deployment:
+#
+#   kubectl delete job attic-db-migrations -n attic --ignore-not-found
+#   kubectl apply -f k8s/clusters/glug-infra/attic/db-migrations-job.yaml
+#   kubectl wait --for=condition=complete job/attic-db-migrations -n attic --timeout=5m
+#   kubectl rollout restart deploy/attic -n attic
+#
+# Running it against an already-migrated database is a no-op, so it is safe
+# to re-run. It is deliberately NOT in kustomization.yaml: a Job's `spec` is
+# immutable, so a plain `kubectl apply -k` would fail once the Job exists.
+# Same reasoning as db-init-job.yaml.
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: attic-db-migrations
+  namespace: attic
+  labels:
+    app.kubernetes.io/name: attic
+    app.kubernetes.io/component: db-migrations
+    app.kubernetes.io/part-of: nix-infra
+spec:
+  backoffLimit: 2
+  # Keep the Job inspectable for a week after it finishes.
+  ttlSecondsAfterFinished: 604800
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: attic
+        app.kubernetes.io/component: db-migrations
+        app.kubernetes.io/part-of: nix-infra
+    spec:
+      automountServiceAccountToken: false
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        # Same config-render pattern as the atticd Deployment and the GC
+        # CronJob: the ConfigMap holds a template, secrets are substituted
+        # into an emptyDir at runtime so they never land in the ConfigMap.
+        - name: render-config
+          # Pinned digest — keep in lockstep with deployment.yaml and
+          # gc-cronjob.yaml; migrations must match the server binary.
+          image: ghcr.io/zhaofengli/attic@sha256:18574aba70fc89d2b695273fbe2e7b2f8ad7e8e786b4cc535124fbe14bada1d0
+          command: ["sh", "-c"]
+          args:
+            - |
+              sed \
+                -e "s|\${ATTIC_SERVER_TOKEN_HS256_SECRET_BASE64}|$ATTIC_SERVER_TOKEN_HS256_SECRET_BASE64|g" \
+                -e "s|\${ATTIC_DB_PASSWORD}|$ATTIC_DB_PASSWORD|g" \
+                /etc/attic-template/server.toml > /etc/attic/server.toml
+          envFrom:
+            - secretRef:
+                name: attic-credentials
+          volumeMounts:
+            - name: config-template
+              mountPath: /etc/attic-template
+              readOnly: true
+            - name: config-rendered
+              mountPath: /etc/attic
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 1000
+            capabilities:
+              drop:
+                - ALL
+            seccompProfile:
+              type: RuntimeDefault
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 100m
+              memory: 32Mi
+      containers:
+        - name: db-migrations
+          image: ghcr.io/zhaofengli/attic@sha256:18574aba70fc89d2b695273fbe2e7b2f8ad7e8e786b4cc535124fbe14bada1d0
+          command: ["atticd"]
+          # Runs the SeaORM migrations then exits (server/src/main.rs).
+          args:
+            - "--config"
+            - "/etc/attic/server.toml"
+            - "--mode"
+            - "db-migrations"
+          envFrom:
+            - secretRef:
+                name: attic-credentials
+          volumeMounts:
+            - name: config-rendered
+              mountPath: /etc/attic
+              readOnly: true
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 1000
+            capabilities:
+              drop:
+                - ALL
+            seccompProfile:
+              type: RuntimeDefault
+      volumes:
+        - name: config-template
+          configMap:
+            name: attic-config
+        - name: config-rendered
+          emptyDir:
+            sizeLimit: 1Mi

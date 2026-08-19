@@ -36,16 +36,43 @@ data:
     bucket = "attic-cache"
     region = "APAC"
 
-    # Content-addressed chunking for deduplication.
-    # Tuned for DB-pool survival, not maximal dedup: Attic's internal SQLx
-    # pool is small (~10 conns/pod, not configurable) and every chunk costs
-    # DB roundtrips. At 256KB average, a firefox-sized NAR (hundreds of MB)
-    # generated thousands of chunk transactions and two concurrent CI
-    # pushes exhausted the pool ("Connection pool timed out" → 500s).
-    # 1MiB average quarters that load; dedup on big binary blobs was
-    # marginal anyway.
+    # Content-addressed chunking — DISABLED (nar-size-threshold = 0).
+    #
+    # Why: chunking and direct-from-R2 downloads are mutually exclusive.
+    # In `get_nar` (server/src/api/binary_cache.rs) Attic only hands the
+    # client a presigned S3 URL when a NAR is stored as a SINGLE chunk:
+    #
+    #   if chunks.len() == 1 {
+    #       Download::Url(url) => Ok(Redirect::temporary(&url) ...)   // 307
+    #   } else {
+    #       Download::Url(_) => Err("URLs not supported for NAR reassembly")
+    #   }
+    #
+    # A multi-chunk NAR MUST be reassembled inside the pod, streaming every
+    # chunk through it — and the DB connection is held for the whole
+    # transfer. Large NARs stream for minutes, so a handful of concurrent
+    # pulls exhausted the (~10 conn/pod, not configurable) SQLx pool:
+    #   "Failed to acquire connection from pool: Connection pool timed out"
+    #   "response failed classification=Status code: 500 latency=30004 ms"
+    # Scaling replicas did not fix this — it is connection HOLD TIME, not
+    # connection count.
+    #
+    # With chunking off every NAR is one object, so `get_nar` becomes a
+    # quick DB lookup + 307 to R2. Bytes flow client -> Cloudflare edge and
+    # never touch chopper/c3po; the DB connection is released immediately.
+    # R2 egress is free, so this is also the cheapest path.
+    #
+    # Storage cost: we lose dedup, which measured only 1.42x (14 GB logical
+    # -> 9.8 GB of chunks). At the observed 2.99x zstd ratio that moves R2
+    # usage from ~3.3 GB to ~4.7 GB — still under half the 10 GB free tier.
+    #
+    # NOTE: this only affects NEWLY-uploaded NARs. Existing multi-chunk
+    # objects keep being reassembled server-side until they age out via the
+    # retention policy below and are re-pushed by CI.
+    #
+    # min/avg/max are inert while the threshold is 0; kept for easy revert.
     [chunking]
-    nar-size-threshold = 262144
+    nar-size-threshold = 0
     min-size = 262144
     avg-size = 1048576
     max-size = 4194304
@@ -56,8 +83,26 @@ data:
 
     # Garbage collection — aggressive to stay within R2's 10GB free storage.
     # Paths older than 14 days are eligible for deletion. A separate CronJob
-    # runs `attic gc` weekly to actually prune them.
+    # (gc-cronjob.yaml) runs `atticd --mode garbage-collector-once` weekly to
+    # actually prune them.
+    #
+    # Retention is keyed on LAST-ACCESSED, not upload time (`get_nar` calls
+    # bump_object_last_accessed), so actively-pulled paths are never evicted.
+    # Do not shorten this to save space: at ~3.3 GB of 10 GB there is no
+    # pressure, and a shorter window just evicts paths the hosts still need,
+    # forcing local rebuilds — the exact thing this cache exists to prevent.
+    #
+    # interval = 0 disables the periodic GC loop that runs INSIDE the server
+    # process. The Deployment already avoids it via `--mode api-server`, but
+    # setting it here too means a stray monolithic-mode pod can never start
+    # six competing GC loops against one database again. `--mode
+    # garbage-collector-once` (the CronJob) ignores this value and still runs.
+    #
+    # Must be written "0s", not "0": the field is parsed by humantime_serde,
+    # which requires a unit suffix and rejects a bare zero with
+    # `invalid value: string "0", expected a duration` (atticd then exits).
     [garbage-collection]
+    interval = "0s"
     default-retention-period = "14 days"
 
     # JWT signing
