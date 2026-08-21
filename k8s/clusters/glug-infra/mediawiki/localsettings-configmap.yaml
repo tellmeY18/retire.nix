@@ -120,6 +120,22 @@ data:
     $wgAuthenticationTokenVersion = "1";
     $wgUpgradeKey = getenv('MW_UPGRADE_KEY') ?: "upgrade123";
 
+    ## Cross-site AJAX — NITC Wiki PWA (https://wikinitc-web.pages.dev)
+    # The PWA is a static app on its own Cloudflare Pages domain and calls
+    # api.php cross-origin. Reads go over JSONP (needs no config); the
+    # authenticated write flow (login token -> action=login -> CSRF token ->
+    # edit/create/delete/move) uses fetch() with credentials:'include' and
+    # origin=<pages origin>, which requires BOTH settings below.
+    $wgCrossSiteAJAXdomains = [
+        'wikinitc-web.pages.dev',     # production Pages domain
+        '*.wikinitc-web.pages.dev',   # preview deployments (<hash>.project.pages.dev)
+    ];
+    # Without SameSite=None browsers withhold the session cookie on every
+    # cross-origin fetch(), silently breaking login/CSRF/edit. MediaWiki
+    # forces the Secure attribute on all cookies when SameSite is None;
+    # the site is already HTTPS-only ($wgServer above), so this is safe.
+    $wgCookieSameSite = 'None';
+
     ## Reverse proxy / real IP detection
     # MediaWiki must know which IPs are trusted proxies so it reads
     # X-Forwarded-For to find the real client IP. Without this,

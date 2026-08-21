@@ -138,6 +138,7 @@ diff:
     kubectl diff -k clusters/glug-infra/conduit || true
     kubectl diff -k clusters/glug-infra/mobileapps || true
     kubectl diff -k clusters/glug-infra/wikifeeds || true
+    kubectl diff -k clusters/glug-infra/mediawiki || true
     kubectl diff -k clusters/glug-infra/monitoring || true
     helmfile diff
 
@@ -395,6 +396,23 @@ rustfs-error-rate:
 # ---------------------------------------------------------------------------
 
 
+
+# ---------------------------------------------------------------------------
+# MediaWiki
+# ---------------------------------------------------------------------------
+
+# Apply MediaWiki resources (sops-decrypt credentials, then kustomize).
+[doc('Apply MediaWiki: secrets + kustomize')]
+mw:
+    @echo "Applying MediaWiki credentials (sops-decrypt)..."
+    sops --decrypt clusters/glug-infra/mediawiki/credentials-secret.enc.yaml | kubectl apply -f -
+    kubectl apply -k clusters/glug-infra/mediawiki
+
+# Restart MediaWiki pods (rolling).
+[doc('Restart MediaWiki deployment (rolling)')]
+mw-restart:
+    kubectl rollout restart deployment/mediawiki -n mediawiki
+    kubectl rollout status deployment/mediawiki -n mediawiki --timeout=90s
 
 # ---------------------------------------------------------------------------
 # Endpoint monitoring (Cloudprober)

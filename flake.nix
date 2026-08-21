@@ -1,5 +1,5 @@
 {
-  description = "Unified flake: macOS (nix-darwin) + NixOS-on-ZFS (Disko)";
+  description = "Flakes for All";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
