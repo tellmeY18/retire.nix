@@ -1,6 +1,6 @@
 { pkgs, lib, ... }:
 {
-  environment.systemPackages = lib.optionals pkgs.stdenv.isDarwin [
+  environment.systemPackages = lib.optionals pkgs.stdenv.hostPlatform.isDarwin [
     # Editors & Development
     pkgs.emacs-macport
 

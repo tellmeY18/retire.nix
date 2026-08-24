@@ -77,6 +77,7 @@
   environment.systemPackages = [
     pkgs.firefox-bin
     pkgs.tailscale
+    self.inputs.deploy-rs.packages.${pkgs.stdenv.hostPlatform.system}.default
   ];
 
   # MagicDNS resolver — macOS /etc/resolver/<domain> files are loaded by

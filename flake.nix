@@ -103,7 +103,7 @@
         { pkgs, system, ... }:
         let
           chromiumPath =
-            if pkgs.stdenv.isDarwin then
+            if pkgs.stdenv.hostPlatform.isDarwin then
               "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
             else
               "${pkgs.chromium}/bin/chromium";
@@ -123,7 +123,7 @@
               pkgs.mermaid-cli # provides `mmdc` for presenterm mermaid rendering
               deploy-rs.packages.${system}.default
             ]
-            ++ pkgs.lib.optionals pkgs.stdenv.isLinux [ pkgs.chromium ];
+            ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux [ pkgs.chromium ];
             shellHook = ''
               export PUPPETEER_EXECUTABLE_PATH="${chromiumPath}"
               git config core.hooksPath .githooks

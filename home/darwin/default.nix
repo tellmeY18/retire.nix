@@ -16,7 +16,7 @@
   ];
 
   # Darwin-specific environment variables
-  home.sessionVariables = lib.mkIf pkgs.stdenv.isDarwin {
+  home.sessionVariables = lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
     BROWSER = "firefox";
     HOMEBREW_PREFIX = "/opt/homebrew";
     HOMEBREW_CELLAR = "/opt/homebrew/Cellar";

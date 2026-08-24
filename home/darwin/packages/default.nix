@@ -2,7 +2,7 @@
 
 {
   nixpkgs.config.allowUnfree = true;
-  home.packages = lib.optionals pkgs.stdenv.isDarwin (
+  home.packages = lib.optionals pkgs.stdenv.hostPlatform.isDarwin (
     with pkgs;
     [
       mas

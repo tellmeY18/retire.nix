@@ -1,7 +1,7 @@
 { lib, pkgs, ... }:
 
 {
-  programs.zsh = lib.mkIf pkgs.stdenv.isDarwin {
+  programs.zsh = lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
     oh-my-zsh = {
       theme = lib.mkForce "robbyrussell";
     };

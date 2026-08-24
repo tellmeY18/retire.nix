@@ -117,11 +117,11 @@
       listen_on = "unix:/tmp/kitty";
     }
     # macOS-specific settings
-    // (lib.optionalAttrs pkgs.stdenv.isDarwin {
+    // (lib.optionalAttrs pkgs.stdenv.hostPlatform.isDarwin {
       macos_hide_titlebar = true;
     })
     # Linux-specific settings (merged from home/chopper/kitty/)
-    // (lib.optionalAttrs pkgs.stdenv.isLinux {
+    // (lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
       linux_display_server = "auto";
       clipboard_control = "write-clipboard write-primary read-clipboard-ask read-primary-ask";
       wayland_titlebar_color = "system";
@@ -161,7 +161,7 @@
       "ctrl+shift+end" = "scroll_end";
     }
     # Linux-specific keybindings (merged from home/chopper/kitty/)
-    // (lib.optionalAttrs pkgs.stdenv.isLinux {
+    // (lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
       "ctrl+shift+insert" = "paste_from_clipboard";
       "shift+insert" = "paste_from_selection";
     });
