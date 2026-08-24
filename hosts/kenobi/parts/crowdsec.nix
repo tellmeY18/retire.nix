@@ -126,7 +126,7 @@ in
           description = "Never ban FOSSCell Wiki Access extension users";
           whitelist = {
             reason = "FOSSCell Wiki member browser extension";
-            expression = "evt.Parsed.http_user_agent matches '^FOSSCellWiki/token='";
+            expression = [ "evt.Parsed.http_user_agent matches '^FOSSCellWiki/token='" ];
           };
         }
         {
