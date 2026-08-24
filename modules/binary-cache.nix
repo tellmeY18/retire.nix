@@ -88,5 +88,9 @@ in
 
     # Fail fast on unreachable substituters (default is ~30 s).
     connect-timeout = 5;
+
+    # Don't cache negative lookups — always retry substituters that were
+    # temporarily unreachable (useful during initial rollouts).
+    narinfo-cache-negative-ttl = 0;
   };
 }

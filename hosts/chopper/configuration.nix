@@ -4,6 +4,7 @@
     ./hardware-configuration.nix
     ./disko-config.nix
     ../../profiles/base.nix
+    ../../modules/binary-cache.nix
     ../../modules/zfs.nix
 
     ../../modules/services/cloudflared-bootstrap.nix
