@@ -9,7 +9,6 @@
 # Modes:
 #   full — native builds of every config + Attic push (with retries) +
 #          fresh-store substitution verification. Runs on:
-#            • push to develop (keeps the cache complete for direct pushes)
 #            • pull_request from automation/flake-update (the weekly updater)
 #            • a `/build` comment on any other PR (write-access users)
 #            • workflow_dispatch
@@ -31,17 +30,6 @@
 name: Build & Cache
 
 on:
-  push:
-    branches: [develop]
-    paths:
-      - "**.nix"
-      - "flake.lock"
-      - "overlays/**"
-      - "modules/**"
-      - "hosts/**"
-      - "home/**"
-      - "lib/**"
-      - "packages/**"
   pull_request:
     branches: [develop]
     paths:
