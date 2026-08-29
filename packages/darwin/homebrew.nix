@@ -33,6 +33,8 @@
       "cyberduck"
       "caffeine"
       "simplex"
+      "protonvpn"
+      "openvpn-connect"
       "gimp"
       "obs"
       "lens"
