@@ -1,7 +1,7 @@
 { pkgs, ... }:
 
 let
-  kitty = "${pkgs.kitty}/bin/kitty";
+  kitten = "${pkgs.kitty}/bin/kitten";
   open = "/usr/bin/open";
 in
 {
@@ -21,7 +21,7 @@ in
       # ── Application launchers ─────────────────────────────────
 
       # Kitty terminal
-      alt - return : ${kitty} --directory ~
+      alt - return : ${kitten} quick-access-terminal --detach
 
       # Browser
       alt - b : ${open} -a "Firefox"
