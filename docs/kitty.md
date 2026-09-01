@@ -10,6 +10,7 @@
 | What | Path |
 |------|------|
 | Config source | `home/common/kitty/default.nix` |
+| Session definitions | `home/common/kitty/sessions.nix` |
 | Rendered config | `~/.config/kitty/kitty.conf` (symlinked by home-manager) |
 | Session files | `~/.config/kitty/sessions/*.kitty-session` |
 | Quick-access dropdown | `~/.config/kitty/quick-access-terminal.conf` |
@@ -82,15 +83,46 @@ Splits auto-equalize when a window closes.
 | `kitty_mod+alt+s` | Save current layout as a new session |
 | `kitty_mod+alt+←` | Jump to previous session |
 
-Two sessions ship with the config:
+Three sessions ship with the config:
 
-| Session | Directory | Layout | Windows |
-|---|---|---|---|
-| `development` | `~/Projects` | `splits` | `nvim` + shell |
-| `cluster-admin` | `~/.config/nix` | `tall` | `k9s` + shell |
+| Session | Directory | Layout | Windows | Focused |
+|---|---|---|---|---|
+| `development` | `~/Projects` | `splits` | `nvim` + shell | Editor |
+| `nix` | `~/.config/nix` | `splits` | `nvim` + build shell | Editor |
+| `cluster-admin` | `~/.config/nix` | `tall` | `k9s` + shell | K9s |
+
+Both `cluster-admin` windows get `KUBECONFIG=~/.kube/glug-infra.yaml` injected
+via `launch --env`, so cluster commands work without exporting it by hand.
 
 Saved sessions use `--relocatable`, so paths stay relative to the base dir and
 survive being moved between machines.
+
+### Adding a session
+
+Sessions are data, not text — add an entry to `sessions` in
+`home/common/kitty/sessions.nix`:
+
+```nix
+monitoring = {
+  tab = "Monitoring";
+  cwd = "${home}/.config/nix";
+  layout = "tall";
+  windows = [
+    {
+      title = "Logs";
+      command = "k9s";
+      env = kubeEnv;
+      focus = true;
+    }
+    { title = "Shell"; }
+  ];
+};
+```
+
+Omit `command` for a plain shell. `focus = true` marks the window active on
+open — note that kitty's `focus` directive takes no argument and applies to
+the preceding `launch`, so a trailing `focus 0` focuses the *last* window, not
+the first.
 
 ## Font size
 

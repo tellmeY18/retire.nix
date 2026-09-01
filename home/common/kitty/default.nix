@@ -14,6 +14,8 @@ let
 in
 
 {
+  imports = [ ./sessions.nix ];
+
   programs.kitty = {
     enable = true;
 
@@ -89,7 +91,7 @@ in
       initial_window_height = 800;
       window_padding_width = 30;
       window_margin_width = 0;
-      background_opacity = "0.85";
+      background_opacity = "0.45";
       dynamic_background_opacity = true;
       hide_window_decorations = false;
       confirm_os_window_close = -1;
@@ -224,24 +226,6 @@ in
       hide_on_focus_loss yes
       kitty_override background_blur=24
       kitty_override window_padding_width=20
-    '';
-
-    "kitty/sessions/development.kitty-session".text = ''
-      new_tab Development
-      cd ${config.home.homeDirectory}/Projects
-      layout splits
-      launch --title Editor nvim
-      launch --title Shell
-      focus 0
-    '';
-
-    "kitty/sessions/cluster-admin.kitty-session".text = ''
-      new_tab Cluster
-      cd ${config.home.homeDirectory}/.config/nix
-      layout tall
-      launch --title K9s k9s
-      launch --title Shell
-      focus 0
     '';
   };
 }
