@@ -1,5 +1,18 @@
 { config, lib, pkgs, ... }:
 
+let
+  # Global command modifier for every kitty binding below.
+  # Fed to kitty's own `kitty_mod` alias, so the bindings themselves stay
+  # written as `kitty_mod+<key>` and only this value changes per platform.
+  kittyMod =
+    if pkgs.stdenv.hostPlatform.isDarwin then
+      "cmd"
+    else if pkgs.stdenv.hostPlatform.isLinux then
+      "ctrl"
+    else
+      "ctrl+shift";
+in
+
 {
   programs.kitty = {
     enable = true;
@@ -16,6 +29,9 @@
 
     # Settings
     settings = {
+      # Global command modifier — see `kittyMod` above
+      kitty_mod = kittyMod;
+
       # Font configuration
       bold_font = "auto";
       italic_font = "auto";
@@ -136,62 +152,63 @@
       wayland_enable_ime = true;
     });
 
-    # Key bindings
+    # Key bindings — all prefixed with kitty_mod (cmd on macOS, ctrl on Linux)
     keybindings = {
       # Tab management
-      "ctrl+shift+t" = "new_tab_with_cwd";
-      "ctrl+shift+w" = "close_tab";
-      "ctrl+shift+right" = "next_tab";
-      "ctrl+shift+left" = "previous_tab";
-      "ctrl+shift+q" = "quit";
+      "kitty_mod+t" = "new_tab_with_cwd";
+      "kitty_mod+w" = "close_tab";
+      "kitty_mod+right" = "next_tab";
+      "kitty_mod+left" = "previous_tab";
+      "kitty_mod+q" = "quit";
 
       # Window management
-      "ctrl+shift+enter" = "new_window_with_cwd";
-      "ctrl+shift+n" = "new_os_window_with_cwd";
+      "kitty_mod+enter" = "new_window_with_cwd";
+      "kitty_mod+n" = "new_os_window_with_cwd";
 
       # Layouts
-      "ctrl+shift+l" = "next_layout";
-      "ctrl+shift+alt+z" = "toggle_layout stack";
-      "ctrl+shift+r" = "start_resizing_window";
-      "ctrl+shift+alt+e" = "layout_action equalize";
+      "kitty_mod+l" = "next_layout";
+      "kitty_mod+alt+z" = "toggle_layout stack";
+      "kitty_mod+r" = "start_resizing_window";
+      "kitty_mod+alt+e" = "layout_action equalize";
 
       # Sessions
-      "ctrl+shift+s" = "goto_session ${config.xdg.configHome}/kitty/sessions";
-      "ctrl+shift+alt+s" = "save_as_session --relocatable --base-dir ${config.xdg.configHome}/kitty/sessions";
-      "ctrl+shift+alt+left" = "goto_session -1";
+      "kitty_mod+s" = "goto_session ${config.xdg.configHome}/kitty/sessions";
+      "kitty_mod+alt+s" = "save_as_session --relocatable --base-dir ${config.xdg.configHome}/kitty/sessions";
+      "kitty_mod+alt+left" = "goto_session -1";
 
       # Font size
-      "ctrl+shift+plus" = "change_font_size all +2.0";
-      "ctrl+shift+minus" = "change_font_size all -2.0";
-      "ctrl+shift+backspace" = "change_font_size all 0";
+      "kitty_mod+plus" = "change_font_size all +2.0";
+      "kitty_mod+minus" = "change_font_size all -2.0";
+      "kitty_mod+backspace" = "change_font_size all 0";
 
       # Clipboard
-      "ctrl+shift+c" = "copy_to_clipboard";
-      "ctrl+shift+v" = "paste_from_clipboard";
+      "kitty_mod+c" = "copy_to_clipboard";
+      "kitty_mod+v" = "paste_from_clipboard";
 
       # Scrolling
-      "ctrl+shift+up" = "scroll_line_up";
-      "ctrl+shift+down" = "scroll_line_down";
-      "ctrl+shift+page_up" = "scroll_page_up";
-      "ctrl+shift+page_down" = "scroll_page_down";
-      "ctrl+shift+home" = "scroll_home";
-      "ctrl+shift+end" = "scroll_end";
-      "ctrl+shift+g" = "show_last_command_output";
-      "ctrl+shift+alt+c" = "copy_last_command_output";
-      "ctrl+shift+z" = "scroll_to_prompt -1";
-      "ctrl+shift+x" = "scroll_to_prompt 1";
-      "ctrl+shift+slash" = "search_scrollback";
+      "kitty_mod+up" = "scroll_line_up";
+      "kitty_mod+down" = "scroll_line_down";
+      "kitty_mod+page_up" = "scroll_page_up";
+      "kitty_mod+page_down" = "scroll_page_down";
+      "kitty_mod+home" = "scroll_home";
+      "kitty_mod+end" = "scroll_end";
+      "kitty_mod+g" = "show_last_command_output";
+      "kitty_mod+alt+c" = "copy_last_command_output";
+      "kitty_mod+z" = "scroll_to_prompt -1";
+      "kitty_mod+x" = "scroll_to_prompt 1";
+      "kitty_mod+slash" = "search_scrollback";
 
       # Discovery and visible text
-      "ctrl+shift+f3" = "command_palette";
-      "ctrl+shift+e" = "open_url_with_hints";
+      "kitty_mod+f3" = "command_palette";
+      "kitty_mod+e" = "open_url_with_hints";
 
       # Opacity
-      "ctrl+shift+a>minus" = "set_background_opacity -0.05";
-      "ctrl+shift+a>plus" = "set_background_opacity +0.05";
-      "ctrl+shift+a>0" = "set_background_opacity default";
+      "kitty_mod+a>minus" = "set_background_opacity -0.05";
+      "kitty_mod+a>plus" = "set_background_opacity +0.05";
+      "kitty_mod+a>0" = "set_background_opacity default";
     }
     # Linux-specific keybindings (merged from home/chopper/kitty/)
+    # Deliberately literal, not kitty_mod — these are X11/Wayland conventions.
     // (lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
       "ctrl+shift+insert" = "paste_from_clipboard";
       "shift+insert" = "paste_from_selection";
