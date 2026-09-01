@@ -117,6 +117,15 @@
       # Advanced
       allow_remote_control = false;
     }
+    # macOS-specific settings
+    // (lib.optionalAttrs pkgs.stdenv.hostPlatform.isDarwin {
+      # Fully borderless: no titlebar, no traffic lights, no rounded corners.
+      # In kitty's cocoa backend this is decorations_desc = "none" — the window
+      # is undecorated (square edges). Still resizable via macos_window_resizable
+      # (default yes), but there is no titlebar left to drag, so use macOS's
+      # ctrl+cmd+drag to move the window.
+      hide_window_decorations = true;
+    })
     # Linux-specific settings (merged from home/chopper/kitty/)
     // (lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
       linux_display_server = "auto";
