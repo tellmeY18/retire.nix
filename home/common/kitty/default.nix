@@ -157,15 +157,23 @@ in
     # Key bindings — all prefixed with kitty_mod (cmd on macOS, ctrl on Linux)
     keybindings = {
       # Tab management
-      "kitty_mod+t" = "new_tab_with_cwd";
+      #
+      # `--cwd=root` rather than the `*_with_cwd` actions (which are
+      # `--cwd=current`). Both inherit the current directory locally, but
+      # `current` additionally re-runs the ssh kitten to reconnect to the
+      # remote host when the window is ssh'd — see
+      # Window.modify_argv_for_launch_with_cwd. `root` skips that branch
+      # (the root shell is not a foreground process while ssh runs), so a new
+      # window is always a LOCAL shell.
+      "kitty_mod+t" = "launch --cwd=root --type=tab";
       "kitty_mod+w" = "close_tab";
       "kitty_mod+right" = "next_tab";
       "kitty_mod+left" = "previous_tab";
       "kitty_mod+q" = "quit";
 
       # Window management
-      "kitty_mod+enter" = "new_window_with_cwd";
-      "kitty_mod+n" = "new_os_window_with_cwd";
+      "kitty_mod+enter" = "launch --cwd=root --type=window";
+      "kitty_mod+n" = "launch --cwd=root --type=os-window";
 
       # Layouts
       "kitty_mod+l" = "next_layout";

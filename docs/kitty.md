@@ -47,7 +47,7 @@ modifier everywhere, edit `kittyMod` — nothing else needs touching.
 
 | Binding | Action | Notes |
 |---|---|---|
-| `kitty_mod+t` | New tab | Inherits current working directory |
+| `kitty_mod+t` | New tab | Inherits current directory; always local |
 | `kitty_mod+w` | Close tab | |
 | `kitty_mod+→` | Next tab | |
 | `kitty_mod+←` | Previous tab | |
@@ -60,8 +60,14 @@ session name as a prefix when a session is loaded.
 
 | Binding | Action | Notes |
 |---|---|---|
-| `kitty_mod+enter` | New split | Inherits current working directory |
-| `kitty_mod+n` | New OS window | Inherits current working directory |
+| `kitty_mod+enter` | New split | Inherits current directory; always local |
+| `kitty_mod+n` | New OS window | Inherits current directory; always local |
+
+These use `launch --cwd=root` rather than the `new_*_with_cwd` actions
+(`--cwd=current`). Locally the two behave identically. The difference shows up
+when the window is ssh'd via the ssh kitten: `current` re-runs the kitten to
+**reconnect to the remote host** at the remote path, whereas `root` gives you a
+plain local shell. Use `kitten ssh` again if you want a second remote window.
 
 ## Layouts
 
@@ -200,6 +206,20 @@ Requires `dynamic_background_opacity`, which is enabled.
 | `alt+return` | Toggle quick-access dropdown terminal | skhd |
 | `alt+b` | Open Firefox | skhd |
 | `ctrl+cmd+drag` | Move the kitty window | macOS |
+
+### SSH
+
+`ssh` is aliased to `kitten ssh` inside kitty (see
+`home/common/zsh/default.nix`). kitty sets `TERM=xterm-kitty`, whose terminfo
+entry is not present in nixpkgs' `ncurses`, so plain `ssh` to a host that
+lacks it fails with `'xterm-kitty': unknown terminal type` and breaks arrow
+and word-motion keys. The kitten uploads the terminfo and shell integration on
+connect.
+
+The alias is guarded on both `$KITTY_WINDOW_ID` and a local `kitten` binary —
+the kitten forwards `KITTY_WINDOW_ID` to the remote, so without the second
+guard, hopping onward from a remote host would alias `ssh` to a binary that is
+not installed there.
 
 The dropdown is a 25-line overlay pinned to the top edge that hides on focus
 loss — a separate `kitten quick-access-terminal` instance, not a normal window.
