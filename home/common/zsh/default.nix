@@ -209,6 +209,23 @@
       ZSH_HIGHLIGHT_MAXLENGTH = 300;
     };
 
+    # kitty sets TERM=xterm-kitty. That terminfo entry ships with kitty and is
+    # NOT in nixpkgs' ncurses, so plain ssh to a host that lacks it dies with
+    # `'xterm-kitty': unknown terminal type` and takes arrow/word-motion keys
+    # with it. The ssh kitten uploads kitty's terminfo (and shell integration)
+    # to the remote on connect, which fixes it without downgrading TERM.
+    #
+    # Two guards, both needed:
+    #   KITTY_WINDOW_ID - outside kitty the kitten is pointless latency.
+    #   commands[kitten] - the kitten *forwards* KITTY_WINDOW_ID to the remote,
+    #     so without this, hopping onward from a remote host would alias ssh to
+    #     a binary that isn't installed there.
+    initContent = ''
+      if [[ -n "$KITTY_WINDOW_ID" ]] && (( $+commands[kitten] )); then
+        alias ssh='kitten ssh'
+      fi
+    '';
+
     # Oh-My-Zsh configuration
     oh-my-zsh = {
       enable = true;
