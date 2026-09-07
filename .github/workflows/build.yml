@@ -14,6 +14,11 @@
 #            • workflow_dispatch
 #   eval — `nix build --dry-run` only. Runs on ordinary pull_requests.
 #
+# Granularity: one job per target, not per architecture, so hosts build in
+# parallel on isolated runners and can be re-run individually. workflow_dispatch
+# takes an optional `host` input to build exactly one target; such a run
+# deliberately does NOT publish the aggregate gate status.
+#
 # Cache-first: Attic is configured as a substituter BEFORE any build, so CI
 # itself never recompiles what a previous run already pushed. Magic Nix
 # Cache is intentionally absent (it conflicts with Attic and broke evals).
@@ -44,10 +49,20 @@ on:
   issue_comment:
     types: [created]
   workflow_dispatch:
+    inputs:
+      host:
+        description: >-
+          Build a single target (e.g. skywalker, chopper, hm-mathewalex@...).
+          Leave empty to build everything. Matched against the ciMatrix target
+          names; an unknown name fails the plan job rather than silently
+          building nothing.
+        required: false
+        type: string
+        default: ""
 
 concurrency:
   # One run per candidate; a new push to the same ref supersedes the old run.
-  group: build-${{ github.event_name == 'issue_comment' && format('pr-{0}', github.event.issue.number) || github.ref }}
+  group: build-${{ github.event_name == 'issue_comment' && format('pr-{0}', github.event.issue.number) || github.ref }}-${{ inputs.host || 'all' }}
   cancel-in-progress: true
 
 permissions:
@@ -129,31 +144,58 @@ jobs:
 
       - name: Derive build matrix from flake
         id: matrix
+        env:
+          HOST: ${{ inputs.host }}
         run: |
           set -euo pipefail
           matrix=$(nix eval .#ciMatrix --json)
-          echo "$matrix" | jq .
-          # Cross-check: every declared configuration must appear in the matrix.
-          declared=$( (nix eval .#nixosConfigurations --apply builtins.attrNames --json | jq -r '.[]';
-                       nix eval .#darwinConfigurations --apply builtins.attrNames --json | jq -r '.[]') | sort)
-          covered=$(echo "$matrix" | jq -r '.include[].targets[].name' | sort)
-          missing=$(comm -23 <(echo "$declared") <(echo "$covered"))
-          if [[ -n "$missing" ]]; then
-            echo "::error::Configurations missing from CI matrix: $missing"
-            exit 1
+
+          # Cross-check: every declared configuration must appear in the
+          # matrix. Skipped for a single-host run, which covers one by design.
+          if [[ -z "$HOST" ]]; then
+            declared=$( (nix eval .#nixosConfigurations --apply builtins.attrNames --json | jq -r '.[]';
+                         nix eval .#darwinConfigurations --apply builtins.attrNames --json | jq -r '.[]') | sort)
+            covered=$(echo "$matrix" | jq -r '.include[].targets[].name' | sort)
+            missing=$(comm -23 <(echo "$declared") <(echo "$covered"))
+            if [[ -n "$missing" ]]; then
+              echo "::error::Configurations missing from CI matrix: $missing"
+              exit 1
+            fi
           fi
-          [[ $(echo "$matrix" | jq '.include | length') -gt 0 ]]
-          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+
+          # Flatten {system, runner, targets[]} into ONE MATRIX ENTRY PER
+          # TARGET. Previously a single job built every target for an
+          # architecture sequentially, so six x86_64 closures shared one
+          # runner's ~14 GB of free disk and one host's failure discarded the
+          # whole architecture's work. Per-target jobs build in parallel, get
+          # an isolated disk budget (a CUDA closure is several GB on its own),
+          # and can be re-run individually from the Actions UI.
+          flat=$(jq -c '{include: [.include[] as $g | $g.targets[]
+                   | {name: .name, attr: .attr, system: $g.system, runner: $g.runner}]}' <<<"$matrix")
+
+          if [[ -n "$HOST" ]]; then
+            flat=$(jq -c --arg h "$HOST" '{include: [.include[] | select(.name == $h)]}' <<<"$flat")
+            if [[ $(jq '.include | length' <<<"$flat") -eq 0 ]]; then
+              echo "::error::No CI target named '$HOST'. Available:"
+              jq -r '.include[].targets[].name' <<<"$matrix" | sed 's/^/  - /'
+              exit 1
+            fi
+            echo "Single-target run: $HOST"
+          fi
+
+          jq . <<<"$flat"
+          [[ $(jq '.include | length' <<<"$flat") -gt 0 ]]
+          echo "matrix=$flat" >> "$GITHUB_OUTPUT"
 
   # ---------------------------------------------------------------------------
-  # 2. Build (+ push + verify in full mode) — one job per architecture
+  # 2. Build (+ push + verify in full mode) — one job per TARGET
   # ---------------------------------------------------------------------------
   build:
     needs: plan
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
-    name: build (${{ matrix.system }})
+    name: build (${{ matrix.name }})
     runs-on: ${{ matrix.runner }}
     steps:
       - name: Free disk space (Linux)
@@ -192,23 +234,19 @@ jobs:
             fallback = true
             connect-timeout = 5
 
-      - name: Build all ${{ matrix.system }} targets
+      - name: Build ${{ matrix.name }}
         env:
-          TARGETS: ${{ toJSON(matrix.targets) }}
+          ATTR: ${{ matrix.attr }}
           MODE: ${{ needs.plan.outputs.mode }}
         run: |
           set -euo pipefail
           : > "$RUNNER_TEMP/roots.txt"
-          while IFS=$'\t' read -r name attr; do
-            echo "::group::build $name"
-            if [[ "$MODE" == "eval" ]]; then
-              nix build ".#$attr" --dry-run
-            else
-              nix build ".#$attr" --no-link --print-out-paths --print-build-logs \
-                | tee -a "$RUNNER_TEMP/roots.txt"
-            fi
-            echo "::endgroup::"
-          done < <(jq -r '.[] | [.name, .attr] | @tsv' <<<"$TARGETS")
+          if [[ "$MODE" == "eval" ]]; then
+            nix build ".#$ATTR" --dry-run
+          else
+            nix build ".#$ATTR" --no-link --print-out-paths --print-build-logs \
+              | tee -a "$RUNNER_TEMP/roots.txt"
+          fi
 
       - name: Setup Attic
         if: needs.plan.outputs.mode == 'full'
@@ -216,7 +254,7 @@ jobs:
         with:
           sops-age-key: ${{ secrets.SOPS_AGE_KEY }}
 
-      - name: Push to Attic (${{ matrix.system }})
+      - name: Push to Attic (${{ matrix.name }})
         if: needs.plan.outputs.mode == 'full'
         timeout-minutes: 45
         run: |
@@ -270,7 +308,17 @@ jobs:
     needs: [plan, build]
     # Full mode only: eval-only runs must never produce this signal, so a
     # build-only run can never look mergeable.
-    if: always() && needs.plan.result == 'success' && needs.plan.outputs.mode == 'full'
+    #
+    # ALSO skipped for single-host runs (inputs.host set). A run that built
+    # one target must never publish a green "all hosts built and cached"
+    # status — that status is what the weekly flake updater's
+    # freeze-when-green logic and the merge decision both read, so letting a
+    # one-host run satisfy it would mark a SHA as fully verified on the
+    # evidence of a single build.
+    if: >-
+      always() && needs.plan.result == 'success'
+      && needs.plan.outputs.mode == 'full'
+      && inputs.host == ''
     runs-on: ubuntu-latest
     steps:
       - name: Evaluate results
