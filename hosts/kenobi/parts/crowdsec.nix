@@ -130,6 +130,31 @@ in
           };
         }
         {
+          name = "glug/whitelist-nix-cache-miss";
+          description = "A binary cache 404 is a cache miss, not probing";
+          whitelist = {
+            reason = "attic binary cache miss (404 is the normal negative answer)";
+            # Nix asks the cache for <hash>.narinfo for EVERY store path it is
+            # considering; the cache answers 404 for the ones it doesn't have.
+            # A single `nix build` therefore produces hundreds of 404s in
+            # seconds, which crowdsecurity/http-probing scores as scanning and
+            # bans the developer's IP — killing the very cache it was reading.
+            #
+            # Scoped deliberately: only 404s, only on the cache vhost. Any
+            # other status on this host, and every status on every other host,
+            # still feeds the scenarios normally.
+            #
+            # Fields: s01 crowdsecurity/traefik-logs maps Traefik's JSON
+            # RequestHost -> evt.Meta.target_fqdn and DownstreamStatus ->
+            # evt.Parsed.status. Parsed.status (s01) is used rather than
+            # Meta.http_status (set later by http-logs in s02) so this does not
+            # depend on parser ordering within s02.
+            expression = [
+              "evt.Meta.target_fqdn == 'cache.tellmey.fyi' && evt.Parsed.status == '404'"
+            ];
+          };
+        }
+        {
           name = "glug/whitelist-internal";
           description = "Whitelist tailnet + k3s cluster CIDRs";
           whitelist = {
@@ -182,6 +207,23 @@ in
   # mode (module default) and is partOf firewall.service — firewall reloads
   # restart it so the ban set is always re-applied.
   services.crowdsec-firewall-bouncer.enable = true;
+
+  # Upstream module bug #0: localConfig (parsers, scenarios, whitelists) is
+  # rendered into /etc/crowdsec/, but nothing makes systemd restart the
+  # daemon when those files change. A deploy therefore updates the rules on
+  # disk while the RUNNING crowdsec keeps enforcing whatever it loaded at
+  # boot — silently, with no error anywhere.
+  #
+  # This bit hard: the nix-cache whitelist below was deployed, showed as
+  # "enabled" in `cscli parsers list`, and `cscli explain` (which spawns a
+  # fresh process against the on-disk config) confirmed it whitelisted the
+  # event — while the live daemon, last started 15 days earlier, went on
+  # banning the exact traffic it was written to permit.
+  #
+  # Hashing localConfig means any rule change forces a restart.
+  systemd.services.crowdsec.restartTriggers = [
+    (builtins.toJSON config.services.crowdsec.localConfig)
+  ];
 
   # Chicken-and-egg wart in the nixpkgs module: `cscli machines add` (run in
   # ExecStartPre) refuses to load the config when the CAPI credentials file
