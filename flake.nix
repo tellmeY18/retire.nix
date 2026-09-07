@@ -96,6 +96,10 @@
           # Tailscale-aware kexec tarball for nixos-anywhere.
           # Build: nix build .#packages.<system>.kexec-image
           kexec-image = pkgs.callPackage ./packages/kexec-image.nix { };
+          # Plain ZFS-capable kexec tarball for LAN targets whose installer
+          # ISO ships a kernel too new for OpenZFS. See the file header.
+          # Build: nix build .#packages.<system>.kexec-zfs
+          kexec-zfs = pkgs.callPackage ./packages/kexec-zfs.nix { };
         }
       );
 
@@ -209,6 +213,12 @@
           yoda = [
             ./hosts/yoda/disko-config.nix
             sops-nix.nixosModules.sops
+            disko.nixosModules.disko
+          ];
+          # skywalker — bare-metal GPU box. No sops-nix yet: phase 1 is
+          # LAN-only with no Tailscale auth key or k3s token to decrypt.
+          skywalker = [
+            ./hosts/skywalker/disko-config.nix
             disko.nixosModules.disko
           ];
         };
