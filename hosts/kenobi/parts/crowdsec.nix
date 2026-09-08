@@ -130,27 +130,29 @@ in
           };
         }
         {
-          name = "glug/whitelist-nix-cache-miss";
-          description = "A binary cache 404 is a cache miss, not probing";
+          name = "glug/whitelist-nix-cache";
+          description = "Binary cache traffic is indistinguishable from crawling by design";
           whitelist = {
-            reason = "attic binary cache miss (404 is the normal negative answer)";
-            # Nix asks the cache for <hash>.narinfo for EVERY store path it is
-            # considering; the cache answers 404 for the ones it doesn't have.
-            # A single `nix build` therefore produces hundreds of 404s in
-            # seconds, which crowdsecurity/http-probing scores as scanning and
-            # bans the developer's IP — killing the very cache it was reading.
+            reason = "attic binary cache (unique content-addressed paths ARE its normal traffic)";
+            # Deliberately the whole vhost, not just 404s.
             #
-            # Scoped deliberately: only 404s, only on the cache vhost. Any
-            # other status on this host, and every status on every other host,
-            # still feeds the scenarios normally.
+            # First attempt scoped this to status 404, reasoning that a cache
+            # miss is the normal negative answer. That was too narrow and got
+            # a GitHub Actions runner banned mid-build under
+            # http-crawl-non_statics — at status *200*. Cache HITS trip it
+            # too: every request is a unique /system/<hash>.narinfo, so a
+            # single `nix build` walks thousands of distinct non-static paths.
+            # That is precisely what crawl detection looks for, and no status
+            # filter can separate it from abuse, because the traffic really is
+            # identical in shape.
             #
-            # Fields: s01 crowdsecurity/traefik-logs maps Traefik's JSON
-            # RequestHost -> evt.Meta.target_fqdn and DownstreamStatus ->
-            # evt.Parsed.status. Parsed.status (s01) is used rather than
-            # Meta.http_status (set later by http-logs in s02) so this does not
-            # depend on parser ordering within s02.
+            # Exempting the vhost is safe here in a way it would not be for
+            # mediawiki: Attic is a content-addressed store with public reads
+            # and token-gated writes. There is no login, no query surface, no
+            # sensitive path to probe — the scan scenarios have nothing to
+            # protect. Every other vhost keeps full protection.
             expression = [
-              "evt.Meta.target_fqdn == 'cache.tellmey.fyi' && evt.Parsed.status == '404'"
+              "evt.Meta.target_fqdn == 'cache.tellmey.fyi'"
             ];
           };
         }
