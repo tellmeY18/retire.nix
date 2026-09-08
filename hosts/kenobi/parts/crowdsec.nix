@@ -157,6 +157,32 @@ in
           };
         }
         {
+          name = "glug/whitelist-matrix-client-api";
+          description = "Matrix client API 404s and unique-path polling are normal";
+          whitelist = {
+            reason = "matrix client API (account_data/thumbnail 404s and per-room polling are normal)";
+            # A Matrix client (Element) legitimately 404s on account_data and
+            # missing media thumbnails, and long-polls a distinct URI per room
+            # and per sync. http-probing scored that as scanning and banned the
+            # operator's home IP — which also carries skywalker, so the Nix
+            # cache went down as collateral.
+            #
+            # NARROWER than the binary-cache rule on purpose. Attic is a
+            # content-addressed store with nothing to attack; Synapse has a
+            # real auth surface, so /login and /register are deliberately NOT
+            # exempt and still feed the scenarios — password spraying against
+            # them must remain bannable. Federation (/_matrix/federation/) and
+            # the admin API are likewise untouched.
+            #
+            # evt.Parsed.request is set by s01 traefik-logs, so this does not
+            # depend on parser ordering within s02 (evt.Meta.http_path is only
+            # populated later, by http-logs).
+            expression = [
+              "evt.Meta.target_fqdn == 'chat.tellmey.fyi' && evt.Parsed.request startsWith '/_matrix/client/' && !(evt.Parsed.request matches '/(login|register)')"
+            ];
+          };
+        }
+        {
           name = "glug/whitelist-internal";
           description = "Whitelist tailnet + k3s cluster CIDRs";
           whitelist = {
