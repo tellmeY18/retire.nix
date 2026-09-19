@@ -1,0 +1,39 @@
+---
+# Traefik IngressRoute for Cal.diy.
+# Public URL: https://date.tellmey.fyi
+# TLS: Let's Encrypt via Traefik ACME.
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: caldiy-traefik
+  namespace: caldiy
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`date.tellmey.fyi`)
+      kind: Rule
+      services:
+        - name: caldiy-svc
+          port: 3000
+  tls:
+    certResolver: letsencrypt
+---
+# HTTP → HTTPS redirect for Cal.diy.
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: caldiy-traefik-redirect
+  namespace: caldiy
+spec:
+  entryPoints:
+    - web
+  routes:
+    - match: Host(`date.tellmey.fyi`)
+      kind: Rule
+      middlewares:
+        - name: redirect-to-https
+          namespace: traefik-system
+      services:
+        - name: caldiy-svc
+          port: 3000

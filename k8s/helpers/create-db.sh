@@ -20,7 +20,9 @@ set -euo pipefail
 DB_NAME="${1:?Usage: create-db.sh <db_name> [password]}"
 DB_PASSWORD="${2:-$(openssl rand -hex 24)}"
 NAMESPACE="cnpg-clusters"
-POD="postgres-cluster-1"
+# The primary's pod name changes across failovers/switchovers (e.g.
+# postgres-cluster-4) — look it up instead of hardcoding an instance number.
+POD="$(kubectl get pods -n "${NAMESPACE}" -l cnpg.io/cluster=postgres-cluster,role=primary -o jsonpath='{.items[0].metadata.name}')"
 
 echo "━━━ Creating database '${DB_NAME}' in CNPG cluster ━━━"
 echo "  User:     ${DB_NAME}"

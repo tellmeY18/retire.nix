@@ -1,0 +1,96 @@
+---
+# deployment.yaml — Cal.diy (stateless; state lives in shared CNPG Postgres).
+#
+# Image is built by .github/workflows/caldiy-build.yml (no upstream Docker
+# Hub tags exist for calcom/cal.diy) and pushed to ghcr.io/tellmey18/cal-diy.
+# Bump the tag here after each CI run — see the workflow's job summary.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: caldiy
+  namespace: caldiy
+  labels:
+    app.kubernetes.io/name: caldiy
+    app.kubernetes.io/component: web
+    app.kubernetes.io/part-of: caldiy
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: caldiy
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: caldiy
+        app.kubernetes.io/component: web
+        app.kubernetes.io/part-of: caldiy
+    spec:
+      containers:
+        - name: caldiy
+          image: ghcr.io/tellmey18/cal-diy:build-1
+          ports:
+            - name: http
+              containerPort: 3000
+              protocol: TCP
+
+          envFrom:
+            - secretRef:
+                name: caldiy-credentials
+
+          env:
+            - name: NODE_ENV
+              value: "production"
+            - name: NEXT_PUBLIC_WEBAPP_URL
+              value: "https://date.tellmey.fyi"
+            - name: NEXTAUTH_URL
+              value: "https://date.tellmey.fyi/api/auth"
+            - name: CALCOM_TELEMETRY_DISABLED
+              value: "1"
+
+          resources:
+            requests:
+              cpu: 100m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+
+          startupProbe:
+            httpGet:
+              path: /
+              port: 3000
+            failureThreshold: 30
+            periodSeconds: 10
+
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 30
+            periodSeconds: 30
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: caldiy-svc
+  namespace: caldiy
+spec:
+  selector:
+    app.kubernetes.io/name: caldiy
+  ports:
+    - port: 3000
+      targetPort: 3000
+      protocol: TCP
+      name: http

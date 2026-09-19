@@ -1,0 +1,26 @@
+---
+# kustomization.yaml — Cal.diy (stateless, shared CNPG PostgreSQL)
+#
+# First-time setup:
+#   1. just k8s::create-db caldiy         # creates DB + user on shared CNPG
+#   2. Fill in k8s/clusters/glug-infra/caldiy/credentials-secret.enc.yaml
+#      with the DATABASE_URL from step 1 + generated secrets (see file header)
+#   3. kubectl apply -k k8s/clusters/glug-infra/caldiy
+#   4. sops --decrypt credentials-secret.enc.yaml | kubectl apply -f -
+#   5. Visit https://date.tellmey.fyi to run the setup wizard
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: caldiy
+
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: caldiy
+      app.kubernetes.io/managed-by: kustomize
+    includeSelectors: false
+
+resources:
+  - namespace.yaml
+  - networkpolicy.yaml
+  - deployment.yaml
+  - ingress-traefik.yaml

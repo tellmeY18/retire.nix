@@ -1,0 +1,57 @@
+---
+# Default deny ingress.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: caldiy
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+---
+# Allow ingress from Traefik to Cal.diy pods.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-caldiy-ingress
+  namespace: caldiy
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: caldiy
+  policyTypes:
+    - Ingress
+  ingress:
+    - ports:
+        - port: 3000
+          protocol: TCP
+---
+# Allow egress to PostgreSQL (CNPG) + DNS + HTTPS (OAuth calendar integrations,
+# push notifications, telemetry opt-out check, etc.).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-caldiy-egress
+  namespace: caldiy
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: caldiy
+  policyTypes:
+    - Egress
+  egress:
+    # DNS
+    - ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    # PostgreSQL (CNPG in cnpg-clusters namespace)
+    - ports:
+        - port: 5432
+          protocol: TCP
+    # HTTPS (calendar/video OAuth providers, web push, etc.)
+    - ports:
+        - port: 443
+          protocol: TCP

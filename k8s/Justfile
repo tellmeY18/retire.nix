@@ -41,7 +41,7 @@ status:
     fi
     echo ""
     echo "=== Public Services ==="
-    for url in https://tellmey.fyi https://wiki.fosscell.org https://ask.kenobi.win; do
+    for url in https://tellmey.fyi https://wiki.fosscell.org https://ask.kenobi.win https://date.tellmey.fyi; do
       STATUS=$(curl -so /dev/null -w "%{http_code}" --connect-timeout 5 "$url" 2>/dev/null || echo "TIMEOUT")
       printf "  %-30s %s\n" "$url" "$STATUS"
     done
@@ -126,6 +126,9 @@ apply:
     kubectl apply -k clusters/glug-infra/mobileapps
     @echo "Applying wikifeeds..."
     kubectl apply -k clusters/glug-infra/wikifeeds
+    @echo "Applying Cal.diy (sops-decrypt credentials first)..."
+    kubectl apply -k clusters/glug-infra/caldiy
+    sops --decrypt clusters/glug-infra/caldiy/credentials-secret.enc.yaml | kubectl apply -f -
     kubectl apply -k clusters/glug-infra/monitoring
 
 # Preview k8s changes without applying.
@@ -139,6 +142,7 @@ diff:
     kubectl diff -k clusters/glug-infra/mobileapps || true
     kubectl diff -k clusters/glug-infra/wikifeeds || true
     kubectl diff -k clusters/glug-infra/mediawiki || true
+    kubectl diff -k clusters/glug-infra/caldiy || true
     kubectl diff -k clusters/glug-infra/monitoring || true
     helmfile diff
 
@@ -591,6 +595,36 @@ answer-extract-config:
 answer-apply-secret:
     @echo "Decrypting and applying Answer credentials..."
     sops --decrypt clusters/glug-infra/answer/credentials-secret.enc.yaml | kubectl apply -f -
+
+# ---------------------------------------------------------------------------
+# Cal.diy day-2 helpers
+# ---------------------------------------------------------------------------
+
+# Show Cal.diy deployment status.
+[doc('Show Cal.diy deployment status')]
+caldiy-status:
+    kubectl get deploy,pods,svc,ingressroute -n caldiy -o wide
+
+# Tail Cal.diy logs.
+[doc('Tail Cal.diy logs')]
+caldiy-logs:
+    kubectl logs -n caldiy -l app.kubernetes.io/name=caldiy -f --tail=200
+
+# Restart Cal.diy (rolling).
+[doc('Restart Cal.diy (rolling)')]
+caldiy-restart:
+    kubectl rollout restart deploy/caldiy -n caldiy
+
+# Port-forward Cal.diy to localhost:3000.
+[doc('Port-forward Cal.diy to localhost:3000')]
+caldiy-port-forward:
+    kubectl -n caldiy port-forward svc/caldiy-svc 3000:3000
+
+# Apply Cal.diy credentials (sops-decrypt).
+[doc('Apply Cal.diy credentials Secret (sops-decrypt)')]
+caldiy-apply-secret:
+    @echo "Decrypting and applying Cal.diy credentials..."
+    sops --decrypt clusters/glug-infra/caldiy/credentials-secret.enc.yaml | kubectl apply -f -
 
 # ---------------------------------------------------------------------------
 # Tuwunel (Matrix homeserver) day-2 helpers
