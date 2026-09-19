@@ -17,9 +17,9 @@ on:
   workflow_dispatch:
     inputs:
       ref:
-        description: "calcom/cal.diy git ref to build"
+        description: "calcom/cal.diy git ref to build (main is often broken; prefer a release tag)"
         required: false
-        default: "main"
+        default: "v6.2.0"
 
 permissions:
   contents: read
