@@ -15,13 +15,11 @@
   (load bootstrap-file nil 'nomessage))
 
 ;; ── XDG directory redirects ────────────────────────────────────────
-(defun my/xdg (env fallback)
-  (let ((v (getenv env)))
-    (if (and v (file-name-absolute-p v)) v (expand-file-name fallback))))
+(require 'xdg)
 
-(defconst my/cache-dir (expand-file-name "emacs/" (my/xdg "XDG_CACHE_HOME" "~/.cache")))
-(defconst my/state-dir (expand-file-name "emacs/" (my/xdg "XDG_STATE_HOME" "~/.local/state")))
-(defconst my/data-dir  (expand-file-name "emacs/" (my/xdg "XDG_DATA_HOME"  "~/.local/share")))
+(defconst my/cache-dir (expand-file-name "emacs/" (xdg-cache-home)))
+(defconst my/state-dir (expand-file-name "emacs/" (xdg-state-home)))
+(defconst my/data-dir  (expand-file-name "emacs/" (xdg-data-home)))
 
 (dolist (d (list my/cache-dir my/state-dir my/data-dir))
   (make-directory d t))
