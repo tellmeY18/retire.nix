@@ -90,15 +90,11 @@ spec:
       containers:
         - name: mediawiki
           image: ghcr.io/tellmey18/mediawiki:build-64
-          command:
-            - sh
-            - -c
-            - |
-              # SMW store setup is handled once by the db-migrate init
-              # container (guarded by the shared .smw.json marker), NOT here.
-              # Running setupStore on every pod boot is what caused the
-              # OPTIMIZE-TABLE lock cascade. The web container just serves.
-              exec supervisord -c /etc/supervisord.conf
+          # SMW store setup is handled once by the db-migrate init container
+          # (guarded by the shared .smw.json marker), NOT here. Running
+          # setupStore on every pod boot is what caused the OPTIMIZE-TABLE
+          # lock cascade. The web container just serves.
+          command: ["supervisord", "-c", "/etc/supervisord.conf"]
           ports:
             - name: http
               containerPort: 80
