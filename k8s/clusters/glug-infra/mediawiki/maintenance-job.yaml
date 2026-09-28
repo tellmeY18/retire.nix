@@ -30,15 +30,8 @@ spec:
       # Must run on kenobi so it shares the same hostPath .smw.json with the
       # web pods (all hard-pinned to kenobi). Without this the Job's setup
       # marker would land on a different node and the pods wouldn't see it.
-      affinity:
-        nodeAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-            nodeSelectorTerms:
-              - matchExpressions:
-                  - key: kubernetes.io/hostname
-                    operator: In
-                    values:
-                      - kenobi
+      nodeSelector:
+        kubernetes.io/hostname: kenobi
       containers:
         - name: update
           image: ghcr.io/tellmey18/mediawiki:build-55

@@ -29,15 +29,8 @@ spec:
     spec:
       # Pin to kenobi (cloud VM, always available). MediaWiki must never
       # run on c3po/chopper which are laptops subject to power/network loss.
-      affinity:
-        nodeAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-            nodeSelectorTerms:
-              - matchExpressions:
-                  - key: kubernetes.io/hostname
-                    operator: In
-                    values:
-                      - kenobi
+      nodeSelector:
+        kubernetes.io/hostname: kenobi
       initContainers:
         # Runs DB migrations BEFORE web containers start.
         # Ensures schema is always up-to-date on every deploy.
