@@ -14,21 +14,6 @@
 { pkgs, ... }:
 
 let
-  # helm-diff's plugin.yaml includes `platformHooks` (install/update hooks
-  # for `helm plugin install`).  Helm fails to parse this field, and the
-  # failure prevents ALL plugins from loading.  Strip the hooks section
-  # since wrapHelm provides the binary directly.
-  helm-diff-patched =
-    pkgs.runCommand "helm-diff-patched-3.15.8"
-      {
-        src = pkgs.kubernetes-helmPlugins.helm-diff;
-      }
-      ''
-        mkdir -p $out/helm-diff
-        cp -r $src/helm-diff/* $out/helm-diff/
-        ${pkgs.gnused}/bin/sed -i '/^platformHooks:/,/^[^ ]/d' $out/helm-diff/plugin.yaml
-      '';
-
   # Wrap helm with plugins so `helm secrets`, `helm diff`, and git-sourced
   # charts Just Work. helm-git is needed for charts not published to a registry
   # (e.g. rustfs-operator which lives at github.com/rustfs/operator).
@@ -49,7 +34,7 @@ let
   helm-with-plugins = pkgs.wrapHelm pkgs.kubernetes-helm {
     plugins = [
       pkgs.kubernetes-helmPlugins.helm-secrets
-      helm-diff-patched
+      pkgs.kubernetes-helmPlugins.helm-diff
       pkgs.kubernetes-helmPlugins.helm-git
     ];
   };
