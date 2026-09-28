@@ -11,6 +11,18 @@ Context for AI assistants and contributors. `ROADMAP.md` has the milestone plan.
   touching any file — so the session's work lands in its own commit instead
   of polluting whatever `@` holds. Full workflow: `.agents/skills/jujutsu/SKILL.md`.
 - **kubectl / helm / k8s commands:** Always set `KUBECONFIG=~/.kube/glug-infra.yaml` before any cluster action (`kubectl`, `helm`, `helmfile`, etc.).
+- **Never run a blocking command that prints nothing.** Anything that can take
+  more than a few seconds (`nix build`, `nix eval` of a system closure, `nix
+  flake update`, `deploy-rs`, `helmfile`, `kubectl diff/apply`, image builds)
+  MUST stream progress and MUST have a timeout. In practice:
+  - `nix build` / `nix develop` → add `--log-lines 20` (and `-v` when
+    diagnosing); prefer `nom build` when available. Never a bare `nix build`.
+  - Long `nix eval` → `--show-trace` or evaluate a narrower attribute.
+  - Anything remote → wrap in `timeout <n>` and pass `-o ConnectTimeout=<n>`.
+  - Unavoidably quiet and slow → run it in the background writing to a log
+    (`… > /tmp/x.log 2>&1 &`) and poll the log, rather than blocking on it.
+  A command with no output and no timeout is indistinguishable from a hang;
+  kill it and rerun it correctly rather than waiting.
 - **One module = one concern.** No "kitchen sink" host files.
 - **No hard-coded user paths.** Use sops or `config.users.users.<name>.home`.
 - **Per-host metadata** in `hosts/<name>/metadata.nix` (hostname, system, roles, etc.).
