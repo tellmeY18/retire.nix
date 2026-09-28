@@ -68,13 +68,13 @@ spec:
                   echo "=== SMW already set up (sentinel present) — skipping setupStore ==="
                 fi
               ) 9>/smw-config/.setup.lock
-          env:
+          env: &mwEnv
             - name: MW_DB_HOST
               value: "mysql-mediawiki-db.mysql-mediawiki.svc.cluster.local"
-          envFrom:
+          envFrom: &mwEnvFrom
             - secretRef:
                 name: mediawiki-credentials
-          volumeMounts:
+          volumeMounts: &mwMounts
             - name: localsettings
               mountPath: /var/www/html/LocalSettings.php
               subPath: LocalSettings.php
@@ -99,12 +99,10 @@ spec:
             - name: http
               containerPort: 80
               protocol: TCP
-          env:
-            - name: MW_DB_HOST
-              value: "mysql-mediawiki-db.mysql-mediawiki.svc.cluster.local"
-          envFrom:
-            - secretRef:
-                name: mediawiki-credentials
+          env: *mwEnv
+          envFrom: *mwEnvFrom
+          # NOTE: cannot alias *mwMounts here — YAML has no sequence
+          # concatenation, and this container needs the PHP-FPM override too.
           volumeMounts:
             - name: localsettings
               mountPath: /var/www/html/LocalSettings.php
@@ -159,18 +157,9 @@ spec:
                 php /var/www/html/maintenance/run.php runJobs --maxjobs=50 --maxtime=30 2>&1 || echo "[jobrunner] Error, retrying in 10s..."
                 sleep 2
               done
-          env:
-            - name: MW_DB_HOST
-              value: "mysql-mediawiki-db.mysql-mediawiki.svc.cluster.local"
-          envFrom:
-            - secretRef:
-                name: mediawiki-credentials
-          volumeMounts:
-            - name: localsettings
-              mountPath: /var/www/html/LocalSettings.php
-              subPath: LocalSettings.php
-            - name: smw-config
-              mountPath: /smw-config
+          env: *mwEnv
+          envFrom: *mwEnvFrom
+          volumeMounts: *mwMounts
           resources:
             requests:
               cpu: 10m
