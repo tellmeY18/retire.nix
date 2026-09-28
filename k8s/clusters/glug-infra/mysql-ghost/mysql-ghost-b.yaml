@@ -165,3 +165,10 @@ spec:
     - name: gr-xcom
       port: 33061
       targetPort: 33061
+    # mysqld-exporter. The VMServiceScrape `mysql-ghost-members` selects the
+    # port BY NAME ("metrics"); without this entry the scrape matched no port,
+    # so every mysql_* metric was missing and the MGR dashboards sat empty —
+    # even though the exporter container was healthy and serving on 9104.
+    - name: metrics
+      port: 9104
+      targetPort: 9104
