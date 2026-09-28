@@ -9,6 +9,17 @@
 # system. Use `CustomUserPreferences` for any macOS pref that doesn't
 # have a dedicated nix-darwin option yet.
 { ... }:
+let
+  # Every AppleSymbolicHotKeys entry is a standard-type key with three
+  # parameters (keychar, keycode, modifier mask); name the shape once.
+  hotkey = enabled: parameters: {
+    inherit enabled;
+    value = {
+      type = "standard";
+      inherit parameters;
+    };
+  };
+in
 {
   system = {
     # ── Keyboard hardware remapping (hidutil) ────────────────────
@@ -281,186 +292,46 @@
         "com.apple.symbolichotkeys" = {
           AppleSymbolicHotKeys = {
             # Dictation — Fn key (default: Fn-Fn)
-            "52" = {
-              enabled = true;
-              value = {
-                type = "standard";
-                parameters = [
-                  100
-                  2
-                  1572864
-                ];
-              };
-            };
+            "52" = hotkey true [ 100 2 1572864 ];
 
             # Mission Control: Move left a space (default: Ctrl+←)
-            "79" = {
-              enabled = true;
-              value = {
-                type = "standard";
-                parameters = [
-                  65535
-                  123
-                  8650752
-                ];
-              };
-            };
+            "79" = hotkey true [ 65535 123 8650752 ];
 
             # Mission Control: Move right a space (default: Ctrl+→)
-            "80" = {
-              enabled = true;
-              value = {
-                type = "standard";
-                parameters = [
-                  65535
-                  123
-                  8781824
-                ];
-              };
-            };
+            "80" = hotkey true [ 65535 123 8781824 ];
 
             # Keyboard: Move focus to next window (default: Ctrl+F4)
-            "81" = {
-              enabled = true;
-              value = {
-                type = "standard";
-                parameters = [
-                  65535
-                  124
-                  8650752
-                ];
-              };
-            };
+            "81" = hotkey true [ 65535 124 8650752 ];
 
             # Keyboard: Move focus to previous window (default: Ctrl+Shift+F4)
-            "82" = {
-              enabled = true;
-              value = {
-                type = "standard";
-                parameters = [
-                  65535
-                  124
-                  8781824
-                ];
-              };
-            };
+            "82" = hotkey true [ 65535 124 8781824 ];
 
             # Input: Select previous input source (default: Ctrl+Space)
-            "118" = {
-              enabled = true;
-              value = {
-                type = "standard";
-                parameters = [
-                  65535
-                  18
-                  262144
-                ];
-              };
-            };
+            "118" = hotkey true [ 65535 18 262144 ];
 
             # Input: Select next input source (default: Ctrl+Opt+Space)
-            "119" = {
-              enabled = true;
-              value = {
-                type = "standard";
-                parameters = [
-                  65535
-                  19
-                  262144
-                ];
-              };
-            };
+            "119" = hotkey true [ 65535 19 262144 ];
 
             # Accessibility: Zoom In toggle (default: Opt+Cmd+8)
-            "120" = {
-              enabled = true;
-              value = {
-                type = "standard";
-                parameters = [
-                  65535
-                  20
-                  262144
-                ];
-              };
-            };
+            "120" = hotkey true [ 65535 20 262144 ];
 
             # Screenshots: Show floating thumbnail (default: Shift+Cmd+5)
-            "121" = {
-              enabled = true;
-              value = {
-                type = "standard";
-                parameters = [
-                  65535
-                  21
-                  262144
-                ];
-              };
-            };
+            "121" = hotkey true [ 65535 21 262144 ];
 
             # Spotlight: Show Finder search (default: Opt+Cmd+Space)
-            "122" = {
-              enabled = true;
-              value = {
-                type = "standard";
-                parameters = [
-                  65535
-                  23
-                  262144
-                ];
-              };
-            };
+            "122" = hotkey true [ 65535 23 262144 ];
 
             # Spotlight: Show window (default: Cmd+Space)
-            "123" = {
-              enabled = true;
-              value = {
-                type = "standard";
-                parameters = [
-                  65535
-                  22
-                  262144
-                ];
-              };
-            };
+            "123" = hotkey true [ 65535 22 262144 ];
 
             # Services: Show in Finder (default: Shift+Cmd+C)
-            "124" = {
-              enabled = true;
-              value = {
-                type = "standard";
-                parameters = [
-                  65535
-                  26
-                  262144
-                ];
-              };
-            };
+            "124" = hotkey true [ 65535 26 262144 ];
 
             # Keyboard: Change input method (default: unbound placeholder)
-            "160" = {
-              enabled = true;
-              value = {
-                type = "standard";
-                parameters = [
-                  65535
-                  65535
-                  0
-                ];
-              };
-            };
+            "160" = hotkey true [ 65535 65535 0 ];
 
             # Accessibility: App Exposé (disabled)
-            "164" = {
-              enabled = false;
-              value = {
-                type = "standard";
-                parameters = [
-                  65535
-                  65535
-                  0
-                ];
-              };
-            };
+            "164" = hotkey false [ 65535 65535 0 ];
           };
         };
 
