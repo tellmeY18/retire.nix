@@ -51,7 +51,6 @@ jobs:
         id: meta
         run: |
           echo "build_tag=build-${{ github.run_number }}" >> "$GITHUB_OUTPUT"
-          echo "sha_tag=sha-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
 
       - name: Build and push (per platform)
         uses: docker/build-push-action@v6

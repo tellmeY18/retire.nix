@@ -76,7 +76,6 @@ jobs:
           echo "Built: fosscell-wiki-access-${{ steps.ver.outputs.version }}.zip"
 
       - name: Sign Firefox XPI (Mozilla AMO — unlisted / self-distributed)
-        id: sign
         run: |
           cd k8s/apps/wiki-access-extension
           web-ext sign \
@@ -87,7 +86,6 @@ jobs:
           mv signed/*.xpi \
             "${GITHUB_WORKSPACE}/fosscell-wiki-access-${{ steps.ver.outputs.version }}.xpi"
           echo "Signed: fosscell-wiki-access-${{ steps.ver.outputs.version }}.xpi"
-          echo "signed=true" >> "$GITHUB_OUTPUT"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2

@@ -45,9 +45,7 @@ jobs:
         id: meta
         run: |
           BUILD_TAG="build-${{ github.run_number }}"
-          SHA_TAG="sha-${GITHUB_SHA::7}"
           echo "build_tag=${BUILD_TAG}" >> "$GITHUB_OUTPUT"
-          echo "sha_tag=${SHA_TAG}" >> "$GITHUB_OUTPUT"
 
       - name: Build and push by digest
         uses: docker/build-push-action@v6
