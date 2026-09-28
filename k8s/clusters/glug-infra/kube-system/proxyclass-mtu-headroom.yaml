@@ -1,0 +1,54 @@
+---
+# proxyclass-mtu-headroom.yaml — MTU fix for every Tailscale operator proxy.
+#
+# THE BUG
+# -------
+# A ts-proxy pod runs its own WireGuard on `tailscale0` inside the pod. The
+# operator defaults that interface to the same MTU as the pod's `eth0`, and
+# here both were 1280:
+#
+#   eth0       mtu 1280   <- pod network (cni0; flannel derives this from the
+#                             node's tailscale0, which is 1280)
+#   tailscale0 mtu 1280   <- WireGuard INSIDE the pod
+#
+# WireGuard adds ~60 bytes of encapsulation, so a full-size 1280-byte packet
+# became ~1340 bytes trying to egress a 1280-byte eth0 — every large packet
+# had to fragment or was dropped.
+#
+# Symptoms this caused (all via the tailnet LB, never when talking to a node
+# directly):
+#   - small API responses fine, sustained transfers collapsed to ~47 KB/s
+#   - an 8.4MB apiserver response failed at exactly 61s with
+#     "stream error ... INTERNAL_ERROR" (the apiserver's 60s --request-timeout
+#     firing because the transfer could not finish in time)
+#   - `helmfile diff` and `kubectl diff -k .../monitoring` failed outright
+#
+# Nodes never hit this: a node's tailscale0 (1280) sits on a 9000-MTU NIC.
+#
+# THE FIX
+# -------
+# Give tailscale's own interface headroom under the pod MTU. 1180 leaves 100
+# bytes, comfortably more than WireGuard needs.
+#
+# Measured on the k3s-cp proxy, same 8.4MB response:
+#   before: failed at 61s (~47 KB/s)
+#   after:  completed in ~2s (~4 MB/s)
+#
+# Applied to ALL proxies via `proxyConfig.defaultProxyClass` in the operator's
+# HelmChart values — see modules/services/k3s.nix. Individual Services or
+# Ingresses can still opt into a different class with the
+# `tailscale.com/proxy-class` annotation.
+#
+# If the pod network MTU ever changes, revisit this number: it must stay at
+# least ~60 bytes below the pod's eth0 MTU.
+apiVersion: tailscale.com/v1alpha1
+kind: ProxyClass
+metadata:
+  name: mtu-headroom
+spec:
+  statefulSet:
+    pod:
+      tailscaleContainer:
+        env:
+          - name: TS_DEBUG_MTU
+            value: "1180"

@@ -489,10 +489,30 @@ in
             version = "1.96.5";
             targetNamespace = "tailscale";
             createNamespace = true;
+            # proxyConfig.defaultProxyClass applies the `mtu-headroom`
+            # ProxyClass to EVERY proxy the operator creates.
+            #
+            # Why: a proxy pod runs its own WireGuard on tailscale0, and the
+            # operator defaults that interface to the SAME MTU as the pod's
+            # eth0 (both 1280 here, since flannel derives cni0's MTU from the
+            # node's tailscale0). WireGuard adds ~60 bytes, so every full-size
+            # packet exceeded the pod's egress MTU and had to fragment. Small
+            # responses were fine; sustained transfers collapsed to ~47 KB/s
+            # and any response that then took >60s died on the apiserver's
+            # request timeout ("stream error ... INTERNAL_ERROR").
+            #
+            # Nodes don't hit this: their tailscale0 (1280) sits on a 9000-MTU
+            # NIC, so there is plenty of headroom.
+            #
+            # 1180 leaves 100 bytes under the 1280 pod MTU. Measured on the
+            # k3s-cp proxy: an 8.4MB apiserver response went from failing at
+            # 61s to completing in ~2s.
             valuesContent = ''
               operatorConfig:
                 defaultTags:
                   - "tag:k8s"
+              proxyConfig:
+                defaultProxyClass: mtu-headroom
               oauth:
                 clientId: ""
                 clientSecret: ""

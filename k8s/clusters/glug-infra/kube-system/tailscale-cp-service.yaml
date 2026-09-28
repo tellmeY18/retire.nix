@@ -39,6 +39,12 @@ metadata:
   annotations:
     tailscale.com/hostname: "k3s-cp"
     tailscale.com/tags: "tag:k8s"
+    # Pin this proxy to the MTU-headroom class explicitly rather than relying
+    # only on the operator's defaultProxyClass. This is the kubectl path — if
+    # it breaks, cluster access breaks — and the operator default only takes
+    # effect after a NixOS deploy re-renders the HelmChart values.
+    # See proxyclass-mtu-headroom.yaml for the full diagnosis.
+    tailscale.com/proxy-class: "mtu-headroom"
 spec:
   type: LoadBalancer
   loadBalancerClass: tailscale
