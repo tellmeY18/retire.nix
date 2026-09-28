@@ -28,5 +28,4 @@ resources:
   - networkpolicy.yaml
   - configmap.yaml
   - deployment.yaml
-  - tailscale-service.yaml
   - ingress-traefik.yaml

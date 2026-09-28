@@ -26,5 +26,4 @@ resources:
   - namespace.yaml
   - networkpolicy.yaml
   - statefulset.yaml
-  - tailscale-service.yaml
   - ingress-traefik.yaml
