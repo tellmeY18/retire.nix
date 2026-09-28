@@ -103,7 +103,15 @@ data:
     # `invalid value: string "0", expected a duration` (atticd then exits).
     [garbage-collection]
     interval = "0s"
-    default-retention-period = "14 days"
+    # 10 days, not 14: R2's free tier is 10GB and the cache had grown to
+    # ~5.6GB. Each CI run adds a ~2-3GB batch, so 14 days kept two batches
+    # alive at once. 10 days keeps the most recent batch and drops the
+    # previous one.
+    #
+    # Do NOT drop this below ~8 days: Build & Cache only runs on
+    # pull_request (no push trigger), so between PRs nothing repopulates the
+    # cache. Too short a window and a quiet week empties it entirely.
+    default-retention-period = "10 days"
 
     # JWT signing
     [jwt.signing]
