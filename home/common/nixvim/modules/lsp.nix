@@ -1,6 +1,13 @@
 # modules/lsp.nix
 # LSP servers, formatting via conform, linting.
 { ... }:
+let
+  # prettierd with a prettier fallback, shared by every web filetype.
+  prettier = [
+    "prettierd"
+    "prettier"
+  ];
+in
 {
   # ── LSP configuration ──────────────────────────────────
   plugins.lsp = {
@@ -153,26 +160,11 @@
         yaml = [ "yamlfmt" ];
         toml = [ "taplo" ];
         sh = [ "shfmt" ];
-        markdown = [
-          "prettierd"
-          "prettier"
-        ];
-        javascript = [
-          "prettierd"
-          "prettier"
-        ];
-        typescript = [
-          "prettierd"
-          "prettier"
-        ];
-        css = [
-          "prettierd"
-          "prettier"
-        ];
-        html = [
-          "prettierd"
-          "prettier"
-        ];
+        markdown = prettier;
+        javascript = prettier;
+        typescript = prettier;
+        css = prettier;
+        html = prettier;
         "_" = [ "trim_whitespace" ];
       };
       format_on_save = {
