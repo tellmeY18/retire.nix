@@ -30,6 +30,31 @@ spec:
         app.kubernetes.io/component: web
         app.kubernetes.io/part-of: caldiy
     spec:
+      # Run on c3po, NOT kenobi.
+      #   - kenobi is the sole control-plane/etcd node with only 2 cores and
+      #     sat at ~80% CPU; Next.js SSR there was slow enough that the
+      #     liveness probe timed out and kubelet SIGKILLed the container
+      #     (exit 137, reason "Error" — a probe kill, not an OOM).
+      #   - c3po has 8 cores and is ~1% busy, AND hosts the CNPG Postgres
+      #     primary, so Cal sits next to its own database.
+      # This adds no new single point of failure: Cal already depends on
+      # c3po for Postgres, so c3po going down takes Cal down either way.
+      tolerations:
+        - key: node-role.glug.infra/storage
+          operator: Equal
+          value: "true"
+          effect: NoSchedule
+      # Hard pin, not a preference: a soft (preferred) affinity lost to the
+      # scheduler's image-locality score and kept landing back on kenobi.
+      #
+      # chopper, not c3po: c3po hosts the Postgres primary but is already
+      # 94% memory-REQUESTED (~435Mi schedulable free), so Cal cannot fit
+      # there — the scheduler rejected it with "Insufficient memory".
+      # chopper is ~14% CPU / ~44% memory requested, so it has headroom in
+      # both. Cal reaches Postgres cross-node either way (it did from
+      # kenobi too), so this costs nothing in DB locality.
+      nodeSelector:
+        kubernetes.io/hostname: chopper
       containers:
         - name: caldiy
           image: ghcr.io/tellmey18/cal-diy:build-2
@@ -58,31 +83,41 @@ spec:
               memory: 512Mi
             limits:
               cpu: "1"
-              memory: 1Gi
+              # Steady-state RSS was ~880Mi against the old 1Gi ceiling,
+              # leaving no headroom for SSR spikes. c3po has 8Gi.
+              memory: 2Gi
 
+          # Cal is a heavy Next.js app: a cold SSR render of /auth/login can
+          # take well over 5s. The old 5s timeouts were what turned slowness
+          # into a restart loop (36 restarts). Give it room to be slow
+          # without declaring it dead.
           startupProbe:
             httpGet:
-              path: /
+              path: /auth/login
               port: 3000
-            timeoutSeconds: 5
+            timeoutSeconds: 10
             failureThreshold: 60
             periodSeconds: 10
 
           readinessProbe:
             httpGet:
-              path: /
+              path: /auth/login
               port: 3000
-            timeoutSeconds: 5
+            timeoutSeconds: 10
             initialDelaySeconds: 10
-            periodSeconds: 10
+            periodSeconds: 15
+            failureThreshold: 6
 
           livenessProbe:
             httpGet:
-              path: /
+              path: /auth/login
               port: 3000
-            timeoutSeconds: 5
-            initialDelaySeconds: 30
+            timeoutSeconds: 15
+            initialDelaySeconds: 60
             periodSeconds: 30
+            # ~3min of sustained failure before a kill, so a slow render or
+            # a brief DB blip can't restart the pod.
+            failureThreshold: 6
 ---
 apiVersion: v1
 kind: Service
