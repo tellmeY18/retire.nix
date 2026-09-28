@@ -13,37 +13,21 @@ let
       IconURL
       ;
   };
+  # Every AIControls entry is blocked and locked.
+  blocked = {
+    Value = "blocked";
+    Locked = true;
+  };
 in
 {
   AIControls = {
-    Default = {
-      Value = "blocked";
-      Locked = true;
-    };
-    Translations = {
-      Value = "blocked";
-      Locked = true;
-    };
-    PDFAltText = {
-      Value = "blocked";
-      Locked = true;
-    };
-    SmartTabGroups = {
-      Value = "blocked";
-      Locked = true;
-    };
-    LinkPreviewKeyPoints = {
-      Value = "blocked";
-      Locked = true;
-    };
-    SidebarChatbot = {
-      Value = "blocked";
-      Locked = true;
-    };
-    SmartWindow = {
-      Value = "blocked";
-      Locked = true;
-    };
+    Default = blocked;
+    Translations = blocked;
+    PDFAltText = blocked;
+    SmartTabGroups = blocked;
+    LinkPreviewKeyPoints = blocked;
+    SidebarChatbot = blocked;
+    SmartWindow = blocked;
   };
   DefaultSerialGuardSetting = 3;
   DisableAppUpdate = true;
