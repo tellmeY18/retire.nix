@@ -47,6 +47,36 @@ let
     ;
 
   cfg = config.services.k3s-cluster;
+
+  # Both OpenEBS StorageClasses differ only by name, default-class
+  # annotation and ZFS recordsize; everything else is shared.
+  mkZfsStorageClass = metadata: recordsize: {
+    apiVersion = "storage.k8s.io/v1";
+    kind = "StorageClass";
+    inherit metadata;
+    provisioner = "zfs.csi.openebs.io";
+    allowVolumeExpansion = true;
+    reclaimPolicy = "Delete";
+    volumeBindingMode = "WaitForFirstConsumer";
+    parameters = {
+      poolname = cfg.openebsZfsPool;
+      fstype = "zfs";
+      inherit recordsize;
+      compression = "zstd";
+    };
+    # Restrict PV provisioning to storage nodes ONLY.
+    # Compute nodes (cloud VMs) will never have PVCs scheduled to them.
+    allowedTopologies = [
+      {
+        matchLabelExpressions = [
+          {
+            key = "node-role.glug.infra/storage";
+            values = [ "true" ];
+          }
+        ];
+      }
+    ];
+  };
 in
 {
   # Pull in the companion module that handles the Tailscale OAuth Secret.
@@ -400,38 +430,12 @@ in
         #   so volume placement follows pod placement (single-node today,
         #   per-node-locality once a 2nd node joins).
         # --------------------------------------------------------------------
-        "openebs-zfs-localpv-storageclass".content = {
-          apiVersion = "storage.k8s.io/v1";
-          kind = "StorageClass";
-          metadata = {
-            name = "zfs-localpv";
-            annotations = {
-              "storageclass.kubernetes.io/is-default-class" = "true";
-            };
+        "openebs-zfs-localpv-storageclass".content = mkZfsStorageClass {
+          name = "zfs-localpv";
+          annotations = {
+            "storageclass.kubernetes.io/is-default-class" = "true";
           };
-          provisioner = "zfs.csi.openebs.io";
-          allowVolumeExpansion = true;
-          reclaimPolicy = "Delete";
-          volumeBindingMode = "WaitForFirstConsumer";
-          parameters = {
-            poolname = cfg.openebsZfsPool;
-            fstype = "zfs";
-            recordsize = "8k";
-            compression = "zstd";
-          };
-          # Restrict PV provisioning to storage nodes ONLY.
-          # Compute nodes (cloud VMs) will never have PVCs scheduled to them.
-          allowedTopologies = [
-            {
-              matchLabelExpressions = [
-                {
-                  key = "node-role.glug.infra/storage";
-                  values = [ "true" ];
-                }
-              ];
-            }
-          ];
-        };
+        } "8k";
 
         # --------------------------------------------------------------------
         # StorageClass for MySQL / InnoDB workloads (16K recordsize)
@@ -449,34 +453,9 @@ in
         # This SC is NOT marked as the default (no annotation). PVCs must
         # explicitly request `storageClassName: zfs-localpv-16k`.
         # --------------------------------------------------------------------
-        "openebs-zfs-localpv-storageclass-16k".content = {
-          apiVersion = "storage.k8s.io/v1";
-          kind = "StorageClass";
-          metadata = {
-            name = "zfs-localpv-16k";
-          };
-          provisioner = "zfs.csi.openebs.io";
-          allowVolumeExpansion = true;
-          reclaimPolicy = "Delete";
-          volumeBindingMode = "WaitForFirstConsumer";
-          parameters = {
-            poolname = cfg.openebsZfsPool;
-            fstype = "zfs";
-            recordsize = "16k";
-            compression = "zstd";
-          };
-          # Restrict PV provisioning to storage nodes ONLY.
-          allowedTopologies = [
-            {
-              matchLabelExpressions = [
-                {
-                  key = "node-role.glug.infra/storage";
-                  values = [ "true" ];
-                }
-              ];
-            }
-          ];
-        };
+        "openebs-zfs-localpv-storageclass-16k".content = mkZfsStorageClass {
+          name = "zfs-localpv-16k";
+        } "16k";
 
         # --------------------------------------------------------------------
         # Tailscale Kubernetes Operator
