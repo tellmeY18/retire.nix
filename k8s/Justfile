@@ -17,6 +17,10 @@
 # resolve relative paths against `k8s/` regardless of where `just` is run.
 set working-directory := '.'
 
+# VMSingle is the query endpoint for every metrics recipe below; the exec
+# prefix is identical for all of them, only the query URL differs.
+vm_exec := "kubectl -n monitoring exec -it deploy/vmks-victoria-metrics-k8s-stack-vmsingle -- wget -qO-"
+
 # List available commands
 default:
     @just --list
@@ -134,16 +138,10 @@ apply:
 # Preview k8s changes without applying.
 [doc('Preview kustomize + helmfile changes (no apply)')]
 diff:
-    kubectl diff -k clusters/glug-infra || true
-    kubectl diff -k clusters/glug-infra/rustfs || true
-    kubectl diff -k clusters/glug-infra/mysql-ghost || true
-    kubectl diff -k clusters/glug-infra/mysql-mediawiki || true
-    kubectl diff -k clusters/glug-infra/conduit || true
-    kubectl diff -k clusters/glug-infra/mobileapps || true
-    kubectl diff -k clusters/glug-infra/wikifeeds || true
-    kubectl diff -k clusters/glug-infra/mediawiki || true
-    kubectl diff -k clusters/glug-infra/caldiy || true
-    kubectl diff -k clusters/glug-infra/monitoring || true
+    for d in "" /rustfs /mysql-ghost /mysql-mediawiki /conduit /mobileapps \
+             /wikifeeds /mediawiki /caldiy /monitoring; do \
+      kubectl diff -k "clusters/glug-infra$d" || true; \
+    done
     helmfile diff
 
 # Upgrade all Helm releases gracefully. Handles stuck pending releases
@@ -380,20 +378,17 @@ rustfs-apply-secret:
 # Show RustFS cluster capacity from VMSingle.
 [doc('Query RustFS cluster capacity from VMSingle')]
 rustfs-capacity:
-    kubectl -n monitoring exec -it deploy/vmks-victoria-metrics-k8s-stack-vmsingle -- \
-      wget -qO- "http://localhost:8428/api/v1/query?query=%7B__name__%3D~%22minio_cluster_capacity_(total|used|free)_bytes%22%7D" | jq '.data.result[]'
+    {{vm_exec}} "http://localhost:8428/api/v1/query?query=%7B__name__%3D~%22minio_cluster_capacity_(total|used|free)_bytes%22%7D" | jq '.data.result[]'
 
 # Show RustFS node/drive online status from VMSingle.
 [doc('Query RustFS node/drive status from VMSingle')]
 rustfs-node-status:
-    kubectl -n monitoring exec -it deploy/vmks-victoria-metrics-k8s-stack-vmsingle -- \
-      wget -qO- "http://localhost:8428/api/v1/query?query=%7B__name__%3D~%22minio_cluster_(nodes|drive)_(online|offline)_total%22%7D" | jq '.data.result[]'
+    {{vm_exec}} "http://localhost:8428/api/v1/query?query=%7B__name__%3D~%22minio_cluster_(nodes|drive)_(online|offline)_total%22%7D" | jq '.data.result[]'
 
 # Show RustFS S3 request error rate (5m) from VMSingle.
 [doc('Query RustFS S3 error rate from VMSingle')]
 rustfs-error-rate:
-    kubectl -n monitoring exec -it deploy/vmks-victoria-metrics-k8s-stack-vmsingle -- \
-      wget -qO- "http://localhost:8428/api/v1/query?query=rate(minio_s3_requests_errors_total%5B5m%5D)" | jq '.data.result[]'
+    {{vm_exec}} "http://localhost:8428/api/v1/query?query=rate(minio_s3_requests_errors_total%5B5m%5D)" | jq '.data.result[]'
 
 # ---------------------------------------------------------------------------
 # Changala day-2 helpers (Ring + Aggregator)
@@ -459,14 +454,12 @@ grafana-open:
 # Usage: just vm-query 'up'
 [doc('Query VMSingle with a MetricsQL expression')]
 vm-query expr:
-    kubectl -n monitoring exec -it deploy/vmks-victoria-metrics-k8s-stack-vmsingle -- \
-      wget -qO- "http://localhost:8428/api/v1/query?query={{ expr }}" | jq .
+    {{vm_exec}} "http://localhost:8428/api/v1/query?query={{ expr }}" | jq .
 
 # Show all firing alerts from VMAlert.
 [doc('Show all firing alerts from VMAlert')]
 alerts:
-    kubectl -n monitoring exec -it deploy/vmks-victoria-metrics-k8s-stack-vmsingle -- \
-      wget -qO- "http://localhost:8428/api/v1/query?query=ALERTS%7Balertstate%3D%22firing%22%7D" | jq '.data.result[]'
+    {{vm_exec}} "http://localhost:8428/api/v1/query?query=ALERTS%7Balertstate%3D%22firing%22%7D" | jq '.data.result[]'
 
 # Port-forward VMSingle UI to localhost:8428 (for debugging).
 [doc('Port-forward VMSingle UI to localhost:8428')]
@@ -502,8 +495,7 @@ vmagent-targets:
 # Check CNPG replication lag via VMSingle.
 [doc('Query CNPG replication lag from VMSingle')]
 cnpg-replication-lag:
-    kubectl -n monitoring exec -it deploy/vmks-victoria-metrics-k8s-stack-vmsingle -- \
-      wget -qO- "http://localhost:8428/api/v1/query?query=cnpg_pg_replication_lag" | jq '.data.result[]'
+    {{vm_exec}} "http://localhost:8428/api/v1/query?query=cnpg_pg_replication_lag" | jq '.data.result[]'
 
 # ---------------------------------------------------------------------------
 # ZFS monitoring helpers
@@ -512,20 +504,17 @@ cnpg-replication-lag:
 # Show ZFS pool state from VMSingle.
 [doc('Query ZFS pool state from VMSingle')]
 zfs-pool-state:
-    kubectl -n monitoring exec -it deploy/vmks-victoria-metrics-k8s-stack-vmsingle -- \
-      wget -qO- "http://localhost:8428/api/v1/query?query=node_zfs_zpool_state%7Bstate%3D%22online%22%7D" | jq '.data.result[]'
+    {{vm_exec}} "http://localhost:8428/api/v1/query?query=node_zfs_zpool_state%7Bstate%3D%22online%22%7D" | jq '.data.result[]'
 
 # Show ZFS ARC hit ratio (5m average).
 [doc('Query ZFS ARC hit ratio from VMSingle')]
 zfs-arc-hit-ratio:
-    kubectl -n monitoring exec -it deploy/vmks-victoria-metrics-k8s-stack-vmsingle -- \
-      wget -qO- "http://localhost:8428/api/v1/query?query=rate(node_zfs_arc_hits%5B5m%5D)%20%2F%20(rate(node_zfs_arc_hits%5B5m%5D)%20%2B%20rate(node_zfs_arc_misses%5B5m%5D))" | jq '.data.result[]'
+    {{vm_exec}} "http://localhost:8428/api/v1/query?query=rate(node_zfs_arc_hits%5B5m%5D)%20%2F%20(rate(node_zfs_arc_hits%5B5m%5D)%20%2B%20rate(node_zfs_arc_misses%5B5m%5D))" | jq '.data.result[]'
 
 # Show ZFS ARC size vs max.
 [doc('Query ZFS ARC size and target max from VMSingle')]
 zfs-arc-size:
-    kubectl -n monitoring exec -it deploy/vmks-victoria-metrics-k8s-stack-vmsingle -- \
-      wget -qO- "http://localhost:8428/api/v1/query?query=%7B__name__%3D~%22node_zfs_arc_size%7Cnode_zfs_arc_c_max%22%7D" | jq '.data.result[]'
+    {{vm_exec}} "http://localhost:8428/api/v1/query?query=%7B__name__%3D~%22node_zfs_arc_size%7Cnode_zfs_arc_c_max%22%7D" | jq '.data.result[]'
 
 # ---------------------------------------------------------------------------
 # Laptop battery monitoring helpers
@@ -534,26 +523,22 @@ zfs-arc-size:
 # Show AC power status for all nodes (1 = on AC, 0 = on battery).
 [doc('Query AC power status for all nodes')]
 battery-ac-status:
-    kubectl -n monitoring exec -it deploy/vmks-victoria-metrics-k8s-stack-vmsingle -- \
-      wget -qO- "http://localhost:8428/api/v1/query?query=node_power_supply_online%7Bpower_supply%3D%22AC0%22%7D" | jq '.data.result[]'
+    {{vm_exec}} "http://localhost:8428/api/v1/query?query=node_power_supply_online%7Bpower_supply%3D%22AC0%22%7D" | jq '.data.result[]'
 
 # Show battery charge percentage for all nodes.
 [doc('Query battery charge level (%) for all nodes')]
 battery-level:
-    kubectl -n monitoring exec -it deploy/vmks-victoria-metrics-k8s-stack-vmsingle -- \
-      wget -qO- "http://localhost:8428/api/v1/query?query=(node_power_supply_energy_watthour%7Bpower_supply%3D%22BAT0%22%7D%20%2F%20node_power_supply_energy_full%7Bpower_supply%3D%22BAT0%22%7D)%20*%20100" | jq '.data.result[]'
+    {{vm_exec}} "http://localhost:8428/api/v1/query?query=(node_power_supply_energy_watthour%7Bpower_supply%3D%22BAT0%22%7D%20%2F%20node_power_supply_energy_full%7Bpower_supply%3D%22BAT0%22%7D)%20*%20100" | jq '.data.result[]'
 
 # Show battery health (current full capacity vs design capacity).
 [doc('Query battery health (%) for all nodes')]
 battery-health:
-    kubectl -n monitoring exec -it deploy/vmks-victoria-metrics-k8s-stack-vmsingle -- \
-      wget -qO- "http://localhost:8428/api/v1/query?query=(node_power_supply_energy_full%7Bpower_supply%3D%22BAT0%22%7D%20%2F%20node_power_supply_energy_full_design%7Bpower_supply%3D%22BAT0%22%7D)%20*%20100" | jq '.data.result[]'
+    {{vm_exec}} "http://localhost:8428/api/v1/query?query=(node_power_supply_energy_full%7Bpower_supply%3D%22BAT0%22%7D%20%2F%20node_power_supply_energy_full_design%7Bpower_supply%3D%22BAT0%22%7D)%20*%20100" | jq '.data.result[]'
 
 # Show remaining battery energy in watt-hours.
 [doc('Query remaining battery energy (Wh) for all nodes')]
 battery-energy:
-    kubectl -n monitoring exec -it deploy/vmks-victoria-metrics-k8s-stack-vmsingle -- \
-      wget -qO- "http://localhost:8428/api/v1/query?query=node_power_supply_energy_watthour%7Bpower_supply%3D%22BAT0%22%7D" | jq '.data.result[]'
+    {{vm_exec}} "http://localhost:8428/api/v1/query?query=node_power_supply_energy_watthour%7Bpower_supply%3D%22BAT0%22%7D" | jq '.data.result[]'
 
 # ---------------------------------------------------------------------------
 # Apache Answer helpers
