@@ -112,12 +112,12 @@ vmsingle:
       dedup.minScrapeInterval: "30s"
 
     # Run on storage nodes (chopper) — this is the heavy TSDB.
-    tolerations:
+    tolerations: &storageTolerations
       - key: node-role.glug.infra/storage
         operator: Equal
         value: "true"
         effect: NoSchedule
-    affinity:
+    affinity: &storageAffinity
       nodeAffinity:
         preferredDuringSchedulingIgnoredDuringExecution:
           - weight: 100
@@ -161,21 +161,8 @@ vmagent:
     # Run on storage nodes (c3po/chopper) since vmagent is a cluster-wide
     # scraper — it doesn't need to be on the compute node. Storage nodes
     # have plenty of headroom (10% CPU) for the scrape workload.
-    tolerations:
-      - key: node-role.glug.infra/storage
-        operator: Equal
-        value: "true"
-        effect: NoSchedule
-    affinity:
-      nodeAffinity:
-        preferredDuringSchedulingIgnoredDuringExecution:
-          - weight: 100
-            preference:
-              matchExpressions:
-                - key: node-role.glug.infra/storage
-                  operator: In
-                  values:
-                    - "true"
+    tolerations: *storageTolerations
+    affinity: *storageAffinity
 
 # ===========================================================================
 # VMAlert — rule evaluation engine (replaces Prometheus rule evaluation)
@@ -206,21 +193,8 @@ vmalert:
         memory: "256Mi"
 
     # Run on storage nodes (chopper).
-    tolerations:
-      - key: node-role.glug.infra/storage
-        operator: Equal
-        value: "true"
-        effect: NoSchedule
-    affinity:
-      nodeAffinity:
-        preferredDuringSchedulingIgnoredDuringExecution:
-          - weight: 100
-            preference:
-              matchExpressions:
-                - key: node-role.glug.infra/storage
-                  operator: In
-                  values:
-                    - "true"
+    tolerations: *storageTolerations
+    affinity: *storageAffinity
 
 # ===========================================================================
 # VMAlertmanager — alert routing (replaces Alertmanager)
@@ -249,21 +223,8 @@ alertmanager:
         memory: "256Mi"
 
     # Run on storage nodes (chopper).
-    tolerations:
-      - key: node-role.glug.infra/storage
-        operator: Equal
-        value: "true"
-        effect: NoSchedule
-    affinity:
-      nodeAffinity:
-        preferredDuringSchedulingIgnoredDuringExecution:
-          - weight: 100
-            preference:
-              matchExpressions:
-                - key: node-role.glug.infra/storage
-                  operator: In
-                  values:
-                    - "true"
+    tolerations: *storageTolerations
+    affinity: *storageAffinity
 
   # Alertmanager routing config.
   # Critical/warning endpoint alerts are routed to jiralert for Jira ticket
@@ -367,21 +328,8 @@ grafana:
     enabled: false
 
   # Run on storage nodes (chopper), not the compute node (kenobi).
-  tolerations:
-    - key: node-role.glug.infra/storage
-      operator: Equal
-      value: "true"
-      effect: NoSchedule
-  affinity:
-    nodeAffinity:
-      preferredDuringSchedulingIgnoredDuringExecution:
-        - weight: 100
-          preference:
-            matchExpressions:
-              - key: node-role.glug.infra/storage
-                operator: In
-                values:
-                  - "true"
+  tolerations: *storageTolerations
+  affinity: *storageAffinity
 
   # VictoriaLogs Grafana plugin (required for the Logs datasource).
   plugins:
@@ -494,21 +442,8 @@ kube-state-metrics:
       memory: "256Mi"
 
   # Run on storage nodes (chopper).
-  tolerations:
-    - key: node-role.glug.infra/storage
-      operator: Equal
-      value: "true"
-      effect: NoSchedule
-  affinity:
-    nodeAffinity:
-      preferredDuringSchedulingIgnoredDuringExecution:
-        - weight: 100
-          preference:
-            matchExpressions:
-              - key: node-role.glug.infra/storage
-                operator: In
-                values:
-                  - "true"
+  tolerations: *storageTolerations
+  affinity: *storageAffinity
 
   vmScrape:
     enabled: true
