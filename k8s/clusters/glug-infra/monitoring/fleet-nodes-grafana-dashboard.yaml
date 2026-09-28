@@ -1,0 +1,786 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-fleet-nodes
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+    app.kubernetes.io/part-of: monitoring
+  annotations:
+    grafana_folder: "Fleet"
+data:
+  fleet-nodes.json: |-
+    {
+      "uid": "glug-fleet",
+      "title": "Fleet \u2014 Nodes",
+      "description": "Per-node health: uptime, CPU, memory/ZRAM, ZFS, network, battery. Every panel verified against a live series.",
+      "tags": [
+        "glug",
+        "nodes"
+      ],
+      "timezone": "browser",
+      "schemaVersion": 39,
+      "version": 1,
+      "refresh": "1m",
+      "time": {
+        "from": "now-6h",
+        "to": "now"
+      },
+      "editable": true,
+      "graphTooltip": 1,
+      "templating": {
+        "list": [
+          {
+            "name": "DS_VICTORIAMETRICS",
+            "type": "datasource",
+            "query": "victoriametrics-datasource",
+            "current": {},
+            "hide": 0,
+            "refresh": 1
+          },
+          {
+            "name": "node",
+            "type": "query",
+            "datasource": {
+              "type": "victoriametrics-datasource",
+              "uid": "${DS_VICTORIAMETRICS}"
+            },
+            "query": "label_values(node_boot_time_seconds, node)",
+            "refresh": 1,
+            "includeAll": true,
+            "multi": true,
+            "current": {
+              "text": "All",
+              "value": "$__all"
+            }
+          }
+        ]
+      },
+      "panels": [
+        {
+          "type": "row",
+          "title": "Availability",
+          "gridPos": {
+            "h": 1,
+            "w": 24,
+            "x": 0,
+            "y": 0
+          },
+          "collapsed": false,
+          "panels": []
+        },
+        {
+          "type": "stat",
+          "title": "Uptime",
+          "datasource": {
+            "type": "victoriametrics-datasource",
+            "uid": "${DS_VICTORIAMETRICS}"
+          },
+          "gridPos": {
+            "h": 4,
+            "w": 4,
+            "x": 0,
+            "y": 1
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "victoriametrics-datasource",
+                "uid": "${DS_VICTORIAMETRICS}"
+              },
+              "expr": "time() - node_boot_time_seconds{node=~\"$node\"}",
+              "legendFormat": "{{node}}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "custom": {},
+              "unit": "s",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "red",
+                    "value": null
+                  },
+                  {
+                    "color": "orange",
+                    "value": 300
+                  },
+                  {
+                    "color": "green",
+                    "value": 3600
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "description": "Wall-clock since last boot. node_boot_time_seconds is a constant timestamp, so this is time()-boot.",
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNonNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "value",
+            "graphMode": "area",
+            "textMode": "auto"
+          }
+        },
+        {
+          "type": "stat",
+          "title": "Nodes Up",
+          "datasource": {
+            "type": "victoriametrics-datasource",
+            "uid": "${DS_VICTORIAMETRICS}"
+          },
+          "gridPos": {
+            "h": 4,
+            "w": 3,
+            "x": 4,
+            "y": 1
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "victoriametrics-datasource",
+                "uid": "${DS_VICTORIAMETRICS}"
+              },
+              "expr": "count(up{job=\"node-exporter\"} == 1)",
+              "legendFormat": "up",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "custom": {},
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "red",
+                    "value": null
+                  },
+                  {
+                    "color": "green",
+                    "value": 3
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "description": "node-exporter targets responding.",
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNonNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "value",
+            "graphMode": "area",
+            "textMode": "auto"
+          }
+        },
+        {
+          "type": "timeseries",
+          "title": "CPU Busy %",
+          "datasource": {
+            "type": "victoriametrics-datasource",
+            "uid": "${DS_VICTORIAMETRICS}"
+          },
+          "gridPos": {
+            "h": 4,
+            "w": 9,
+            "x": 7,
+            "y": 1
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "victoriametrics-datasource",
+                "uid": "${DS_VICTORIAMETRICS}"
+              },
+              "expr": "100 - (avg by (node) (rate(node_cpu_seconds_total{mode=\"idle\",node=~\"$node\"}[5m])) * 100)",
+              "legendFormat": "{{node}}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "fillOpacity": 8,
+                "lineWidth": 1,
+                "showPoints": "never",
+                "spanNulls": true
+              },
+              "unit": "percent",
+              "max": 100
+            },
+            "overrides": []
+          },
+          "description": "100 minus idle, averaged across cores."
+        },
+        {
+          "type": "timeseries",
+          "title": "Load (1m) per core",
+          "datasource": {
+            "type": "victoriametrics-datasource",
+            "uid": "${DS_VICTORIAMETRICS}"
+          },
+          "gridPos": {
+            "h": 4,
+            "w": 8,
+            "x": 16,
+            "y": 1
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "victoriametrics-datasource",
+                "uid": "${DS_VICTORIAMETRICS}"
+              },
+              "expr": "node_load1{node=~\"$node\"} / on(node) count by (node) (node_cpu_seconds_total{mode=\"idle\",node=~\"$node\"})",
+              "legendFormat": "{{node}}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "fillOpacity": 8,
+                "lineWidth": 1,
+                "showPoints": "never",
+                "spanNulls": true
+              }
+            },
+            "overrides": []
+          },
+          "description": "Normalised: >1 means more runnable work than cores."
+        },
+        {
+          "type": "row",
+          "title": "Memory & Swap",
+          "gridPos": {
+            "h": 1,
+            "w": 24,
+            "x": 0,
+            "y": 5
+          },
+          "collapsed": false,
+          "panels": []
+        },
+        {
+          "type": "timeseries",
+          "title": "Memory Used %",
+          "datasource": {
+            "type": "victoriametrics-datasource",
+            "uid": "${DS_VICTORIAMETRICS}"
+          },
+          "gridPos": {
+            "h": 5,
+            "w": 8,
+            "x": 0,
+            "y": 6
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "victoriametrics-datasource",
+                "uid": "${DS_VICTORIAMETRICS}"
+              },
+              "expr": "100 * (1 - node_memory_MemAvailable_bytes{node=~\"$node\"} / node_memory_MemTotal_bytes{node=~\"$node\"})",
+              "legendFormat": "{{node}}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "fillOpacity": 8,
+                "lineWidth": 1,
+                "showPoints": "never",
+                "spanNulls": true
+              },
+              "unit": "percent",
+              "max": 100
+            },
+            "overrides": []
+          },
+          "description": "Uses MemAvailable (accounts for reclaimable cache), not MemFree."
+        },
+        {
+          "type": "timeseries",
+          "title": "Swap Used",
+          "datasource": {
+            "type": "victoriametrics-datasource",
+            "uid": "${DS_VICTORIAMETRICS}"
+          },
+          "gridPos": {
+            "h": 5,
+            "w": 8,
+            "x": 8,
+            "y": 6
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "victoriametrics-datasource",
+                "uid": "${DS_VICTORIAMETRICS}"
+              },
+              "expr": "node_memory_SwapTotal_bytes{node=~\"$node\"} - node_memory_SwapFree_bytes{node=~\"$node\"}",
+              "legendFormat": "{{node}}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "fillOpacity": 8,
+                "lineWidth": 1,
+                "showPoints": "never",
+                "spanNulls": true
+              },
+              "unit": "bytes"
+            },
+            "overrides": []
+          },
+          "description": "ZRAM is priority 100, so this fills compressed RAM before any disk swap."
+        },
+        {
+          "type": "timeseries",
+          "title": "ZRAM compression ratio",
+          "datasource": {
+            "type": "victoriametrics-datasource",
+            "uid": "${DS_VICTORIAMETRICS}"
+          },
+          "gridPos": {
+            "h": 5,
+            "w": 8,
+            "x": 16,
+            "y": 6
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "victoriametrics-datasource",
+                "uid": "${DS_VICTORIAMETRICS}"
+              },
+              "expr": "node_zram_orig_data_size / clamp_min(node_zram_compr_data_size, 1)",
+              "legendFormat": "{{node}} {{device}}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "fillOpacity": 8,
+                "lineWidth": 1,
+                "showPoints": "never",
+                "spanNulls": true
+              }
+            },
+            "overrides": []
+          },
+          "description": "Uncompressed / compressed. ~2-3x with zstd. Reads 0 until something is actually swapped out (clamp_min guards 0/0). Needs the node-exporter textfile mount."
+        },
+        {
+          "type": "row",
+          "title": "Storage",
+          "gridPos": {
+            "h": 1,
+            "w": 24,
+            "x": 0,
+            "y": 11
+          },
+          "collapsed": false,
+          "panels": []
+        },
+        {
+          "type": "timeseries",
+          "title": "Filesystem Used %",
+          "datasource": {
+            "type": "victoriametrics-datasource",
+            "uid": "${DS_VICTORIAMETRICS}"
+          },
+          "gridPos": {
+            "h": 5,
+            "w": 8,
+            "x": 0,
+            "y": 12
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "victoriametrics-datasource",
+                "uid": "${DS_VICTORIAMETRICS}"
+              },
+              "expr": "100 - (node_filesystem_avail_bytes{fstype!~\"tmpfs|ramfs|overlay\",node=~\"$node\"} / node_filesystem_size_bytes{fstype!~\"tmpfs|ramfs|overlay\",node=~\"$node\"} * 100)",
+              "legendFormat": "{{node}} {{mountpoint}}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "fillOpacity": 8,
+                "lineWidth": 1,
+                "showPoints": "never",
+                "spanNulls": true
+              },
+              "unit": "percent",
+              "max": 100
+            },
+            "overrides": []
+          }
+        },
+        {
+          "type": "timeseries",
+          "title": "ZFS ARC Size",
+          "datasource": {
+            "type": "victoriametrics-datasource",
+            "uid": "${DS_VICTORIAMETRICS}"
+          },
+          "gridPos": {
+            "h": 5,
+            "w": 8,
+            "x": 8,
+            "y": 12
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "victoriametrics-datasource",
+                "uid": "${DS_VICTORIAMETRICS}"
+              },
+              "expr": "node_zfs_arc_size{node=~\"$node\"}",
+              "legendFormat": "{{node}}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "fillOpacity": 8,
+                "lineWidth": 1,
+                "showPoints": "never",
+                "spanNulls": true
+              },
+              "unit": "bytes"
+            },
+            "overrides": []
+          },
+          "description": "ARC is kernel memory invisible to the VM page scanner; capped via zfs_arc_max."
+        },
+        {
+          "type": "timeseries",
+          "title": "ZFS dataset IO (ops/s)",
+          "datasource": {
+            "type": "victoriametrics-datasource",
+            "uid": "${DS_VICTORIAMETRICS}"
+          },
+          "gridPos": {
+            "h": 5,
+            "w": 8,
+            "x": 16,
+            "y": 12
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "victoriametrics-datasource",
+                "uid": "${DS_VICTORIAMETRICS}"
+              },
+              "expr": "rate(node_zfs_zpool_dataset_reads{node=~\"$node\"}[5m])",
+              "legendFormat": "{{node}} {{dataset}} read",
+              "refId": "A"
+            },
+            {
+              "datasource": {
+                "type": "victoriametrics-datasource",
+                "uid": "${DS_VICTORIAMETRICS}"
+              },
+              "expr": "rate(node_zfs_zpool_dataset_writes{node=~\"$node\"}[5m])",
+              "legendFormat": "{{node}} {{dataset}} write",
+              "refId": "B"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "fillOpacity": 8,
+                "lineWidth": 1,
+                "showPoints": "never",
+                "spanNulls": true
+              },
+              "unit": "ops"
+            },
+            "overrides": []
+          },
+          "description": "NOTE: the metric is node_zfs_zpool_dataset_*, not node_zfs_zpool_*."
+        },
+        {
+          "type": "row",
+          "title": "Network & Power",
+          "gridPos": {
+            "h": 1,
+            "w": 24,
+            "x": 0,
+            "y": 17
+          },
+          "collapsed": false,
+          "panels": []
+        },
+        {
+          "type": "timeseries",
+          "title": "Network Throughput",
+          "datasource": {
+            "type": "victoriametrics-datasource",
+            "uid": "${DS_VICTORIAMETRICS}"
+          },
+          "gridPos": {
+            "h": 5,
+            "w": 8,
+            "x": 0,
+            "y": 18
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "victoriametrics-datasource",
+                "uid": "${DS_VICTORIAMETRICS}"
+              },
+              "expr": "rate(node_network_receive_bytes_total{device!~\"lo|veth.*|cni.*|flannel.*\",node=~\"$node\"}[5m])*8",
+              "legendFormat": "{{node}} {{device}} rx",
+              "refId": "A"
+            },
+            {
+              "datasource": {
+                "type": "victoriametrics-datasource",
+                "uid": "${DS_VICTORIAMETRICS}"
+              },
+              "expr": "rate(node_network_transmit_bytes_total{device!~\"lo|veth.*|cni.*|flannel.*\",node=~\"$node\"}[5m])*8",
+              "legendFormat": "{{node}} {{device}} tx",
+              "refId": "B"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "fillOpacity": 8,
+                "lineWidth": 1,
+                "showPoints": "never",
+                "spanNulls": true
+              },
+              "unit": "bps"
+            },
+            "overrides": []
+          }
+        },
+        {
+          "type": "timeseries",
+          "title": "Network Errors + Drops",
+          "datasource": {
+            "type": "victoriametrics-datasource",
+            "uid": "${DS_VICTORIAMETRICS}"
+          },
+          "gridPos": {
+            "h": 5,
+            "w": 8,
+            "x": 8,
+            "y": 18
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "victoriametrics-datasource",
+                "uid": "${DS_VICTORIAMETRICS}"
+              },
+              "expr": "rate(node_network_receive_errs_total{node=~\"$node\"}[5m])",
+              "legendFormat": "{{node}} {{device}} rx errs",
+              "refId": "A"
+            },
+            {
+              "datasource": {
+                "type": "victoriametrics-datasource",
+                "uid": "${DS_VICTORIAMETRICS}"
+              },
+              "expr": "rate(node_network_transmit_errs_total{node=~\"$node\"}[5m])",
+              "legendFormat": "{{node}} {{device}} tx errs",
+              "refId": "B"
+            },
+            {
+              "datasource": {
+                "type": "victoriametrics-datasource",
+                "uid": "${DS_VICTORIAMETRICS}"
+              },
+              "expr": "rate(node_network_receive_drop_total{node=~\"$node\"}[5m])",
+              "legendFormat": "{{node}} {{device}} rx drop",
+              "refId": "C"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "fillOpacity": 8,
+                "lineWidth": 1,
+                "showPoints": "never",
+                "spanNulls": true
+              }
+            },
+            "overrides": []
+          },
+          "description": "Metric is *_errs_total (not *_errors_total) - the old dashboards used the wrong name."
+        },
+        {
+          "type": "timeseries",
+          "title": "Battery % (laptop nodes)",
+          "datasource": {
+            "type": "victoriametrics-datasource",
+            "uid": "${DS_VICTORIAMETRICS}"
+          },
+          "gridPos": {
+            "h": 5,
+            "w": 8,
+            "x": 16,
+            "y": 18
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "victoriametrics-datasource",
+                "uid": "${DS_VICTORIAMETRICS}"
+              },
+              "expr": "100 * node_power_supply_energy_watthour{power_supply=~\"BAT.*\"} / node_power_supply_energy_full{power_supply=~\"BAT.*\"}",
+              "legendFormat": "{{node}}",
+              "refId": "A"
+            },
+            {
+              "datasource": {
+                "type": "victoriametrics-datasource",
+                "uid": "${DS_VICTORIAMETRICS}"
+              },
+              "expr": "node_power_supply_online{power_supply=~\"AC.*\"} * 100",
+              "legendFormat": "{{node}} on AC",
+              "refId": "B"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "fillOpacity": 8,
+                "lineWidth": 1,
+                "showPoints": "never",
+                "spanNulls": true
+              },
+              "unit": "percent",
+              "max": 100
+            },
+            "overrides": []
+          },
+          "description": "Only chopper/c3po have batteries; kenobi has no node_power_supply_* series at all."
+        },
+        {
+          "type": "row",
+          "title": "Processes",
+          "gridPos": {
+            "h": 1,
+            "w": 24,
+            "x": 0,
+            "y": 23
+          },
+          "collapsed": false,
+          "panels": []
+        },
+        {
+          "type": "timeseries",
+          "title": "Runnable / Blocked",
+          "datasource": {
+            "type": "victoriametrics-datasource",
+            "uid": "${DS_VICTORIAMETRICS}"
+          },
+          "gridPos": {
+            "h": 4,
+            "w": 12,
+            "x": 0,
+            "y": 24
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "victoriametrics-datasource",
+                "uid": "${DS_VICTORIAMETRICS}"
+              },
+              "expr": "node_procs_running{node=~\"$node\"}",
+              "legendFormat": "{{node}} running",
+              "refId": "A"
+            },
+            {
+              "datasource": {
+                "type": "victoriametrics-datasource",
+                "uid": "${DS_VICTORIAMETRICS}"
+              },
+              "expr": "node_procs_blocked{node=~\"$node\"}",
+              "legendFormat": "{{node}} blocked (D-state)",
+              "refId": "B"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "fillOpacity": 8,
+                "lineWidth": 1,
+                "showPoints": "never",
+                "spanNulls": true
+              }
+            },
+            "overrides": []
+          },
+          "description": "Metric is node_procs_* (not node_processes_*). Blocked = uninterruptible IO wait."
+        },
+        {
+          "type": "timeseries",
+          "title": "Context switches / s",
+          "datasource": {
+            "type": "victoriametrics-datasource",
+            "uid": "${DS_VICTORIAMETRICS}"
+          },
+          "gridPos": {
+            "h": 4,
+            "w": 12,
+            "x": 12,
+            "y": 24
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "victoriametrics-datasource",
+                "uid": "${DS_VICTORIAMETRICS}"
+              },
+              "expr": "rate(node_context_switches_total{node=~\"$node\"}[5m])",
+              "legendFormat": "{{node}}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "fillOpacity": 8,
+                "lineWidth": 1,
+                "showPoints": "never",
+                "spanNulls": true
+              },
+              "unit": "ops"
+            },
+            "overrides": []
+          }
+        }
+      ]
+    }

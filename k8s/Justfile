@@ -19,7 +19,7 @@ set working-directory := '.'
 
 # VMSingle is the query endpoint for every metrics recipe below; the exec
 # prefix is identical for all of them, only the query URL differs.
-vm_exec := "kubectl -n monitoring exec -it deploy/vmks-victoria-metrics-k8s-stack-vmsingle -- wget -qO-"
+vm_exec := "kubectl -n monitoring exec -it deploy/vmsingle-victoria-metrics-k8s-stack-vmks -- wget -qO-"
 
 # List available commands
 default:
@@ -467,7 +467,7 @@ alerts:
 # Port-forward VMSingle UI to localhost:8428 (for debugging).
 [doc('Port-forward VMSingle UI to localhost:8428')]
 vm-port-forward:
-    kubectl -n monitoring port-forward svc/vmks-victoria-metrics-k8s-stack-vmsingle 8428:8428
+    kubectl -n monitoring port-forward svc/vmsingle-victoria-metrics-k8s-stack-vmks 8428:8428
 
 # Port-forward Grafana to localhost:3000 (fallback if tailnet is down).
 [doc('Port-forward Grafana to localhost:3000')]

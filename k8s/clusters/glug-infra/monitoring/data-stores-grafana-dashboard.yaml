@@ -1,0 +1,727 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-data-stores
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+    app.kubernetes.io/part-of: monitoring
+  annotations:
+    grafana_folder: "Data"
+data:
+  data-stores.json: |-
+    {
+      "uid": "glug-data",
+      "title": "Data \u2014 Postgres, MySQL MGR, Attic",
+      "description": "Stateful services. MGR state comes from mysql_perf_schema_replication_group_member_info; attic has no exporter so it is measured at its Traefik route.",
+      "tags": [
+        "glug",
+        "data"
+      ],
+      "timezone": "browser",
+      "schemaVersion": 39,
+      "version": 1,
+      "refresh": "1m",
+      "time": {
+        "from": "now-6h",
+        "to": "now"
+      },
+      "editable": true,
+      "graphTooltip": 1,
+      "templating": {
+        "list": [
+          {
+            "name": "DS_VICTORIAMETRICS",
+            "type": "datasource",
+            "query": "victoriametrics-datasource",
+            "current": {},
+            "hide": 0,
+            "refresh": 1
+          },
+          {
+            "name": "node",
+            "type": "query",
+            "datasource": {
+              "type": "victoriametrics-datasource",
+              "uid": "${DS_VICTORIAMETRICS}"
+            },
+            "query": "label_values(node_boot_time_seconds, node)",
+            "refresh": 1,
+            "includeAll": true,
+            "multi": true,
+            "current": {
+              "text": "All",
+              "value": "$__all"
+            }
+          }
+        ]
+      },
+      "panels": [
+        {
+          "type": "row",
+          "title": "MySQL Group Replication (ghost)",
+          "gridPos": {
+            "h": 1,
+            "w": 24,
+            "x": 0,
+            "y": 0
+          },
+          "collapsed": false,
+          "panels": []
+        },
+        {
+          "type": "table",
+          "title": "MGR Members",
+          "datasource": {
+            "type": "victoriametrics-datasource",
+            "uid": "${DS_VICTORIAMETRICS}"
+          },
+          "gridPos": {
+            "h": 6,
+            "w": 10,
+            "x": 0,
+            "y": 1
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "victoriametrics-datasource",
+                "uid": "${DS_VICTORIAMETRICS}"
+              },
+              "expr": "max by (member_host, member_role, member_state, member_version) (mysql_perf_schema_replication_group_member_info)",
+              "format": "table",
+              "instant": true,
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "custom": {}
+            },
+            "overrides": []
+          },
+          "description": "Live group view. Exactly one member should be PRIMARY and all should be ONLINE.",
+          "options": {
+            "showHeader": true
+          }
+        },
+        {
+          "type": "stat",
+          "title": "Members ONLINE",
+          "datasource": {
+            "type": "victoriametrics-datasource",
+            "uid": "${DS_VICTORIAMETRICS}"
+          },
+          "gridPos": {
+            "h": 3,
+            "w": 4,
+            "x": 10,
+            "y": 1
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "victoriametrics-datasource",
+                "uid": "${DS_VICTORIAMETRICS}"
+              },
+              "expr": "count(count by (member_host) (mysql_perf_schema_replication_group_member_info{member_state=\"ONLINE\"}))",
+              "legendFormat": "online",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "custom": {},
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "red",
+                    "value": null
+                  },
+                  {
+                    "color": "orange",
+                    "value": 2
+                  },
+                  {
+                    "color": "green",
+                    "value": 3
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "description": "Quorum needs 2 of 3. Below 2 the group goes read-only.",
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNonNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "value",
+            "graphMode": "area",
+            "textMode": "auto"
+          }
+        },
+        {
+          "type": "stat",
+          "title": "Primaries",
+          "datasource": {
+            "type": "victoriametrics-datasource",
+            "uid": "${DS_VICTORIAMETRICS}"
+          },
+          "gridPos": {
+            "h": 3,
+            "w": 4,
+            "x": 14,
+            "y": 1
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "victoriametrics-datasource",
+                "uid": "${DS_VICTORIAMETRICS}"
+              },
+              "expr": "count(count by (member_host) (mysql_perf_schema_replication_group_member_info{member_role=\"PRIMARY\"}))",
+              "legendFormat": "primary",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "custom": {},
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "red",
+                    "value": null
+                  },
+                  {
+                    "color": "green",
+                    "value": 1
+                  },
+                  {
+                    "color": "red",
+                    "value": 2
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "description": "Single-primary mode: must be exactly 1. 0 = no writer (Ghost 500s); >1 = split brain.",
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNonNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "value",
+            "graphMode": "area",
+            "textMode": "auto"
+          }
+        },
+        {
+          "type": "stat",
+          "title": "mysqld up",
+          "datasource": {
+            "type": "victoriametrics-datasource",
+            "uid": "${DS_VICTORIAMETRICS}"
+          },
+          "gridPos": {
+            "h": 3,
+            "w": 6,
+            "x": 18,
+            "y": 1
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "victoriametrics-datasource",
+                "uid": "${DS_VICTORIAMETRICS}"
+              },
+              "expr": "sum(mysql_up)",
+              "legendFormat": "up",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "custom": {},
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "red",
+                    "value": null
+                  },
+                  {
+                    "color": "green",
+                    "value": 3
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "description": "mysqld_exporter reachability per member.",
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNonNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "value",
+            "graphMode": "area",
+            "textMode": "auto"
+          }
+        },
+        {
+          "type": "timeseries",
+          "title": "Queries / s",
+          "datasource": {
+            "type": "victoriametrics-datasource",
+            "uid": "${DS_VICTORIAMETRICS}"
+          },
+          "gridPos": {
+            "h": 3,
+            "w": 14,
+            "x": 10,
+            "y": 4
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "victoriametrics-datasource",
+                "uid": "${DS_VICTORIAMETRICS}"
+              },
+              "expr": "rate(mysql_global_status_queries[5m])",
+              "legendFormat": "{{job}}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "fillOpacity": 8,
+                "lineWidth": 1,
+                "showPoints": "never",
+                "spanNulls": true
+              },
+              "unit": "ops"
+            },
+            "overrides": []
+          }
+        },
+        {
+          "type": "timeseries",
+          "title": "Threads connected",
+          "datasource": {
+            "type": "victoriametrics-datasource",
+            "uid": "${DS_VICTORIAMETRICS}"
+          },
+          "gridPos": {
+            "h": 5,
+            "w": 8,
+            "x": 0,
+            "y": 7
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "victoriametrics-datasource",
+                "uid": "${DS_VICTORIAMETRICS}"
+              },
+              "expr": "mysql_global_status_threads_connected",
+              "legendFormat": "{{job}}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "fillOpacity": 8,
+                "lineWidth": 1,
+                "showPoints": "never",
+                "spanNulls": true
+              }
+            },
+            "overrides": []
+          },
+          "description": "ProxySQL multiplexes, so this is backend connections, not client count."
+        },
+        {
+          "type": "timeseries",
+          "title": "InnoDB buffer pool (data)",
+          "datasource": {
+            "type": "victoriametrics-datasource",
+            "uid": "${DS_VICTORIAMETRICS}"
+          },
+          "gridPos": {
+            "h": 5,
+            "w": 8,
+            "x": 8,
+            "y": 7
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "victoriametrics-datasource",
+                "uid": "${DS_VICTORIAMETRICS}"
+              },
+              "expr": "mysql_global_status_buffer_pool_pages{state=\"data\"} * 16384",
+              "legendFormat": "{{job}} data",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "fillOpacity": 8,
+                "lineWidth": 1,
+                "showPoints": "never",
+                "spanNulls": true
+              },
+              "unit": "bytes"
+            },
+            "overrides": []
+          }
+        },
+        {
+          "type": "timeseries",
+          "title": "Slow queries / s",
+          "datasource": {
+            "type": "victoriametrics-datasource",
+            "uid": "${DS_VICTORIAMETRICS}"
+          },
+          "gridPos": {
+            "h": 5,
+            "w": 8,
+            "x": 16,
+            "y": 7
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "victoriametrics-datasource",
+                "uid": "${DS_VICTORIAMETRICS}"
+              },
+              "expr": "rate(mysql_global_status_slow_queries[5m])",
+              "legendFormat": "{{job}}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "fillOpacity": 8,
+                "lineWidth": 1,
+                "showPoints": "never",
+                "spanNulls": true
+              },
+              "unit": "ops"
+            },
+            "overrides": []
+          }
+        },
+        {
+          "type": "row",
+          "title": "PostgreSQL (CloudNativePG)",
+          "gridPos": {
+            "h": 1,
+            "w": 24,
+            "x": 0,
+            "y": 12
+          },
+          "collapsed": false,
+          "panels": []
+        },
+        {
+          "type": "stat",
+          "title": "In recovery",
+          "datasource": {
+            "type": "victoriametrics-datasource",
+            "uid": "${DS_VICTORIAMETRICS}"
+          },
+          "gridPos": {
+            "h": 4,
+            "w": 4,
+            "x": 0,
+            "y": 13
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "victoriametrics-datasource",
+                "uid": "${DS_VICTORIAMETRICS}"
+              },
+              "expr": "cnpg_pg_replication_in_recovery",
+              "legendFormat": "{{pod}}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "custom": {},
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "orange",
+                    "value": 1
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "description": "0 = primary (accepting writes). Single-instance cluster, so this should be 0.",
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNonNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "value",
+            "graphMode": "area",
+            "textMode": "auto"
+          }
+        },
+        {
+          "type": "timeseries",
+          "title": "Backends",
+          "datasource": {
+            "type": "victoriametrics-datasource",
+            "uid": "${DS_VICTORIAMETRICS}"
+          },
+          "gridPos": {
+            "h": 4,
+            "w": 10,
+            "x": 4,
+            "y": 13
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "victoriametrics-datasource",
+                "uid": "${DS_VICTORIAMETRICS}"
+              },
+              "expr": "sum by (pod) (cnpg_backends_total)",
+              "legendFormat": "{{pod}}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "fillOpacity": 8,
+                "lineWidth": 1,
+                "showPoints": "never",
+                "spanNulls": true
+              }
+            },
+            "overrides": []
+          },
+          "description": "Active server processes. Cal.diy and attic both connect through the rw pooler."
+        },
+        {
+          "type": "timeseries",
+          "title": "Cache hit ratio",
+          "datasource": {
+            "type": "victoriametrics-datasource",
+            "uid": "${DS_VICTORIAMETRICS}"
+          },
+          "gridPos": {
+            "h": 4,
+            "w": 10,
+            "x": 14,
+            "y": 13
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "victoriametrics-datasource",
+                "uid": "${DS_VICTORIAMETRICS}"
+              },
+              "expr": "rate(cnpg_pg_stat_database_blks_hit[5m]) / clamp_min(rate(cnpg_pg_stat_database_blks_hit[5m]) + rate(cnpg_pg_stat_database_blks_read[5m]), 1)",
+              "legendFormat": "{{datname}}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "fillOpacity": 8,
+                "lineWidth": 1,
+                "showPoints": "never",
+                "spanNulls": true
+              },
+              "unit": "percentunit",
+              "max": 1
+            },
+            "overrides": []
+          },
+          "description": "Should sit near 1.0; sustained dips mean the working set outgrew shared_buffers."
+        },
+        {
+          "type": "row",
+          "title": "Attic binary cache",
+          "gridPos": {
+            "h": 1,
+            "w": 24,
+            "x": 0,
+            "y": 17
+          },
+          "collapsed": false,
+          "panels": []
+        },
+        {
+          "type": "stat",
+          "title": "Cache reachable",
+          "datasource": {
+            "type": "victoriametrics-datasource",
+            "uid": "${DS_VICTORIAMETRICS}"
+          },
+          "gridPos": {
+            "h": 4,
+            "w": 4,
+            "x": 0,
+            "y": 18
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "victoriametrics-datasource",
+                "uid": "${DS_VICTORIAMETRICS}"
+              },
+              "expr": "sum(rate(traefik_service_requests_total{exported_service=~\"attic-.*\"}[5m])) > bool 0",
+              "legendFormat": "serving",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "custom": {},
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "red",
+                    "value": null
+                  },
+                  {
+                    "color": "green",
+                    "value": 1
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "description": "Attic exposes NO /metrics endpoint, so it is observed through its Traefik route instead.",
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNonNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "value",
+            "graphMode": "area",
+            "textMode": "auto"
+          }
+        },
+        {
+          "type": "timeseries",
+          "title": "Cache requests / s by code",
+          "datasource": {
+            "type": "victoriametrics-datasource",
+            "uid": "${DS_VICTORIAMETRICS}"
+          },
+          "gridPos": {
+            "h": 4,
+            "w": 10,
+            "x": 4,
+            "y": 18
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "victoriametrics-datasource",
+                "uid": "${DS_VICTORIAMETRICS}"
+              },
+              "expr": "sum by (code) (rate(traefik_service_requests_total{exported_service=~\"attic-.*\"}[5m]))",
+              "legendFormat": "{{code}}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "fillOpacity": 8,
+                "lineWidth": 1,
+                "showPoints": "never",
+                "spanNulls": true
+              },
+              "unit": "reqps"
+            },
+            "overrides": []
+          },
+          "description": "404s are normal and expected: nix probes for paths the cache may not hold."
+        },
+        {
+          "type": "timeseries",
+          "title": "Cache latency p95",
+          "datasource": {
+            "type": "victoriametrics-datasource",
+            "uid": "${DS_VICTORIAMETRICS}"
+          },
+          "gridPos": {
+            "h": 4,
+            "w": 10,
+            "x": 14,
+            "y": 18
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "victoriametrics-datasource",
+                "uid": "${DS_VICTORIAMETRICS}"
+              },
+              "expr": "histogram_quantile(0.95, sum by (le) (rate(traefik_service_request_duration_seconds_bucket{exported_service=~\"attic-.*\"}[5m])))",
+              "legendFormat": "p95",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "fillOpacity": 8,
+                "lineWidth": 1,
+                "showPoints": "never",
+                "spanNulls": true
+              },
+              "unit": "s"
+            },
+            "overrides": []
+          },
+          "description": "High p95 on NAR fetches is what causes nix stalled-download fallbacks to source builds."
+        }
+      ]
+    }

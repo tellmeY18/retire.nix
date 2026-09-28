@@ -35,6 +35,25 @@ ports:
   metrics:
     port: 9180
     hostPort: null
+    # Publish the port on the Service. The VMServiceScrape `traefik`
+    # selects the endpoint BY NAME ("metrics"); without this the Service
+    # only exposed 80/443, the scrape matched nothing, and every
+    # traefik_* metric was absent.
+    expose:
+      default: true
+
+# Prometheus metrics. Defining the `metrics` ENTRYPOINT above is not enough —
+# Traefik also needs to be told to serve Prometheus on it, which was never
+# configured, so there were zero traefik_* series despite the scrape config
+# and the entrypoint both existing.
+metrics:
+  prometheus:
+    entryPoint: metrics
+    # Per-entrypoint/router/service label sets: needed to correlate request
+    # rates and latencies with individual ingresses in the dashboards.
+    addEntryPointsLabels: true
+    addRoutersLabels: true
+    addServicesLabels: true
 
 # hostNetwork binds host ports 80/443/8080, so two Traefik pods can never
 # coexist on the same node. A rolling update (chart default: maxSurge=1,

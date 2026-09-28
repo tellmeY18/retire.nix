@@ -61,14 +61,21 @@ resources:
   # ZFS host-level alerts — uses node_exporter's built-in ZFS collector.
   - zfs-vmrules.yaml
   # ZFS Grafana dashboard — auto-imported by Grafana's sidecar.
-  - zfs-grafana-dashboard.yaml
   # Cluster-wide PVC storage alerts.
   - pvc-storage-vmrules.yaml
   # Laptop battery monitoring.
   - laptop-battery-vmrules.yaml
-  - laptop-battery-grafana-dashboard.yaml
   # ZRAM swap monitoring (textfile collector sourced from host sysfs).
   - zram-vmrules.yaml
+
+  # ── Grafana dashboards ──────────────────────────────────────────────
+  # Consolidated 2026-09: eight overlapping dashboards (6,032 lines, 34 dead
+  # metric references) replaced by four. Every panel expression is checked
+  # against a live series in VictoriaMetrics.
+  - fleet-nodes-grafana-dashboard.yaml
+  - workloads-grafana-dashboard.yaml
+  - data-stores-grafana-dashboard.yaml
+  - edge-grafana-dashboard.yaml
   # MySQL Group Replication (mysql-ghost) monitoring.
   - mysql-ghost-vmservicescrape.yaml
   - mysql-ghost-vmrules.yaml
@@ -83,7 +90,6 @@ resources:
   # Endpoint availability, latency, SSL, and SLO alerts (Cloudprober-based).
   - endpoint-vmrules.yaml
   # Endpoint uptime Grafana dashboard.
-  - endpoint-grafana-dashboard.yaml
   # cAdvisor container metrics (scraped from kubelet's built-in cAdvisor).
   - cadvisor-vmnodescrape.yaml
   # VictoriaLogs — log storage + query engine.
@@ -92,17 +98,12 @@ resources:
   # Vector — log collector (DaemonSet shipping to VictoriaLogs).
   - vector-log-collector.yaml
   # Logs exploration Grafana dashboard.
-  - logs-grafana-dashboard.yaml
   # Cluster Overview — single pane of glass.
-  - cluster-overview-grafana-dashboard.yaml
   # GLUG Infra overview Grafana dashboard.
-  - glug-infra-grafana-dashboard.yaml
   # System Insights — rich node-exporter telemetry dashboard.
-  - system-insights-grafana-dashboard.yaml
   # jiralert — Jira incident lifecycle management (create/escalate/resolve).
   # - jiralert.yaml
   # CrowdSec — CAPI metrics, bouncer & acquisition telemetry.
   - crowdsec-vmstaticscrape.yaml
-  - crowdsec-grafana-dashboard.yaml
   # Traefik — ingress metrics (request rates, status codes, latency).
   - traefik-vmservicescrape.yaml

@@ -29,6 +29,12 @@ spec:
                   fieldPath: spec.nodeName
             - name: VECTOR_LOG
               value: "warn"
+          ports:
+            # prometheus_exporter sink — scraped by the vector-internal
+            # VMPodScrape below.
+            - name: metrics
+              containerPort: 9598
+              protocol: TCP
           volumeMounts:
             - name: config
               mountPath: /etc/vector
@@ -98,6 +104,12 @@ metadata:
 data:
   vector.yaml: |
     sources:
+      # Vector's own telemetry: events in/out per component, errors, buffer
+      # usage, lag. Without this source nothing emits vector_* metrics at
+      # all, which is why the log-pipeline panels had no data.
+      internal_metrics:
+        type: internal_metrics
+
       kubernetes_logs:
         type: kubernetes_logs
         self_node_name: "${VECTOR_SELF_NODE_NAME}"
@@ -122,6 +134,12 @@ data:
           ._time = .timestamp
 
     sinks:
+      # Scrape target for the vector-internal VMPodScrape (port 9598).
+      prometheus:
+        type: prometheus_exporter
+        inputs: ["internal_metrics"]
+        address: "0.0.0.0:9598"
+
       victorialogs:
         type: http
         inputs: ["parse_logs"]
@@ -133,3 +151,29 @@ data:
           timeout_secs: 5
         request:
           concurrency: 2
+---
+# VMPodScrape for Vector's own telemetry.
+#
+# Vector is a DaemonSet with no Service, so this selects pods directly.
+# Gives: events in/out per component, error counts, buffer utilisation and
+# sink lag — i.e. whether the log pipeline is actually keeping up.
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMPodScrape
+metadata:
+  name: vector-internal
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: vector
+    app.kubernetes.io/component: logging
+spec:
+  namespaceSelector:
+    matchNames:
+      - monitoring
+  selector:
+    matchLabels:
+      # MUST match the DaemonSet's pod labels exactly — a selector that
+      # matches nothing yields a scrape config with no targets and no error.
+      app.kubernetes.io/name: vector
+  podMetricsEndpoints:
+    - port: metrics
+      interval: 30s

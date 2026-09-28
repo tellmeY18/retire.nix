@@ -400,7 +400,13 @@ prometheus-node-exporter:
     - --collector.filesystem.fs-types-exclude=^(autofs|binfmt_misc|bpf|cgroup2?|configfs|debugfs|devpts|devtmpfs|fusectl|hugetlbfs|iso9660|mqueue|nsfs|overlay|proc|procfs|pstore|rpc_pipefs|securityfs|selinuxfs|squashfs|erofs|sysfs|tracefs)$
 
   # Host path mounts — textfile directory written by NixOS systemd timer.
-  extraHostPathMounts:
+  #
+  # NOTE: the key is extraHostVolumeMounts. It was previously
+  # `extraHostPathMounts`, which the prometheus-node-exporter chart does not
+  # recognise, so Helm silently dropped it: the container still got
+  # --collector.textfile.directory=/host/textfile but nothing was ever
+  # mounted there, and every node_zram_* / textfile metric was missing.
+  extraHostVolumeMounts:
     - name: textfile
       hostPath: /var/lib/node-exporter/textfile
       mountPath: /host/textfile

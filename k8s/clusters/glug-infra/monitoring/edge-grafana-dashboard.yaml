@@ -1,0 +1,500 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-edge
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+    app.kubernetes.io/part-of: monitoring
+  annotations:
+    grafana_folder: "Edge"
+data:
+  edge.json: |-
+    {
+      "uid": "glug-edge",
+      "title": "Edge \u2014 Ingress, Bots, Logs",
+      "description": "Public edge: Traefik request/latency/error rates per route, CrowdSec decisions, and Vector log-pipeline throughput.",
+      "tags": [
+        "glug",
+        "edge"
+      ],
+      "timezone": "browser",
+      "schemaVersion": 39,
+      "version": 1,
+      "refresh": "1m",
+      "time": {
+        "from": "now-6h",
+        "to": "now"
+      },
+      "editable": true,
+      "graphTooltip": 1,
+      "templating": {
+        "list": [
+          {
+            "name": "DS_VICTORIAMETRICS",
+            "type": "datasource",
+            "query": "victoriametrics-datasource",
+            "current": {},
+            "hide": 0,
+            "refresh": 1
+          },
+          {
+            "name": "node",
+            "type": "query",
+            "datasource": {
+              "type": "victoriametrics-datasource",
+              "uid": "${DS_VICTORIAMETRICS}"
+            },
+            "query": "label_values(node_boot_time_seconds, node)",
+            "refresh": 1,
+            "includeAll": true,
+            "multi": true,
+            "current": {
+              "text": "All",
+              "value": "$__all"
+            }
+          }
+        ]
+      },
+      "panels": [
+        {
+          "type": "row",
+          "title": "Ingress (Traefik)",
+          "gridPos": {
+            "h": 1,
+            "w": 24,
+            "x": 0,
+            "y": 0
+          },
+          "collapsed": false,
+          "panels": []
+        },
+        {
+          "type": "stat",
+          "title": "Requests / s",
+          "datasource": {
+            "type": "victoriametrics-datasource",
+            "uid": "${DS_VICTORIAMETRICS}"
+          },
+          "gridPos": {
+            "h": 4,
+            "w": 4,
+            "x": 0,
+            "y": 1
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "victoriametrics-datasource",
+                "uid": "${DS_VICTORIAMETRICS}"
+              },
+              "expr": "sum(rate(traefik_service_requests_total[5m]))",
+              "legendFormat": "rps",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "custom": {},
+              "unit": "reqps"
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNonNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "value",
+            "graphMode": "area",
+            "textMode": "auto"
+          }
+        },
+        {
+          "type": "stat",
+          "title": "5xx / s",
+          "datasource": {
+            "type": "victoriametrics-datasource",
+            "uid": "${DS_VICTORIAMETRICS}"
+          },
+          "gridPos": {
+            "h": 4,
+            "w": 4,
+            "x": 4,
+            "y": 1
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "victoriametrics-datasource",
+                "uid": "${DS_VICTORIAMETRICS}"
+              },
+              "expr": "sum(rate(traefik_service_requests_total{code=~\"5..\"}[5m]))",
+              "legendFormat": "5xx",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "custom": {},
+              "unit": "reqps",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "orange",
+                    "value": 0.1
+                  },
+                  {
+                    "color": "red",
+                    "value": 1
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "description": "Ghost returning 5xx is the signature of the MGR group having no writable primary.",
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNonNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "value",
+            "graphMode": "area",
+            "textMode": "auto"
+          }
+        },
+        {
+          "type": "timeseries",
+          "title": "Requests / s by service",
+          "datasource": {
+            "type": "victoriametrics-datasource",
+            "uid": "${DS_VICTORIAMETRICS}"
+          },
+          "gridPos": {
+            "h": 4,
+            "w": 16,
+            "x": 8,
+            "y": 1
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "victoriametrics-datasource",
+                "uid": "${DS_VICTORIAMETRICS}"
+              },
+              "expr": "sum by (exported_service) (rate(traefik_service_requests_total[5m]))",
+              "legendFormat": "{{exported_service}}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "fillOpacity": 8,
+                "lineWidth": 1,
+                "showPoints": "never",
+                "spanNulls": true
+              },
+              "unit": "reqps"
+            },
+            "overrides": []
+          },
+          "description": "exported_service is Traefik's router name (the 'service' label is taken by the scrape job)."
+        },
+        {
+          "type": "timeseries",
+          "title": "Status codes",
+          "datasource": {
+            "type": "victoriametrics-datasource",
+            "uid": "${DS_VICTORIAMETRICS}"
+          },
+          "gridPos": {
+            "h": 5,
+            "w": 12,
+            "x": 0,
+            "y": 5
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "victoriametrics-datasource",
+                "uid": "${DS_VICTORIAMETRICS}"
+              },
+              "expr": "sum by (code) (rate(traefik_service_requests_total[5m]))",
+              "legendFormat": "{{code}}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "fillOpacity": 8,
+                "lineWidth": 1,
+                "showPoints": "never",
+                "spanNulls": true
+              },
+              "unit": "reqps"
+            },
+            "overrides": []
+          }
+        },
+        {
+          "type": "timeseries",
+          "title": "Latency p50 / p95 / p99",
+          "datasource": {
+            "type": "victoriametrics-datasource",
+            "uid": "${DS_VICTORIAMETRICS}"
+          },
+          "gridPos": {
+            "h": 5,
+            "w": 12,
+            "x": 12,
+            "y": 5
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "victoriametrics-datasource",
+                "uid": "${DS_VICTORIAMETRICS}"
+              },
+              "expr": "histogram_quantile(0.50, sum by (le) (rate(traefik_service_request_duration_seconds_bucket[5m])))",
+              "legendFormat": "p50",
+              "refId": "A"
+            },
+            {
+              "datasource": {
+                "type": "victoriametrics-datasource",
+                "uid": "${DS_VICTORIAMETRICS}"
+              },
+              "expr": "histogram_quantile(0.95, sum by (le) (rate(traefik_service_request_duration_seconds_bucket[5m])))",
+              "legendFormat": "p95",
+              "refId": "B"
+            },
+            {
+              "datasource": {
+                "type": "victoriametrics-datasource",
+                "uid": "${DS_VICTORIAMETRICS}"
+              },
+              "expr": "histogram_quantile(0.99, sum by (le) (rate(traefik_service_request_duration_seconds_bucket[5m])))",
+              "legendFormat": "p99",
+              "refId": "C"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "fillOpacity": 8,
+                "lineWidth": 1,
+                "showPoints": "never",
+                "spanNulls": true
+              },
+              "unit": "s"
+            },
+            "overrides": []
+          }
+        },
+        {
+          "type": "row",
+          "title": "Bot defence (CrowdSec)",
+          "gridPos": {
+            "h": 1,
+            "w": 24,
+            "x": 0,
+            "y": 10
+          },
+          "collapsed": false,
+          "panels": []
+        },
+        {
+          "type": "stat",
+          "title": "Active decisions",
+          "datasource": {
+            "type": "victoriametrics-datasource",
+            "uid": "${DS_VICTORIAMETRICS}"
+          },
+          "gridPos": {
+            "h": 4,
+            "w": 4,
+            "x": 0,
+            "y": 11
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "victoriametrics-datasource",
+                "uid": "${DS_VICTORIAMETRICS}"
+              },
+              "expr": "sum(cs_active_decisions)",
+              "legendFormat": "bans",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "custom": {}
+            },
+            "overrides": []
+          },
+          "description": "Currently-enforced bans. Spikes track the MediaWiki scraper waves.",
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNonNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "value",
+            "graphMode": "area",
+            "textMode": "auto"
+          }
+        },
+        {
+          "type": "timeseries",
+          "title": "Alerts / s by scenario",
+          "datasource": {
+            "type": "victoriametrics-datasource",
+            "uid": "${DS_VICTORIAMETRICS}"
+          },
+          "gridPos": {
+            "h": 4,
+            "w": 20,
+            "x": 4,
+            "y": 11
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "victoriametrics-datasource",
+                "uid": "${DS_VICTORIAMETRICS}"
+              },
+              "expr": "sum by (scenario) (rate(cs_alerts[5m]))",
+              "legendFormat": "{{scenario}}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "fillOpacity": 8,
+                "lineWidth": 1,
+                "showPoints": "never",
+                "spanNulls": true
+              },
+              "unit": "ops"
+            },
+            "overrides": []
+          }
+        },
+        {
+          "type": "row",
+          "title": "Log pipeline (Vector)",
+          "gridPos": {
+            "h": 1,
+            "w": 24,
+            "x": 0,
+            "y": 15
+          },
+          "collapsed": false,
+          "panels": []
+        },
+        {
+          "type": "timeseries",
+          "title": "Events in / out",
+          "datasource": {
+            "type": "victoriametrics-datasource",
+            "uid": "${DS_VICTORIAMETRICS}"
+          },
+          "gridPos": {
+            "h": 5,
+            "w": 12,
+            "x": 0,
+            "y": 16
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "victoriametrics-datasource",
+                "uid": "${DS_VICTORIAMETRICS}"
+              },
+              "expr": "sum(rate(vector_component_received_events_total[5m]))",
+              "legendFormat": "received",
+              "refId": "A"
+            },
+            {
+              "datasource": {
+                "type": "victoriametrics-datasource",
+                "uid": "${DS_VICTORIAMETRICS}"
+              },
+              "expr": "sum(rate(vector_component_sent_events_total[5m]))",
+              "legendFormat": "sent",
+              "refId": "B"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "fillOpacity": 8,
+                "lineWidth": 1,
+                "showPoints": "never",
+                "spanNulls": true
+              },
+              "unit": "ops"
+            },
+            "overrides": []
+          },
+          "description": "Sustained received > sent means the VictoriaLogs sink is backing up."
+        },
+        {
+          "type": "timeseries",
+          "title": "Vector errors / s",
+          "datasource": {
+            "type": "victoriametrics-datasource",
+            "uid": "${DS_VICTORIAMETRICS}"
+          },
+          "gridPos": {
+            "h": 5,
+            "w": 12,
+            "x": 12,
+            "y": 16
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "victoriametrics-datasource",
+                "uid": "${DS_VICTORIAMETRICS}"
+              },
+              "expr": "sum by (component_id) (rate(vector_component_errors_total[5m]))",
+              "legendFormat": "{{component_id}}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "fillOpacity": 8,
+                "lineWidth": 1,
+                "showPoints": "never",
+                "spanNulls": true
+              },
+              "unit": "ops"
+            },
+            "overrides": []
+          },
+          "description": "Needs the internal_metrics source; previously absent entirely."
+        }
+      ]
+    }

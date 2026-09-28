@@ -104,6 +104,14 @@ spec:
           args:
             - "--mysqld.address=localhost:3306"
             - "--mysqld.username=root"
+            # Group Replication member stats are NOT collected by default.
+            # Without these the MGR panels have no per-member state and the
+            # only group signal is the coarse
+            # mysql_global_status_group_replication_* flow-control gauges.
+            - "--collect.perf_schema.replication_group_members"
+            - "--collect.perf_schema.replication_group_member_stats"
+            # Applier/coordinator lag, for replication-health panels.
+            - "--collect.slave_status"
           env:
             - name: MYSQLD_EXPORTER_PASSWORD
               valueFrom:
