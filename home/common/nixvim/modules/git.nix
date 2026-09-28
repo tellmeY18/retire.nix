@@ -1,48 +1,38 @@
 # modules/git.nix
 # Git integration: gitsigns, neogit, diffview.
 { ... }:
+let
+  # Staged and unstaged share these five signs; only the unstaged set
+  # additionally marks untracked files.
+  commonSigns = {
+    add = {
+      text = "▎";
+    };
+    change = {
+      text = "▎";
+    };
+    delete = {
+      text = " ";
+    };
+    topdelete = {
+      text = " ";
+    };
+    changedelete = {
+      text = "▎";
+    };
+  };
+in
 {
   # ── Gitsigns: git signs in gutter ──────────────────────
   plugins.gitsigns = {
     enable = true;
     settings = {
-      signs = {
-        add = {
-          text = "▎";
-        };
-        change = {
-          text = "▎";
-        };
-        delete = {
-          text = " ";
-        };
-        topdelete = {
-          text = " ";
-        };
-        changedelete = {
-          text = "▎";
-        };
+      signs = commonSigns // {
         untracked = {
           text = "▎";
         };
       };
-      signs_staged = {
-        add = {
-          text = "▎";
-        };
-        change = {
-          text = "▎";
-        };
-        delete = {
-          text = " ";
-        };
-        topdelete = {
-          text = " ";
-        };
-        changedelete = {
-          text = "▎";
-        };
-      };
+      signs_staged = commonSigns;
       signcolumn = true;
       numhl = false;
       linehl = false;
