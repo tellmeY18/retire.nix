@@ -163,13 +163,6 @@ data:
             client = self.headers.get('X-Forwarded-For', self.client_address[0])
             print(f'{client} - {self.command} {self.path} - {format % args}', flush=True)
 
-        def _send_redirect(self, location, set_cookie=None):
-            self.send_response(302)
-            if set_cookie:
-                self.send_header('Set-Cookie', set_cookie)
-            self.send_header('Location', location)
-            self.end_headers()
-
         def _send_html(self, html, status=200):
             html = html.replace('__SITE_KEY__', TURNSTILE_SITE_KEY)
             self.send_response(status)

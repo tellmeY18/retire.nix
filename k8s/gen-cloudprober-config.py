@@ -10,6 +10,8 @@ Or via Justfile:
 """
 
 import sys
+from urllib.parse import urlparse
+
 import yaml
 
 HEADER = """\
@@ -39,8 +41,6 @@ data:
 
 def make_probe(ep):
     """Generate a Cloudprober probe block from an endpoint dict."""
-    from urllib.parse import urlparse
-
     parsed = urlparse(ep["url"])
     host = parsed.hostname
     path = parsed.path or "/"
@@ -86,14 +86,7 @@ def make_probe(ep):
 
 def make_tls_probe(endpoints):
     """Generate a single TLS cert-check probe for all endpoints."""
-    hosts = ",".join(
-        set(
-            __import__("urllib.parse", fromlist=["urlparse"])
-            .urlparse(ep["url"])
-            .hostname
-            for ep in endpoints
-        )
-    )
+    hosts = ",".join(set(urlparse(ep["url"]).hostname for ep in endpoints))
     return f"""\
     probe {{
       name: "tls-expiry"
