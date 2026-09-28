@@ -563,22 +563,13 @@ data:
         $wgExtraNamespaces[$nsTalk]    = "{$y}_talk";
         $wgNamespacesWithSubpages[$nsContent] = true;
         $wgNamespacesWithSubpages[$nsTalk]    = true;
-    }
-
-    # Include year namespaces in default search so [[Special:Search]]
-    # finds event pages without users having to tick boxes.
-    for ($y = 1961; $y <= $endYear; $y++) {
-        $wgNamespacesToBeSearchedDefault[3000 + ($y - 1961) * 2] = true;
-    }
-
-    # Also index them in CirrusSearch
-    for ($y = 1961; $y <= $endYear; $y++) {
-        $wgCirrusSearchNamespaceWeights[3000 + ($y - 1961) * 2] = 1.0;
-    }
-
-    # Enable VisualEditor for all year-based namespaces
-    for ($y = 1961; $y <= $endYear; $y++) {
-        $wgVisualEditorAvailableNamespaces[3000 + ($y - 1961) * 2] = true;
+        # Include year namespaces in default search so [[Special:Search]]
+        # finds event pages without users having to tick boxes.
+        $wgNamespacesToBeSearchedDefault[$nsContent] = true;
+        # Also index them in CirrusSearch
+        $wgCirrusSearchNamespaceWeights[$nsContent] = 1.0;
+        # Enable VisualEditor for all year-based namespaces
+        $wgVisualEditorAvailableNamespaces[$nsContent] = true;
     }
 
     ## HowTo namespace for college documentation
