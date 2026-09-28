@@ -1,6 +1,24 @@
 # modules/ui.nix
 # UI enhancements: statusline, dashboard, which-key, noice, indent guides, dressing.
 { ... }:
+let
+  # Every dashboard button shares the same shape; only the label, shortcut
+  # key, the :command the keymap runs, and the Lua callback differ.
+  button = val: shortcut: keymapCmd: onPress: {
+    type = "button";
+    inherit val;
+    on_press.__raw = onPress;
+    opts = {
+      keymap = [ "n" shortcut keymapCmd { } ];
+      inherit shortcut;
+      position = "center";
+      width = 50;
+      align_shortcut = "right";
+      hl = "AlphaButtons";
+      hl_shortcut = "AlphaShortcut";
+    };
+  };
+in
 {
   # ── Which-key: keybinding popup ─────────────────────────
   plugins.which-key = {
@@ -187,76 +205,16 @@
       {
         type = "group";
         val = [
-          {
-            type = "button";
-            val = "  Find File";
-            on_press.__raw = "function() require('telescope.builtin').find_files() end";
-            opts = {
-              keymap = [ "n" "f" "<Cmd>Telescope find_files<CR>" { } ];
-              shortcut = "f";
-              position = "center";
-              width = 50;
-              align_shortcut = "right";
-              hl = "AlphaButtons";
-              hl_shortcut = "AlphaShortcut";
-            };
-          }
-          {
-            type = "button";
-            val = "  Recent Files";
-            on_press.__raw = "function() require('telescope.builtin').oldfiles() end";
-            opts = {
-              keymap = [ "n" "r" "<Cmd>Telescope oldfiles<CR>" { } ];
-              shortcut = "r";
-              position = "center";
-              width = 50;
-              align_shortcut = "right";
-              hl = "AlphaButtons";
-              hl_shortcut = "AlphaShortcut";
-            };
-          }
-          {
-            type = "button";
-            val = "  Live Grep";
-            on_press.__raw = "function() require('telescope.builtin').live_grep() end";
-            opts = {
-              keymap = [ "n" "g" "<Cmd>Telescope live_grep<CR>" { } ];
-              shortcut = "g";
-              position = "center";
-              width = 50;
-              align_shortcut = "right";
-              hl = "AlphaButtons";
-              hl_shortcut = "AlphaShortcut";
-            };
-          }
-          {
-            type = "button";
-            val = "  Neogit";
-            on_press.__raw = "function() require('neogit').open() end";
-            opts = {
-              keymap = [ "n" "n" "<Cmd>Neogit<CR>" { } ];
-              shortcut = "n";
-              position = "center";
-              width = 50;
-              align_shortcut = "right";
-              hl = "AlphaButtons";
-              hl_shortcut = "AlphaShortcut";
-            };
-          }
-          {
-            type = "button";
-            val = "  Quit";
-            on_press.__raw = "function() vim.cmd.qa() end";
-            opts = {
-              keymap = [ "n" "q" "<Cmd>qa<CR>" { } ];
-              shortcut = "q";
-              position = "center";
-              width = 50;
-              align_shortcut = "right";
-              hl = "AlphaButtons";
-              hl_shortcut = "AlphaShortcut";
-            };
-          }
+          (button "  Find File" "f" "<Cmd>Telescope find_files<CR>"
+            "function() require('telescope.builtin').find_files() end")
+          (button "  Recent Files" "r" "<Cmd>Telescope oldfiles<CR>"
+            "function() require('telescope.builtin').oldfiles() end")
+          (button "  Live Grep" "g" "<Cmd>Telescope live_grep<CR>"
+            "function() require('telescope.builtin').live_grep() end")
+          (button "  Neogit" "n" "<Cmd>Neogit<CR>"
+            "function() require('neogit').open() end")
+          (button "  Quit" "q" "<Cmd>qa<CR>"
+            "function() vim.cmd.qa() end")
         ];
       }
       { type = "padding"; val = 2; }
