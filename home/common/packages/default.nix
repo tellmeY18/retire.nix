@@ -28,8 +28,5 @@
     # Text editors and tools
     vim
     nano
-
-    # Additional development tools
-    nix-index # Locate packages providing a file
   ];
 }

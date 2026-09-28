@@ -26,10 +26,4 @@
 
     tmux.enableShellIntegration = true;
   };
-
-  home.sessionVariables = {
-    FZF_DEFAULT_COMMAND = "${pkgs.fd}/bin/fd --type f --hidden --follow --exclude .git";
-    FZF_CTRL_T_COMMAND = "${pkgs.fd}/bin/fd --type f --hidden --follow --exclude .git";
-    FZF_ALT_C_COMMAND = "${pkgs.fd}/bin/fd --type d --hidden --follow --exclude .git";
-  };
 }

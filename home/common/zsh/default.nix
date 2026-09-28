@@ -35,18 +35,16 @@
     defaultKeymap = "emacs";
 
     # ZSH options
+    # NOTE: the history options below (EXTENDED_HISTORY, HIST_EXPIRE_DUPS_FIRST,
+    # HIST_IGNORE_DUPS, HIST_IGNORE_SPACE, SHARE_HISTORY) and AUTO_CD are NOT
+    # listed here — home-manager appends them to setOptions from the
+    # `history` block and `autocd` below.
     setOptions = [
-      "EXTENDED_HISTORY" # Write timestamps to history
-      "HIST_EXPIRE_DUPS_FIRST" # Expire duplicates first
       "HIST_FIND_NO_DUPS" # Don't display duplicates during searches
-      "HIST_IGNORE_DUPS" # Don't record duplicate commands
-      "HIST_IGNORE_SPACE" # Don't record commands starting with space
       "HIST_REDUCE_BLANKS" # Remove superfluous blanks
       "HIST_SAVE_NO_DUPS" # Don't save duplicates
       "HIST_VERIFY" # Show command with history expansion
       "INC_APPEND_HISTORY" # Append to history immediately
-      "SHARE_HISTORY" # Share history between sessions
-      "AUTO_CD" # Auto cd to directory
       "AUTO_PUSHD" # Automatically push directories onto stack
       "PUSHD_IGNORE_DUPS" # Don't push duplicates onto stack
       "PUSHD_SILENT" # Don't print directory stack
