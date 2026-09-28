@@ -16,7 +16,6 @@ with pkgs;
   aria2
   go
   bun
-  comma
   git
   riseup-vpn
   cockpit

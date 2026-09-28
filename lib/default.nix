@@ -105,6 +105,13 @@ let
           modules = [
             (hostsDir + "/${dirName}/configuration.nix")
             ../modules/binary-cache.nix
+            # comma (`,`) + its prebuilt index, on every host including any
+            # added later. See profiles/comma.nix.
+            inputs.nix-index-database.nixosModules.nix-index
+            ../profiles/comma.nix
+            # NixOS-only umbrella switch (no darwin equivalent) — gates the
+            # upstream module's config block and turns off command-not-found.
+            { programs.nix-index-database.enable = true; }
           ]
           ++ (extraModules.${dirName} or [ ]);
         })
@@ -130,6 +137,10 @@ let
           modules = [
             (hostsDir + "/${dirName}/configuration.nix")
             ../modules/binary-cache.nix
+            # comma (`,`) + its prebuilt index. The darwinModules.nix-index
+            # import stays in flake.nix's extraModules; this just turns comma
+            # on for every current and future darwin host.
+            ../profiles/comma.nix
           ]
           ++ (extraModules.${dirName} or [ ]);
         })

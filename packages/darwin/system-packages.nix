@@ -54,7 +54,6 @@
     pkgs.yazi
     pkgs.tealdeer
     pkgs.rclone
-    pkgs.comma
     pkgs.glow
     pkgs.qrencode
     pkgs.android-tools
