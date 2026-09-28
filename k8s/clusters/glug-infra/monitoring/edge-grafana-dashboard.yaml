@@ -34,7 +34,7 @@ data:
           {
             "name": "DS_VICTORIAMETRICS",
             "type": "datasource",
-            "query": "victoriametrics-datasource",
+            "query": "prometheus",
             "current": {},
             "hide": 0,
             "refresh": 1
@@ -43,7 +43,7 @@ data:
             "name": "node",
             "type": "query",
             "datasource": {
-              "type": "victoriametrics-datasource",
+              "type": "prometheus",
               "uid": "${DS_VICTORIAMETRICS}"
             },
             "query": "label_values(node_boot_time_seconds, node)",
@@ -74,7 +74,7 @@ data:
           "type": "stat",
           "title": "Requests / s",
           "datasource": {
-            "type": "victoriametrics-datasource",
+            "type": "prometheus",
             "uid": "${DS_VICTORIAMETRICS}"
           },
           "gridPos": {
@@ -86,7 +86,7 @@ data:
           "targets": [
             {
               "datasource": {
-                "type": "victoriametrics-datasource",
+                "type": "prometheus",
                 "uid": "${DS_VICTORIAMETRICS}"
               },
               "expr": "sum(rate(traefik_service_requests_total[5m]))",
@@ -118,7 +118,7 @@ data:
           "type": "stat",
           "title": "5xx / s",
           "datasource": {
-            "type": "victoriametrics-datasource",
+            "type": "prometheus",
             "uid": "${DS_VICTORIAMETRICS}"
           },
           "gridPos": {
@@ -130,7 +130,7 @@ data:
           "targets": [
             {
               "datasource": {
-                "type": "victoriametrics-datasource",
+                "type": "prometheus",
                 "uid": "${DS_VICTORIAMETRICS}"
               },
               "expr": "sum(rate(traefik_service_requests_total{code=~\"5..\"}[5m]))",
@@ -180,7 +180,7 @@ data:
           "type": "timeseries",
           "title": "Requests / s by service",
           "datasource": {
-            "type": "victoriametrics-datasource",
+            "type": "prometheus",
             "uid": "${DS_VICTORIAMETRICS}"
           },
           "gridPos": {
@@ -192,7 +192,7 @@ data:
           "targets": [
             {
               "datasource": {
-                "type": "victoriametrics-datasource",
+                "type": "prometheus",
                 "uid": "${DS_VICTORIAMETRICS}"
               },
               "expr": "sum by (exported_service) (rate(traefik_service_requests_total[5m]))",
@@ -218,7 +218,7 @@ data:
           "type": "timeseries",
           "title": "Status codes",
           "datasource": {
-            "type": "victoriametrics-datasource",
+            "type": "prometheus",
             "uid": "${DS_VICTORIAMETRICS}"
           },
           "gridPos": {
@@ -230,7 +230,7 @@ data:
           "targets": [
             {
               "datasource": {
-                "type": "victoriametrics-datasource",
+                "type": "prometheus",
                 "uid": "${DS_VICTORIAMETRICS}"
               },
               "expr": "sum by (code) (rate(traefik_service_requests_total[5m]))",
@@ -255,7 +255,7 @@ data:
           "type": "timeseries",
           "title": "Latency p50 / p95 / p99",
           "datasource": {
-            "type": "victoriametrics-datasource",
+            "type": "prometheus",
             "uid": "${DS_VICTORIAMETRICS}"
           },
           "gridPos": {
@@ -267,7 +267,7 @@ data:
           "targets": [
             {
               "datasource": {
-                "type": "victoriametrics-datasource",
+                "type": "prometheus",
                 "uid": "${DS_VICTORIAMETRICS}"
               },
               "expr": "histogram_quantile(0.50, sum by (le) (rate(traefik_service_request_duration_seconds_bucket[5m])))",
@@ -276,7 +276,7 @@ data:
             },
             {
               "datasource": {
-                "type": "victoriametrics-datasource",
+                "type": "prometheus",
                 "uid": "${DS_VICTORIAMETRICS}"
               },
               "expr": "histogram_quantile(0.95, sum by (le) (rate(traefik_service_request_duration_seconds_bucket[5m])))",
@@ -285,7 +285,7 @@ data:
             },
             {
               "datasource": {
-                "type": "victoriametrics-datasource",
+                "type": "prometheus",
                 "uid": "${DS_VICTORIAMETRICS}"
               },
               "expr": "histogram_quantile(0.99, sum by (le) (rate(traefik_service_request_duration_seconds_bucket[5m])))",
@@ -322,7 +322,7 @@ data:
           "type": "stat",
           "title": "Active decisions",
           "datasource": {
-            "type": "victoriametrics-datasource",
+            "type": "prometheus",
             "uid": "${DS_VICTORIAMETRICS}"
           },
           "gridPos": {
@@ -334,7 +334,7 @@ data:
           "targets": [
             {
               "datasource": {
-                "type": "victoriametrics-datasource",
+                "type": "prometheus",
                 "uid": "${DS_VICTORIAMETRICS}"
               },
               "expr": "sum(cs_active_decisions)",
@@ -366,7 +366,7 @@ data:
           "type": "timeseries",
           "title": "Alerts / s by scenario",
           "datasource": {
-            "type": "victoriametrics-datasource",
+            "type": "prometheus",
             "uid": "${DS_VICTORIAMETRICS}"
           },
           "gridPos": {
@@ -378,7 +378,7 @@ data:
           "targets": [
             {
               "datasource": {
-                "type": "victoriametrics-datasource",
+                "type": "prometheus",
                 "uid": "${DS_VICTORIAMETRICS}"
               },
               "expr": "sum by (scenario) (rate(cs_alerts[5m]))",
@@ -415,7 +415,7 @@ data:
           "type": "timeseries",
           "title": "Events in / out",
           "datasource": {
-            "type": "victoriametrics-datasource",
+            "type": "prometheus",
             "uid": "${DS_VICTORIAMETRICS}"
           },
           "gridPos": {
@@ -427,7 +427,7 @@ data:
           "targets": [
             {
               "datasource": {
-                "type": "victoriametrics-datasource",
+                "type": "prometheus",
                 "uid": "${DS_VICTORIAMETRICS}"
               },
               "expr": "sum(rate(vector_component_received_events_total[5m]))",
@@ -436,7 +436,7 @@ data:
             },
             {
               "datasource": {
-                "type": "victoriametrics-datasource",
+                "type": "prometheus",
                 "uid": "${DS_VICTORIAMETRICS}"
               },
               "expr": "sum(rate(vector_component_sent_events_total[5m]))",
@@ -462,7 +462,7 @@ data:
           "type": "timeseries",
           "title": "Vector errors / s",
           "datasource": {
-            "type": "victoriametrics-datasource",
+            "type": "prometheus",
             "uid": "${DS_VICTORIAMETRICS}"
           },
           "gridPos": {
@@ -474,7 +474,7 @@ data:
           "targets": [
             {
               "datasource": {
-                "type": "victoriametrics-datasource",
+                "type": "prometheus",
                 "uid": "${DS_VICTORIAMETRICS}"
               },
               "expr": "sum by (component_id) (rate(vector_component_errors_total[5m]))",

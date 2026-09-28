@@ -34,7 +34,7 @@ data:
           {
             "name": "DS_VICTORIAMETRICS",
             "type": "datasource",
-            "query": "victoriametrics-datasource",
+            "query": "prometheus",
             "current": {},
             "hide": 0,
             "refresh": 1
@@ -43,7 +43,7 @@ data:
             "name": "node",
             "type": "query",
             "datasource": {
-              "type": "victoriametrics-datasource",
+              "type": "prometheus",
               "uid": "${DS_VICTORIAMETRICS}"
             },
             "query": "label_values(node_boot_time_seconds, node)",
@@ -74,7 +74,7 @@ data:
           "type": "stat",
           "title": "Uptime",
           "datasource": {
-            "type": "victoriametrics-datasource",
+            "type": "prometheus",
             "uid": "${DS_VICTORIAMETRICS}"
           },
           "gridPos": {
@@ -86,7 +86,7 @@ data:
           "targets": [
             {
               "datasource": {
-                "type": "victoriametrics-datasource",
+                "type": "prometheus",
                 "uid": "${DS_VICTORIAMETRICS}"
               },
               "expr": "time() - node_boot_time_seconds{node=~\"$node\"}",
@@ -136,7 +136,7 @@ data:
           "type": "stat",
           "title": "Nodes Up",
           "datasource": {
-            "type": "victoriametrics-datasource",
+            "type": "prometheus",
             "uid": "${DS_VICTORIAMETRICS}"
           },
           "gridPos": {
@@ -148,7 +148,7 @@ data:
           "targets": [
             {
               "datasource": {
-                "type": "victoriametrics-datasource",
+                "type": "prometheus",
                 "uid": "${DS_VICTORIAMETRICS}"
               },
               "expr": "count(up{job=\"node-exporter\"} == 1)",
@@ -193,7 +193,7 @@ data:
           "type": "timeseries",
           "title": "CPU Busy %",
           "datasource": {
-            "type": "victoriametrics-datasource",
+            "type": "prometheus",
             "uid": "${DS_VICTORIAMETRICS}"
           },
           "gridPos": {
@@ -205,7 +205,7 @@ data:
           "targets": [
             {
               "datasource": {
-                "type": "victoriametrics-datasource",
+                "type": "prometheus",
                 "uid": "${DS_VICTORIAMETRICS}"
               },
               "expr": "100 - (avg by (node) (rate(node_cpu_seconds_total{mode=\"idle\",node=~\"$node\"}[5m])) * 100)",
@@ -232,7 +232,7 @@ data:
           "type": "timeseries",
           "title": "Load (1m) per core",
           "datasource": {
-            "type": "victoriametrics-datasource",
+            "type": "prometheus",
             "uid": "${DS_VICTORIAMETRICS}"
           },
           "gridPos": {
@@ -244,7 +244,7 @@ data:
           "targets": [
             {
               "datasource": {
-                "type": "victoriametrics-datasource",
+                "type": "prometheus",
                 "uid": "${DS_VICTORIAMETRICS}"
               },
               "expr": "node_load1{node=~\"$node\"} / on(node) count by (node) (node_cpu_seconds_total{mode=\"idle\",node=~\"$node\"})",
@@ -281,7 +281,7 @@ data:
           "type": "timeseries",
           "title": "Memory Used %",
           "datasource": {
-            "type": "victoriametrics-datasource",
+            "type": "prometheus",
             "uid": "${DS_VICTORIAMETRICS}"
           },
           "gridPos": {
@@ -293,7 +293,7 @@ data:
           "targets": [
             {
               "datasource": {
-                "type": "victoriametrics-datasource",
+                "type": "prometheus",
                 "uid": "${DS_VICTORIAMETRICS}"
               },
               "expr": "100 * (1 - node_memory_MemAvailable_bytes{node=~\"$node\"} / node_memory_MemTotal_bytes{node=~\"$node\"})",
@@ -320,7 +320,7 @@ data:
           "type": "timeseries",
           "title": "Swap Used",
           "datasource": {
-            "type": "victoriametrics-datasource",
+            "type": "prometheus",
             "uid": "${DS_VICTORIAMETRICS}"
           },
           "gridPos": {
@@ -332,7 +332,7 @@ data:
           "targets": [
             {
               "datasource": {
-                "type": "victoriametrics-datasource",
+                "type": "prometheus",
                 "uid": "${DS_VICTORIAMETRICS}"
               },
               "expr": "node_memory_SwapTotal_bytes{node=~\"$node\"} - node_memory_SwapFree_bytes{node=~\"$node\"}",
@@ -358,7 +358,7 @@ data:
           "type": "timeseries",
           "title": "ZRAM compression ratio",
           "datasource": {
-            "type": "victoriametrics-datasource",
+            "type": "prometheus",
             "uid": "${DS_VICTORIAMETRICS}"
           },
           "gridPos": {
@@ -370,7 +370,7 @@ data:
           "targets": [
             {
               "datasource": {
-                "type": "victoriametrics-datasource",
+                "type": "prometheus",
                 "uid": "${DS_VICTORIAMETRICS}"
               },
               "expr": "node_zram_orig_data_size / clamp_min(node_zram_compr_data_size, 1)",
@@ -407,7 +407,7 @@ data:
           "type": "timeseries",
           "title": "Filesystem Used %",
           "datasource": {
-            "type": "victoriametrics-datasource",
+            "type": "prometheus",
             "uid": "${DS_VICTORIAMETRICS}"
           },
           "gridPos": {
@@ -419,7 +419,7 @@ data:
           "targets": [
             {
               "datasource": {
-                "type": "victoriametrics-datasource",
+                "type": "prometheus",
                 "uid": "${DS_VICTORIAMETRICS}"
               },
               "expr": "100 - (node_filesystem_avail_bytes{fstype!~\"tmpfs|ramfs|overlay\",node=~\"$node\"} / node_filesystem_size_bytes{fstype!~\"tmpfs|ramfs|overlay\",node=~\"$node\"} * 100)",
@@ -445,7 +445,7 @@ data:
           "type": "timeseries",
           "title": "ZFS ARC Size",
           "datasource": {
-            "type": "victoriametrics-datasource",
+            "type": "prometheus",
             "uid": "${DS_VICTORIAMETRICS}"
           },
           "gridPos": {
@@ -457,7 +457,7 @@ data:
           "targets": [
             {
               "datasource": {
-                "type": "victoriametrics-datasource",
+                "type": "prometheus",
                 "uid": "${DS_VICTORIAMETRICS}"
               },
               "expr": "node_zfs_arc_size{node=~\"$node\"}",
@@ -483,7 +483,7 @@ data:
           "type": "timeseries",
           "title": "ZFS dataset IO (ops/s)",
           "datasource": {
-            "type": "victoriametrics-datasource",
+            "type": "prometheus",
             "uid": "${DS_VICTORIAMETRICS}"
           },
           "gridPos": {
@@ -495,7 +495,7 @@ data:
           "targets": [
             {
               "datasource": {
-                "type": "victoriametrics-datasource",
+                "type": "prometheus",
                 "uid": "${DS_VICTORIAMETRICS}"
               },
               "expr": "rate(node_zfs_zpool_dataset_reads{node=~\"$node\"}[5m])",
@@ -504,7 +504,7 @@ data:
             },
             {
               "datasource": {
-                "type": "victoriametrics-datasource",
+                "type": "prometheus",
                 "uid": "${DS_VICTORIAMETRICS}"
               },
               "expr": "rate(node_zfs_zpool_dataset_writes{node=~\"$node\"}[5m])",
@@ -542,7 +542,7 @@ data:
           "type": "timeseries",
           "title": "Network Throughput",
           "datasource": {
-            "type": "victoriametrics-datasource",
+            "type": "prometheus",
             "uid": "${DS_VICTORIAMETRICS}"
           },
           "gridPos": {
@@ -554,7 +554,7 @@ data:
           "targets": [
             {
               "datasource": {
-                "type": "victoriametrics-datasource",
+                "type": "prometheus",
                 "uid": "${DS_VICTORIAMETRICS}"
               },
               "expr": "rate(node_network_receive_bytes_total{device!~\"lo|veth.*|cni.*|flannel.*\",node=~\"$node\"}[5m])*8",
@@ -563,7 +563,7 @@ data:
             },
             {
               "datasource": {
-                "type": "victoriametrics-datasource",
+                "type": "prometheus",
                 "uid": "${DS_VICTORIAMETRICS}"
               },
               "expr": "rate(node_network_transmit_bytes_total{device!~\"lo|veth.*|cni.*|flannel.*\",node=~\"$node\"}[5m])*8",
@@ -588,7 +588,7 @@ data:
           "type": "timeseries",
           "title": "Network Errors + Drops",
           "datasource": {
-            "type": "victoriametrics-datasource",
+            "type": "prometheus",
             "uid": "${DS_VICTORIAMETRICS}"
           },
           "gridPos": {
@@ -600,7 +600,7 @@ data:
           "targets": [
             {
               "datasource": {
-                "type": "victoriametrics-datasource",
+                "type": "prometheus",
                 "uid": "${DS_VICTORIAMETRICS}"
               },
               "expr": "rate(node_network_receive_errs_total{node=~\"$node\"}[5m])",
@@ -609,7 +609,7 @@ data:
             },
             {
               "datasource": {
-                "type": "victoriametrics-datasource",
+                "type": "prometheus",
                 "uid": "${DS_VICTORIAMETRICS}"
               },
               "expr": "rate(node_network_transmit_errs_total{node=~\"$node\"}[5m])",
@@ -618,7 +618,7 @@ data:
             },
             {
               "datasource": {
-                "type": "victoriametrics-datasource",
+                "type": "prometheus",
                 "uid": "${DS_VICTORIAMETRICS}"
               },
               "expr": "rate(node_network_receive_drop_total{node=~\"$node\"}[5m])",
@@ -643,7 +643,7 @@ data:
           "type": "timeseries",
           "title": "Battery % (laptop nodes)",
           "datasource": {
-            "type": "victoriametrics-datasource",
+            "type": "prometheus",
             "uid": "${DS_VICTORIAMETRICS}"
           },
           "gridPos": {
@@ -655,7 +655,7 @@ data:
           "targets": [
             {
               "datasource": {
-                "type": "victoriametrics-datasource",
+                "type": "prometheus",
                 "uid": "${DS_VICTORIAMETRICS}"
               },
               "expr": "100 * node_power_supply_energy_watthour{power_supply=~\"BAT.*\"} / node_power_supply_energy_full{power_supply=~\"BAT.*\"}",
@@ -664,7 +664,7 @@ data:
             },
             {
               "datasource": {
-                "type": "victoriametrics-datasource",
+                "type": "prometheus",
                 "uid": "${DS_VICTORIAMETRICS}"
               },
               "expr": "node_power_supply_online{power_supply=~\"AC.*\"} * 100",
@@ -703,7 +703,7 @@ data:
           "type": "timeseries",
           "title": "Runnable / Blocked",
           "datasource": {
-            "type": "victoriametrics-datasource",
+            "type": "prometheus",
             "uid": "${DS_VICTORIAMETRICS}"
           },
           "gridPos": {
@@ -715,7 +715,7 @@ data:
           "targets": [
             {
               "datasource": {
-                "type": "victoriametrics-datasource",
+                "type": "prometheus",
                 "uid": "${DS_VICTORIAMETRICS}"
               },
               "expr": "node_procs_running{node=~\"$node\"}",
@@ -724,7 +724,7 @@ data:
             },
             {
               "datasource": {
-                "type": "victoriametrics-datasource",
+                "type": "prometheus",
                 "uid": "${DS_VICTORIAMETRICS}"
               },
               "expr": "node_procs_blocked{node=~\"$node\"}",
@@ -749,7 +749,7 @@ data:
           "type": "timeseries",
           "title": "Context switches / s",
           "datasource": {
-            "type": "victoriametrics-datasource",
+            "type": "prometheus",
             "uid": "${DS_VICTORIAMETRICS}"
           },
           "gridPos": {
@@ -761,7 +761,7 @@ data:
           "targets": [
             {
               "datasource": {
-                "type": "victoriametrics-datasource",
+                "type": "prometheus",
                 "uid": "${DS_VICTORIAMETRICS}"
               },
               "expr": "rate(node_context_switches_total{node=~\"$node\"}[5m])",

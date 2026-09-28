@@ -34,7 +34,7 @@ data:
           {
             "name": "DS_VICTORIAMETRICS",
             "type": "datasource",
-            "query": "victoriametrics-datasource",
+            "query": "prometheus",
             "current": {},
             "hide": 0,
             "refresh": 1
@@ -43,7 +43,7 @@ data:
             "name": "node",
             "type": "query",
             "datasource": {
-              "type": "victoriametrics-datasource",
+              "type": "prometheus",
               "uid": "${DS_VICTORIAMETRICS}"
             },
             "query": "label_values(node_boot_time_seconds, node)",
@@ -74,7 +74,7 @@ data:
           "type": "stat",
           "title": "Nodes Ready",
           "datasource": {
-            "type": "victoriametrics-datasource",
+            "type": "prometheus",
             "uid": "${DS_VICTORIAMETRICS}"
           },
           "gridPos": {
@@ -86,7 +86,7 @@ data:
           "targets": [
             {
               "datasource": {
-                "type": "victoriametrics-datasource",
+                "type": "prometheus",
                 "uid": "${DS_VICTORIAMETRICS}"
               },
               "expr": "sum(kube_node_status_condition{condition=\"Ready\",status=\"true\"})",
@@ -130,7 +130,7 @@ data:
           "type": "stat",
           "title": "Pods Running",
           "datasource": {
-            "type": "victoriametrics-datasource",
+            "type": "prometheus",
             "uid": "${DS_VICTORIAMETRICS}"
           },
           "gridPos": {
@@ -142,7 +142,7 @@ data:
           "targets": [
             {
               "datasource": {
-                "type": "victoriametrics-datasource",
+                "type": "prometheus",
                 "uid": "${DS_VICTORIAMETRICS}"
               },
               "expr": "sum(kube_pod_status_phase{phase=\"Running\"})",
@@ -173,7 +173,7 @@ data:
           "type": "stat",
           "title": "Pods Not Running",
           "datasource": {
-            "type": "victoriametrics-datasource",
+            "type": "prometheus",
             "uid": "${DS_VICTORIAMETRICS}"
           },
           "gridPos": {
@@ -185,7 +185,7 @@ data:
           "targets": [
             {
               "datasource": {
-                "type": "victoriametrics-datasource",
+                "type": "prometheus",
                 "uid": "${DS_VICTORIAMETRICS}"
               },
               "expr": "sum(kube_pod_status_phase{phase=~\"Pending|Failed|Unknown\"})",
@@ -234,7 +234,7 @@ data:
           "type": "timeseries",
           "title": "Container restarts (1h)",
           "datasource": {
-            "type": "victoriametrics-datasource",
+            "type": "prometheus",
             "uid": "${DS_VICTORIAMETRICS}"
           },
           "gridPos": {
@@ -246,7 +246,7 @@ data:
           "targets": [
             {
               "datasource": {
-                "type": "victoriametrics-datasource",
+                "type": "prometheus",
                 "uid": "${DS_VICTORIAMETRICS}"
               },
               "expr": "topk(10, increase(kube_pod_container_status_restarts_total[1h]) > 0)",
@@ -283,7 +283,7 @@ data:
           "type": "timeseries",
           "title": "CPU cores",
           "datasource": {
-            "type": "victoriametrics-datasource",
+            "type": "prometheus",
             "uid": "${DS_VICTORIAMETRICS}"
           },
           "gridPos": {
@@ -295,7 +295,7 @@ data:
           "targets": [
             {
               "datasource": {
-                "type": "victoriametrics-datasource",
+                "type": "prometheus",
                 "uid": "${DS_VICTORIAMETRICS}"
               },
               "expr": "topk(10, sum by (namespace) (rate(container_cpu_usage_seconds_total{container!=\"\"}[5m])))",
@@ -319,7 +319,7 @@ data:
           "type": "timeseries",
           "title": "Memory working set",
           "datasource": {
-            "type": "victoriametrics-datasource",
+            "type": "prometheus",
             "uid": "${DS_VICTORIAMETRICS}"
           },
           "gridPos": {
@@ -331,7 +331,7 @@ data:
           "targets": [
             {
               "datasource": {
-                "type": "victoriametrics-datasource",
+                "type": "prometheus",
                 "uid": "${DS_VICTORIAMETRICS}"
               },
               "expr": "topk(10, sum by (namespace) (container_memory_working_set_bytes{container!=\"\"}))",
@@ -368,7 +368,7 @@ data:
           "type": "timeseries",
           "title": "PVC used %",
           "datasource": {
-            "type": "victoriametrics-datasource",
+            "type": "prometheus",
             "uid": "${DS_VICTORIAMETRICS}"
           },
           "gridPos": {
@@ -380,7 +380,7 @@ data:
           "targets": [
             {
               "datasource": {
-                "type": "victoriametrics-datasource",
+                "type": "prometheus",
                 "uid": "${DS_VICTORIAMETRICS}"
               },
               "expr": "100 * kubelet_volume_stats_used_bytes / kubelet_volume_stats_capacity_bytes",
@@ -407,7 +407,7 @@ data:
           "type": "timeseries",
           "title": "PVC free bytes",
           "datasource": {
-            "type": "victoriametrics-datasource",
+            "type": "prometheus",
             "uid": "${DS_VICTORIAMETRICS}"
           },
           "gridPos": {
@@ -419,7 +419,7 @@ data:
           "targets": [
             {
               "datasource": {
-                "type": "victoriametrics-datasource",
+                "type": "prometheus",
                 "uid": "${DS_VICTORIAMETRICS}"
               },
               "expr": "kubelet_volume_stats_available_bytes",

@@ -34,7 +34,7 @@ data:
           {
             "name": "DS_VICTORIAMETRICS",
             "type": "datasource",
-            "query": "victoriametrics-datasource",
+            "query": "prometheus",
             "current": {},
             "hide": 0,
             "refresh": 1
@@ -43,7 +43,7 @@ data:
             "name": "node",
             "type": "query",
             "datasource": {
-              "type": "victoriametrics-datasource",
+              "type": "prometheus",
               "uid": "${DS_VICTORIAMETRICS}"
             },
             "query": "label_values(node_boot_time_seconds, node)",
@@ -74,7 +74,7 @@ data:
           "type": "table",
           "title": "MGR Members",
           "datasource": {
-            "type": "victoriametrics-datasource",
+            "type": "prometheus",
             "uid": "${DS_VICTORIAMETRICS}"
           },
           "gridPos": {
@@ -86,7 +86,7 @@ data:
           "targets": [
             {
               "datasource": {
-                "type": "victoriametrics-datasource",
+                "type": "prometheus",
                 "uid": "${DS_VICTORIAMETRICS}"
               },
               "expr": "max by (member_host, member_role, member_state, member_version) (mysql_perf_schema_replication_group_member_info)",
@@ -110,7 +110,7 @@ data:
           "type": "stat",
           "title": "Members ONLINE",
           "datasource": {
-            "type": "victoriametrics-datasource",
+            "type": "prometheus",
             "uid": "${DS_VICTORIAMETRICS}"
           },
           "gridPos": {
@@ -122,7 +122,7 @@ data:
           "targets": [
             {
               "datasource": {
-                "type": "victoriametrics-datasource",
+                "type": "prometheus",
                 "uid": "${DS_VICTORIAMETRICS}"
               },
               "expr": "count(count by (member_host) (mysql_perf_schema_replication_group_member_info{member_state=\"ONLINE\"}))",
@@ -171,7 +171,7 @@ data:
           "type": "stat",
           "title": "Primaries",
           "datasource": {
-            "type": "victoriametrics-datasource",
+            "type": "prometheus",
             "uid": "${DS_VICTORIAMETRICS}"
           },
           "gridPos": {
@@ -183,7 +183,7 @@ data:
           "targets": [
             {
               "datasource": {
-                "type": "victoriametrics-datasource",
+                "type": "prometheus",
                 "uid": "${DS_VICTORIAMETRICS}"
               },
               "expr": "count(count by (member_host) (mysql_perf_schema_replication_group_member_info{member_role=\"PRIMARY\"}))",
@@ -232,7 +232,7 @@ data:
           "type": "stat",
           "title": "mysqld up",
           "datasource": {
-            "type": "victoriametrics-datasource",
+            "type": "prometheus",
             "uid": "${DS_VICTORIAMETRICS}"
           },
           "gridPos": {
@@ -244,7 +244,7 @@ data:
           "targets": [
             {
               "datasource": {
-                "type": "victoriametrics-datasource",
+                "type": "prometheus",
                 "uid": "${DS_VICTORIAMETRICS}"
               },
               "expr": "sum(mysql_up)",
@@ -289,7 +289,7 @@ data:
           "type": "timeseries",
           "title": "Queries / s",
           "datasource": {
-            "type": "victoriametrics-datasource",
+            "type": "prometheus",
             "uid": "${DS_VICTORIAMETRICS}"
           },
           "gridPos": {
@@ -301,7 +301,7 @@ data:
           "targets": [
             {
               "datasource": {
-                "type": "victoriametrics-datasource",
+                "type": "prometheus",
                 "uid": "${DS_VICTORIAMETRICS}"
               },
               "expr": "rate(mysql_global_status_queries[5m])",
@@ -326,7 +326,7 @@ data:
           "type": "timeseries",
           "title": "Threads connected",
           "datasource": {
-            "type": "victoriametrics-datasource",
+            "type": "prometheus",
             "uid": "${DS_VICTORIAMETRICS}"
           },
           "gridPos": {
@@ -338,7 +338,7 @@ data:
           "targets": [
             {
               "datasource": {
-                "type": "victoriametrics-datasource",
+                "type": "prometheus",
                 "uid": "${DS_VICTORIAMETRICS}"
               },
               "expr": "mysql_global_status_threads_connected",
@@ -363,7 +363,7 @@ data:
           "type": "timeseries",
           "title": "InnoDB buffer pool (data)",
           "datasource": {
-            "type": "victoriametrics-datasource",
+            "type": "prometheus",
             "uid": "${DS_VICTORIAMETRICS}"
           },
           "gridPos": {
@@ -375,7 +375,7 @@ data:
           "targets": [
             {
               "datasource": {
-                "type": "victoriametrics-datasource",
+                "type": "prometheus",
                 "uid": "${DS_VICTORIAMETRICS}"
               },
               "expr": "mysql_global_status_buffer_pool_pages{state=\"data\"} * 16384",
@@ -400,7 +400,7 @@ data:
           "type": "timeseries",
           "title": "Slow queries / s",
           "datasource": {
-            "type": "victoriametrics-datasource",
+            "type": "prometheus",
             "uid": "${DS_VICTORIAMETRICS}"
           },
           "gridPos": {
@@ -412,7 +412,7 @@ data:
           "targets": [
             {
               "datasource": {
-                "type": "victoriametrics-datasource",
+                "type": "prometheus",
                 "uid": "${DS_VICTORIAMETRICS}"
               },
               "expr": "rate(mysql_global_status_slow_queries[5m])",
@@ -449,7 +449,7 @@ data:
           "type": "stat",
           "title": "In recovery",
           "datasource": {
-            "type": "victoriametrics-datasource",
+            "type": "prometheus",
             "uid": "${DS_VICTORIAMETRICS}"
           },
           "gridPos": {
@@ -461,7 +461,7 @@ data:
           "targets": [
             {
               "datasource": {
-                "type": "victoriametrics-datasource",
+                "type": "prometheus",
                 "uid": "${DS_VICTORIAMETRICS}"
               },
               "expr": "cnpg_pg_replication_in_recovery",
@@ -506,7 +506,7 @@ data:
           "type": "timeseries",
           "title": "Backends",
           "datasource": {
-            "type": "victoriametrics-datasource",
+            "type": "prometheus",
             "uid": "${DS_VICTORIAMETRICS}"
           },
           "gridPos": {
@@ -518,7 +518,7 @@ data:
           "targets": [
             {
               "datasource": {
-                "type": "victoriametrics-datasource",
+                "type": "prometheus",
                 "uid": "${DS_VICTORIAMETRICS}"
               },
               "expr": "sum by (pod) (cnpg_backends_total)",
@@ -543,7 +543,7 @@ data:
           "type": "timeseries",
           "title": "Cache hit ratio",
           "datasource": {
-            "type": "victoriametrics-datasource",
+            "type": "prometheus",
             "uid": "${DS_VICTORIAMETRICS}"
           },
           "gridPos": {
@@ -555,7 +555,7 @@ data:
           "targets": [
             {
               "datasource": {
-                "type": "victoriametrics-datasource",
+                "type": "prometheus",
                 "uid": "${DS_VICTORIAMETRICS}"
               },
               "expr": "rate(cnpg_pg_stat_database_blks_hit[5m]) / clamp_min(rate(cnpg_pg_stat_database_blks_hit[5m]) + rate(cnpg_pg_stat_database_blks_read[5m]), 1)",
@@ -594,7 +594,7 @@ data:
           "type": "stat",
           "title": "Cache reachable",
           "datasource": {
-            "type": "victoriametrics-datasource",
+            "type": "prometheus",
             "uid": "${DS_VICTORIAMETRICS}"
           },
           "gridPos": {
@@ -606,7 +606,7 @@ data:
           "targets": [
             {
               "datasource": {
-                "type": "victoriametrics-datasource",
+                "type": "prometheus",
                 "uid": "${DS_VICTORIAMETRICS}"
               },
               "expr": "sum(rate(traefik_service_requests_total{exported_service=~\"attic-.*\"}[5m])) > bool 0",
@@ -651,7 +651,7 @@ data:
           "type": "timeseries",
           "title": "Cache requests / s by code",
           "datasource": {
-            "type": "victoriametrics-datasource",
+            "type": "prometheus",
             "uid": "${DS_VICTORIAMETRICS}"
           },
           "gridPos": {
@@ -663,7 +663,7 @@ data:
           "targets": [
             {
               "datasource": {
-                "type": "victoriametrics-datasource",
+                "type": "prometheus",
                 "uid": "${DS_VICTORIAMETRICS}"
               },
               "expr": "sum by (code) (rate(traefik_service_requests_total{exported_service=~\"attic-.*\"}[5m]))",
@@ -689,7 +689,7 @@ data:
           "type": "timeseries",
           "title": "Cache latency p95",
           "datasource": {
-            "type": "victoriametrics-datasource",
+            "type": "prometheus",
             "uid": "${DS_VICTORIAMETRICS}"
           },
           "gridPos": {
@@ -701,7 +701,7 @@ data:
           "targets": [
             {
               "datasource": {
-                "type": "victoriametrics-datasource",
+                "type": "prometheus",
                 "uid": "${DS_VICTORIAMETRICS}"
               },
               "expr": "histogram_quantile(0.95, sum by (le) (rate(traefik_service_request_duration_seconds_bucket{exported_service=~\"attic-.*\"}[5m])))",

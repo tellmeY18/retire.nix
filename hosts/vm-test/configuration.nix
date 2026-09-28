@@ -6,6 +6,9 @@
   # Minimal boot config for evaluation
   boot.loader.grub.enable = false;
   boot.loader.systemd-boot.enable = true;
+  # Bound retained boot entries so the ESP cannot fill and break activation
+  # mid-deploy (see hosts/kenobi/parts/boot.nix for the incident).
+  boot.loader.systemd-boot.configurationLimit = 5;
   boot.loader.efi.canTouchEfiVariables = true;
 
   # Minimal filesystem (needed for evaluation)
