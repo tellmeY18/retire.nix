@@ -172,18 +172,20 @@ secrets host:
 #  KUBECONFIG — control plane access via Tailscale
 # ═══════════════════════════════════════════════════════════════════════════
 
-# Fetch kubeconfig from chopper, rewrite server URL to use the stable
-# Tailscale LB endpoint (k3s-cp.tail477f2f.ts.net). This kubeconfig
-# works from any device on the tailnet.
+# Fetch kubeconfig from a control-plane node, rewrite server URL to use
+# the stable Tailscale LB endpoint (k3s-cp.tail477f2f.ts.net). This
+# kubeconfig works from any device on the tailnet.
 [doc('Fetch kubeconfig via Tailscale LB endpoint')]
 fetch-kubeconfig:
     #!/usr/bin/env bash
     set -euo pipefail
-    REMOTE="root@100.107.213.17"
+    # kenobi — must come from a node actually running the apiserver.
+    # chopper is an agent now and only has a stale leftover k3s.yaml.
+    REMOTE="root@100.73.101.89"
     REMOTE_PATH="/etc/rancher/k3s/k3s.yaml"
     LOCAL="${HOME}/.kube/glug-infra.yaml"
     mkdir -p "${HOME}/.kube"
-    echo "Fetching kubeconfig from chopper..."
+    echo "Fetching kubeconfig from the control-plane (kenobi)..."
     scp "${REMOTE}:${REMOTE_PATH}" "${LOCAL}"
     # Rewrite to use the stable Tailscale LB endpoint.
     sed -i'' -e 's|https://127.0.0.1:6443|https://k3s-cp.tail477f2f.ts.net:6443|g' "${LOCAL}"
