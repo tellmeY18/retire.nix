@@ -20,8 +20,8 @@
 #   kubectl (Mac)
 #     → k3s-cp.tail477f2f.ts.net:6443  (Tailscale MagicDNS)
 #     → ts-proxy pod                    (Tailscale operator managed)
-#     → Endpoints (100.107.213.17)      (chopper's Tailscale IP)
-#     → k3s apiserver on chopper:6443
+#     → Endpoints (100.73.101.89)       (kenobi's Tailscale IP)
+#     → k3s apiserver on kenobi:6443
 #
 # Adding a second control plane node:
 #   1. Add the node's Tailscale IP to the Endpoints subsets below
@@ -52,6 +52,13 @@ spec:
 ---
 # Manual Endpoints — one entry per control plane node.
 # When adding a new server node, append its Tailscale IP here.
+#
+# WARNING: these are hand-maintained, so they drift. This listed chopper
+# long after chopper stopped being a server (it is an agent now and has
+# nothing on :6443, only a stale leftover /etc/rancher/k3s/k3s.yaml).
+# The live object had been hand-patched to kenobi, so `kubectl apply`
+# would have silently reverted it and broken every kubectl client.
+# Only list nodes that actually run an apiserver.
 apiVersion: v1
 kind: Endpoints
 metadata:
@@ -59,8 +66,8 @@ metadata:
   namespace: kube-system
 subsets:
   - addresses:
-      - ip: "100.107.213.17"    # chopper (server-init)
-        nodeName: chopper
+      - ip: "100.73.101.89"     # kenobi (control-plane + etcd)
+        nodeName: kenobi
     ports:
       - name: kubernetes-api
         port: 6443
