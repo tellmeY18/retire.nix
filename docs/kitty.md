@@ -105,30 +105,24 @@ survive being moved between machines.
 
 ### Adding a session
 
-Sessions are data, not text — add an entry to `sessions` in
+Sessions are plain kitty session files — add an entry to `xdg.configFile` in
 `home/common/kitty/sessions.nix`:
 
 ```nix
-monitoring = {
-  tab = "Monitoring";
-  cwd = "${home}/.config/nix";
-  layout = "tall";
-  windows = [
-    {
-      title = "Logs";
-      command = "k9s";
-      env = kubeEnv;
-      focus = true;
-    }
-    { title = "Shell"; }
-  ];
-};
+"kitty/sessions/monitoring.kitty-session".text = ''
+  new_tab Monitoring
+  cd ${home}/.config/nix
+  layout tall
+  launch --title Logs --env ${kubeconfig} k9s
+  focus
+  launch --title Shell
+'';
 ```
 
-Omit `command` for a plain shell. `focus = true` marks the window active on
-open — note that kitty's `focus` directive takes no argument and applies to
-the preceding `launch`, so a trailing `focus 0` focuses the *last* window, not
-the first.
+Omit the command on a `launch` line for a plain shell. `focus` takes no
+argument and applies to the preceding `launch`, so put it directly after the
+window that should be active on open — a trailing `focus 0` would focus the
+*last* window, not the first.
 
 ## Font size
 
