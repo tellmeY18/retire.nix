@@ -5,6 +5,10 @@
   ...
 }:
 
+let
+  # Every theme entry is a { dark, light } pair; name them once.
+  color = dark: light: { inherit dark light; };
+in
 {
   programs.opencode = {
     enable = true;
@@ -135,206 +139,56 @@
         nord15 = "#B48EAD";
       };
       theme = {
-        accent = {
-          dark = "nord7";
-          light = "nord7";
-        };
-        background = {
-          dark = "nord0";
-          light = "nord6";
-        };
-        backgroundElement = {
-          dark = "nord1";
-          light = "nord4";
-        };
-        backgroundPanel = {
-          dark = "nord1";
-          light = "nord5";
-        };
-        border = {
-          dark = "nord2";
-          light = "nord3";
-        };
-        borderActive = {
-          dark = "nord3";
-          light = "nord2";
-        };
-        borderSubtle = {
-          dark = "nord2";
-          light = "nord3";
-        };
-        diffAdded = {
-          dark = "nord14";
-          light = "nord14";
-        };
-        diffAddedBg = {
-          dark = "#3B4252";
-          light = "#E5E9F0";
-        };
-        diffAddedLineNumberBg = {
-          dark = "#3B4252";
-          light = "#E5E9F0";
-        };
-        diffContext = {
-          dark = "nord3";
-          light = "nord3";
-        };
-        diffContextBg = {
-          dark = "nord1";
-          light = "nord5";
-        };
-        diffHighlightAdded = {
-          dark = "nord14";
-          light = "nord14";
-        };
-        diffHighlightRemoved = {
-          dark = "nord11";
-          light = "nord11";
-        };
-        diffHunkHeader = {
-          dark = "nord3";
-          light = "nord3";
-        };
-        diffLineNumber = {
-          dark = "nord2";
-          light = "nord4";
-        };
-        diffRemoved = {
-          dark = "nord11";
-          light = "nord11";
-        };
-        diffRemovedBg = {
-          dark = "#3B4252";
-          light = "#E5E9F0";
-        };
-        diffRemovedLineNumberBg = {
-          dark = "#3B4252";
-          light = "#E5E9F0";
-        };
-        error = {
-          dark = "nord11";
-          light = "nord11";
-        };
-        info = {
-          dark = "nord8";
-          light = "nord10";
-        };
-        markdownBlockQuote = {
-          dark = "nord3";
-          light = "nord3";
-        };
-        markdownCode = {
-          dark = "nord14";
-          light = "nord14";
-        };
-        markdownCodeBlock = {
-          dark = "nord4";
-          light = "nord0";
-        };
-        markdownEmph = {
-          dark = "nord12";
-          light = "nord12";
-        };
-        markdownHeading = {
-          dark = "nord8";
-          light = "nord10";
-        };
-        markdownHorizontalRule = {
-          dark = "nord3";
-          light = "nord3";
-        };
-        markdownImage = {
-          dark = "nord9";
-          light = "nord9";
-        };
-        markdownImageText = {
-          dark = "nord7";
-          light = "nord7";
-        };
-        markdownLink = {
-          dark = "nord9";
-          light = "nord9";
-        };
-        markdownLinkText = {
-          dark = "nord7";
-          light = "nord7";
-        };
-        markdownListEnumeration = {
-          dark = "nord7";
-          light = "nord7";
-        };
-        markdownListItem = {
-          dark = "nord8";
-          light = "nord10";
-        };
-        markdownStrong = {
-          dark = "nord13";
-          light = "nord13";
-        };
-        markdownText = {
-          dark = "nord4";
-          light = "nord0";
-        };
-        primary = {
-          dark = "nord8";
-          light = "nord10";
-        };
-        secondary = {
-          dark = "nord9";
-          light = "nord9";
-        };
-        success = {
-          dark = "nord14";
-          light = "nord14";
-        };
-        syntaxComment = {
-          dark = "nord3";
-          light = "nord3";
-        };
-        syntaxFunction = {
-          dark = "nord8";
-          light = "nord8";
-        };
-        syntaxKeyword = {
-          dark = "nord9";
-          light = "nord9";
-        };
-        syntaxNumber = {
-          dark = "nord15";
-          light = "nord15";
-        };
-        syntaxOperator = {
-          dark = "nord9";
-          light = "nord9";
-        };
-        syntaxPunctuation = {
-          dark = "nord4";
-          light = "nord0";
-        };
-        syntaxString = {
-          dark = "nord14";
-          light = "nord14";
-        };
-        syntaxType = {
-          dark = "nord7";
-          light = "nord7";
-        };
-        syntaxVariable = {
-          dark = "nord7";
-          light = "nord7";
-        };
-        text = {
-          dark = "nord4";
-          light = "nord0";
-        };
-        textMuted = {
-          dark = "nord3";
-          light = "nord1";
-        };
-        warning = {
-          dark = "nord12";
-          light = "nord12";
-        };
+        accent = color "nord7" "nord7";
+        background = color "nord0" "nord6";
+        backgroundElement = color "nord1" "nord4";
+        backgroundPanel = color "nord1" "nord5";
+        border = color "nord2" "nord3";
+        borderActive = color "nord3" "nord2";
+        borderSubtle = color "nord2" "nord3";
+        diffAdded = color "nord14" "nord14";
+        diffAddedBg = color "#3B4252" "#E5E9F0";
+        diffAddedLineNumberBg = color "#3B4252" "#E5E9F0";
+        diffContext = color "nord3" "nord3";
+        diffContextBg = color "nord1" "nord5";
+        diffHighlightAdded = color "nord14" "nord14";
+        diffHighlightRemoved = color "nord11" "nord11";
+        diffHunkHeader = color "nord3" "nord3";
+        diffLineNumber = color "nord2" "nord4";
+        diffRemoved = color "nord11" "nord11";
+        diffRemovedBg = color "#3B4252" "#E5E9F0";
+        diffRemovedLineNumberBg = color "#3B4252" "#E5E9F0";
+        error = color "nord11" "nord11";
+        info = color "nord8" "nord10";
+        markdownBlockQuote = color "nord3" "nord3";
+        markdownCode = color "nord14" "nord14";
+        markdownCodeBlock = color "nord4" "nord0";
+        markdownEmph = color "nord12" "nord12";
+        markdownHeading = color "nord8" "nord10";
+        markdownHorizontalRule = color "nord3" "nord3";
+        markdownImage = color "nord9" "nord9";
+        markdownImageText = color "nord7" "nord7";
+        markdownLink = color "nord9" "nord9";
+        markdownLinkText = color "nord7" "nord7";
+        markdownListEnumeration = color "nord7" "nord7";
+        markdownListItem = color "nord8" "nord10";
+        markdownStrong = color "nord13" "nord13";
+        markdownText = color "nord4" "nord0";
+        primary = color "nord8" "nord10";
+        secondary = color "nord9" "nord9";
+        success = color "nord14" "nord14";
+        syntaxComment = color "nord3" "nord3";
+        syntaxFunction = color "nord8" "nord8";
+        syntaxKeyword = color "nord9" "nord9";
+        syntaxNumber = color "nord15" "nord15";
+        syntaxOperator = color "nord9" "nord9";
+        syntaxPunctuation = color "nord4" "nord0";
+        syntaxString = color "nord14" "nord14";
+        syntaxType = color "nord7" "nord7";
+        syntaxVariable = color "nord7" "nord7";
+        text = color "nord4" "nord0";
+        textMuted = color "nord3" "nord1";
+        warning = color "nord12" "nord12";
       };
     };
   };
