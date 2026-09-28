@@ -3,76 +3,45 @@
 # Adds the self-hosted Attic cache as a substituter so packages built
 # by CI are pulled as pre-built binaries, never compiled locally.
 #
-# CI (GitHub Actions) uses the public URL since runners are NOT on the
-# tailnet. See .github/workflows/build.yml.
-#
 # Architecture:
 #   CI → pushes via https://cache.tellmey.fyi (public Traefik ingress)
-#   NixOS nodes → pull via http://attic.tail477f2f.ts.net:8080 (tailnet;
-#                 direct WireGuard between cluster peers, full bandwidth).
-#                 MagicDNS resolves via systemd-resolved split-DNS (--accept-dns)
-#   darwin (mac) → pull via https://cache.tellmey.fyi ONLY (see below)
+#   every host → pulls via https://cache.tellmey.fyi
 #
-# Why darwin skips the tailnet endpoint:
-#   An earlier version of this comment claimed the darwin nix daemon cannot
-#   resolve .tail477f2f.ts.net and would silently fall through to the public
-#   ingress. That is no longer true — /etc/resolver/tail477f2f.ts.net makes
-#   the name resolve, so nix DOES pick the tailnet substituter, and it is
-#   dramatically slower: the mac has no direct WireGuard path to the attic
-#   node and every byte is relayed through a DERP server
-#   (`tailscale ping attic` → "via DERP(blr)", "direct connection not
-#   established"). Measured on a 329 MB NAR: ~50 KB/s over the relay vs
-#   ~260 KB/s via the public ingress. At 50 KB/s large NARs never finish
-#   before nix's stalled-download-timeout (300 s) kills them, producing
-#   `HTTP error 200 (curl error: Timeout was reached)` and a spurious
-#   fallback to building from source.
+# Why there is no tailnet endpoint any more:
+#   The attic tailnet URL (attic.<tailnet>.ts.net:8080) used to sit ahead of
+#   the public ingress for NixOS nodes, on the theory that direct WireGuard
+#   beats going out to Traefik. In practice it was a liability:
+#
+#     - It is served by a Tailscale operator ts-proxy POD. Whenever that pod
+#       restarts (operator upgrade, ProxyClass change, node drain) the
+#       endpoint vanishes for a minute or two. nix walks substituters in
+#       order, so a dead entry at the head cost connect-timeout x retries
+#       FOR EVERY PATH — deploys crawled behind thousands of timeouts and
+#       looked like they were ignoring the cache entirely.
+#     - On darwin it was actively slower: the mac has no direct WireGuard
+#       path to the attic node, so every byte went over a DERP relay
+#       (~50 KB/s vs ~260 KB/s public). Large NARs hit
+#       stalled-download-timeout and fell back to building from source.
+#
+#   The public ingress is served by Traefik and has no such failure mode.
+#   One endpoint, same store, same signing key, no conditional logic.
 #
 # Fallback behaviour:
 #   fallback = true  — if a substituter errors (DNS failure, 5xx, timeout),
 #                      nix tries the next one and ultimately builds from source.
-#   connect-timeout = 5  — fail fast on unreachable substituters instead of
+#   connect-timeout = 2  — fail fast on unreachable substituters instead of
 #                          blocking for the default 30 s.
 #
 #   Substituter order (priority):
 #     1. cache.nixos.org      — always available, most reliable
-#     2. attic public ingress — resolvable everywhere via public DNS
-#     3. attic tailnet        — NixOS nodes only (direct WireGuard)
-#
-#   Why public BEFORE tailnet, despite the tailnet being the faster path:
-#   the tailnet endpoint is served by a Tailscale operator ts-proxy POD. Any
-#   time that pod restarts (an operator upgrade, a ProxyClass change, its
-#   node draining) the endpoint disappears for a minute or two. Because nix
-#   walks substituters in order, a dead entry at the head costs
-#   connect-timeout x retries FOR EVERY PATH — a deploy that should stream
-#   at full speed instead crawls behind thousands of 5 s timeouts, which
-#   looks exactly like "the cache is being ignored".
-#
-#   The public ingress is served by Traefik on a node with a static route,
-#   so it has no such failure mode. It is slightly slower per byte but
-#   degrades gracefully, which matters far more than peak throughput. The
-#   tailnet URL stays in the list (and in trusted-substituters) so it is
-#   still used for anything the public endpoint misses.
-{ pkgs, lib, ... }:
-let
-  # The mac reaches the tailnet only over a DERP relay, so the tailnet
-  # substituter is a pessimisation there rather than a fast path.
-  useTailnetCache = !pkgs.stdenv.hostPlatform.isDarwin;
-in
+#     2. attic public ingress — our own builds
+{ ... }:
 {
   nix.settings = {
     substituters = [
       "https://cache.nixos.org"
-      # Public Traefik ingress — resolvable everywhere, same store, same key.
-      # Listed BEFORE the tailnet endpoint on purpose: see the header note.
+      # Public Traefik ingress — our own builds, same signing key.
       "https://cache.tellmey.fyi/system"
-    ]
-    # Direct tailnet endpoint (lowest latency when its ts-proxy is healthy)
-    # — NixOS nodes only. They resolve this via systemd-resolved split-DNS
-    # (Tailscale routes .ts.net to 100.100.100.100) and have direct
-    # WireGuard peering. Kept as a secondary so a proxy restart degrades
-    # throughput instead of stalling the whole deploy.
-    ++ lib.optional useTailnetCache "http://attic.tail477f2f.ts.net:8080/system"
-    ++ [
       # Popular community binary caches
       "https://nix-community.cachix.org"
       "https://devenv.cachix.org"
@@ -91,12 +60,7 @@ in
       "cachix.cachix.org-1:myoobmXM2d/eFGhO/9rE8cVoEPCFU1N2aR2YmZ77Rso="
     ];
 
-    # Both attic endpoints serve the same store (signed by the key above).
-    # The tailnet URL stays trusted even where it is not a default
-    # substituter, so it can still be opted into ad hoc with
-    # `--substituters` on a host that does have a direct route.
     trusted-substituters = [
-      "http://attic.tail477f2f.ts.net:8080/system"
       "https://cache.tellmey.fyi/system"
     ];
 

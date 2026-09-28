@@ -53,10 +53,10 @@ present:
 # round-trip fails and triggers a rollback that churns k3s/etcd. See the
 # deploy-k3s-nodes skill.
 #
-# --fallback: build from source when tailnet binary caches
-# (attic.tail477f2f.ts.net, cache.tellmey.fyi) are unreachable from the Mac.
-# This is common since they're on the tailnet and DNS doesn't resolve
-# during remote builds.
+# --fallback: build from source if a binary cache is unreachable, rather
+# than failing the deploy. The attic tailnet endpoint is gone (see
+# modules/binary-cache.nix); cache.tellmey.fyi is public, so this is now a
+# genuine last resort rather than a routine occurrence.
 [doc('Deploy NixOS config to a host (e.g. just deploy chopper)')]
 deploy host:
     nix run .#deploy-rs -- .#{{ host }} --skip-checks --magic-rollback false -- --fallback
