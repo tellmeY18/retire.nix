@@ -84,6 +84,8 @@
     pkgs.cmatrix
     pkgs.sssnake
     pkgs.gtypist
+    pkgs.prismlauncher
+
 
     # Data Processing
     pkgs.grex

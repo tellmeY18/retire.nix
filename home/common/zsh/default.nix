@@ -218,9 +218,16 @@
     #   commands[kitten] - the kitten *forwards* KITTY_WINDOW_ID to the remote,
     #     so without this, hopping onward from a remote host would alias ssh to
     #     a binary that isn't installed there.
+    #
+    # compalias is mandatory alongside it: without it zsh's completion system
+    # follows the alias expansion and dispatches on `kitten`, which has no
+    # completion function, so `ssh <TAB>` stops offering hosts from
+    # ~/.ssh/config and ~/.ssh/known_hosts. compalias tells the completion
+    # system to keep using _ssh for the word `ssh`.
     initContent = ''
       if [[ -n "$KITTY_WINDOW_ID" ]] && (( $+commands[kitten] )); then
         alias ssh='kitten ssh'
+        compalias ssh 'kitten ssh'
       fi
     '';
 
