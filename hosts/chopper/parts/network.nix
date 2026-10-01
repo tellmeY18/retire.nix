@@ -13,8 +13,10 @@
         config.services.tailscale.port
         5353 # mDNS — needed for Android TV device discovery (zeroconf)
       ];
-      # OpenClaw gateway is exposed via Tailscale Serve (port 443, HTTPS);
-      # all legacy web services (Nextcloud, conduwuit, care) bind to
+      # The Hermes backend binds directly to chopper's MagicDNS name, so it
+      # is reachable only over tailscale0 — which is already a trusted
+      # interface (profiles/k3s-node-network.nix). No port needed here.
+      # All legacy web services (Nextcloud, conduwuit, care) bind to
       # localhost and are exposed via Cloudflare Tunnel.
       allowedTCPPorts = [ 22 ];
     };

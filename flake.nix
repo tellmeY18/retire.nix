@@ -55,12 +55,17 @@
     # Pinned nixpkgs commit that ships entire 0.9.0 (0.8.42 -> 0.9.0 bump).
     # Used only for pkgs.entire via the custom-packages overlay.
     nixpkgs-entire.url = "github:NixOS/nixpkgs/48fc23dc48b10db27c7b206c0dfcf42118e290c3";
-    nix-openclaw = {
-      url = "github:openclaw/nix-openclaw";
+    hermes-agent = {
+      url = "github:NousResearch/hermes-agent";
       # Intentionally NOT following nixpkgs — lets the upstream flake use its
       # own pinned revision so derivation hashes stay stable and our Attic
       # cache hits. Following our unstable nixpkgs would change every
-      # derivation hash on each flake update and defeat caching.
+      # derivation hash on each flake update and defeat caching, and the
+      # uv2nix/pyproject-nix stack upstream pins is sensitive to the exact
+      # nixpkgs revision.
+      #
+      # High-risk input: upstream calls Nix "best-effort only". Update it in
+      # its own PR — see docs/flake-update-strategy.md.
     };
   };
 
@@ -178,20 +183,7 @@
             ./hosts/chopper/disko-config.nix
             sops-nix.nixosModules.sops
             disko.nixosModules.disko
-            inputs.nix-openclaw.nixosModules.openclaw-gateway
-            # Force openclaw-gateway from the nix-openclaw flake's own nixpkgs
-            # pin so derivation hashes stay stable across our flake updates
-            # (cache hits). The nixpkgs-unstable version of
-            # openclaw (2026.6.5) has to build its pnpm deps from source (~1GB)
-            # and times out over SSH-remote-build.
-            # Also expose the official signal runtime plugin so the gateway can
-            # load it declaratively via plugins.load.paths.
-            ({ lib, ... }: {
-              _module.args = {
-                openclaw-signal-plugin = inputs.nix-openclaw.packages.x86_64-linux."openclaw-runtime-plugin-signal";
-              };
-              services.openclaw-gateway.package = lib.mkForce inputs.nix-openclaw.packages.x86_64-linux.openclaw-gateway;
-            })
+            inputs.hermes-agent.nixosModules.default
           ];
           kenobi = [
             ./hosts/kenobi/disko-config.nix

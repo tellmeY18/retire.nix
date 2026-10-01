@@ -11,6 +11,7 @@
     ./parts/programs.nix
     ./parts/users.nix
     ./parts/services.nix
+    ./parts/hermes.nix
     ./parts/k3s.nix
     ../../profiles/zram.nix
   ];

@@ -51,62 +51,63 @@
       "tailscale-operator-client-secret" = { };
 
       # -----------------------------------------------------------------------
-      # OpenClaw secrets
+      # Hermes Agent secrets
       # -----------------------------------------------------------------------
 
-      # Gateway authentication token — readable by the openclaw user since the
-      # wrapper script reads it at startup to set OPENCLAW_GATEWAY_TOKEN.
-      # Key in secrets/chopper/secrets.yaml: openclaw-gateway-token
-      "openclaw-gateway-token" = {
-        owner = "openclaw";
-        group = "openclaw";
+      # Single dotenv file consumed by services.hermes-agent.environmentFiles
+      # and by the signal-cli-daemon unit's EnvironmentFile. Replaces the
+      # seven separate openclaw-* secrets: the upstream Hermes module reads
+      # KEY=VALUE env files directly, so the jq-merging wrapper script that
+      # OpenClaw needed is gone.
+      #
+      # Expected keys (see hosts/chopper/parts/hermes.nix):
+      #   OPENROUTER_API_KEY    — default model provider
+      #   ANTHROPIC_API_KEY     — direct Anthropic
+      #   OPENAI_API_KEY        — Whisper/STT and OpenAI models
+      #   GITHUB_TOKEN          — GitHub Copilot / Models backend
+      #   SIGNAL_ACCOUNT        — bot phone number, E.164
+      #   SIGNAL_ALLOWED_USERS  — comma-separated E.164 numbers (NOT a JSON
+      #                           array; Hermes differs from OpenClaw here)
+      #   SIGNAL_GROUP_ALLOWED_USERS — comma-separated Signal group IDs.
+      #                           UNSET MEANS ALL GROUP MESSAGES ARE IGNORED
+      #                           (DM-only). This is the Hermes equivalent of
+      #                           OpenClaw's groupPolicy = "open". Use `*` for
+      #                           every group the account belongs to.
+      #   SIGNAL_HOME_CHANNEL   — default delivery target for cron jobs
+      #
+      # Edit with: sops secrets/chopper/secrets.yaml
+      #
+      # restartUnits matters here: without it, rotating a provider key
+      # re-renders /run/secrets/hermes-env but the running gateway keeps the
+      # old value in memory, so the rotation silently does nothing.
+      "hermes-env" = {
+        owner = "hermes";
+        group = "hermes";
+        mode = "0400";
+        restartUnits = [
+          "hermes-agent.service"
+          "hermes-backend.service"
+          "signal-cli-daemon.service"
+        ];
+      };
+
+      # Stable session token for the `hermes serve` backend. Without it the
+      # backend mints a new token on every start and Hermes Desktop on the
+      # Mac cannot re-attach. Raw token on one line, nothing else.
+      # Generate: openssl rand -hex 32
+      "hermes-dashboard-token" = {
+        owner = "hermes";
+        group = "hermes";
         mode = "0400";
       };
 
-      # Anthropic API key — read directly by the gateway process from the path
-      # set in the ANTHROPIC_API_KEY environment variable.
-      "openclaw-anthropic-key" = {
-        owner = "openclaw";
-        group = "openclaw";
-        mode = "0400";
-      };
-
-      # Signal phone number — read by the gateway wrapper script to set the
-      # OPENCLAW_SIGNAL_NUMBER env var for the @openclaw/signal channel.
-      "openclaw-signal-number" = {
-        owner = "openclaw";
-        group = "openclaw";
-        mode = "0400";
-      };
-
-      # OpenAI API key — passed to the gateway as OPENAI_API_KEY.
-      "openclaw-openai-key" = {
-        owner = "openclaw";
-        group = "openclaw";
-        mode = "0400";
-      };
-
-      # GitHub PAT — used with the OpenAI-compatible GitHub Models endpoint
-      # at https://models.inference.ai.azure.com for the Copilot model backend.
-      "openclaw-github-token" = {
-        owner = "openclaw";
-        group = "openclaw";
-        mode = "0400";
-      };
-
-      # OpenRouter API key — passed to the gateway as OPENROUTER_API_KEY.
-      "openclaw-openrouter-token" = {
-        owner = "openclaw";
-        group = "openclaw";
-        mode = "0400";
-      };
-
-      # Signal DM allowlist — JSON array of phone numbers allowed to DM the bot
-      # when dmPolicy = "allowlist". Read by the wrapper script and injected into
-      # the merged config via jq. Re-encrypt with your age key when adding numbers.
-      "openclaw-signal-allowlist" = {
-        owner = "openclaw";
-        group = "openclaw";
+      # Plaintext of the dashboard basic-auth password. Stored for recall
+      # only — the service reads the scrypt hash from config.yaml (set in
+      # hosts/chopper/parts/hermes.nix), not this file. Username: vysakh.
+      # Used at https://chopper.tail477f2f.ts.net
+      "hermes-dashboard-password" = {
+        owner = "hermes";
+        group = "hermes";
         mode = "0400";
       };
 

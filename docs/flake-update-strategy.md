@@ -667,7 +667,6 @@ Keep one grouped weekly PR by default. When it fails:
    - `nixpkgs-signal`
    - `nixpkgs-entire`
    - pinned Homebrew references
-8. Consider separate PRs only for repeatedly high-risk independent inputs such as `nix-openclaw` or `nixvim`.
 
 ## Phase 8: rollout safely
 
