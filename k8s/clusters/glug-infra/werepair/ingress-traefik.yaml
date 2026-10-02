@@ -1,0 +1,61 @@
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: demo-limits
+spec:
+  chain:
+    middlewares:
+      - name: demo-rate-limit
+      - name: demo-body-limit
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: demo-rate-limit
+spec:
+  rateLimit:
+    average: 10
+    burst: 20
+    period: 1s
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: demo-body-limit
+spec:
+  buffering:
+    maxRequestBodyBytes: 2500000
+    memRequestBodyBytes: 2500000
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: werepair
+spec:
+  entryPoints: [websecure]
+  routes:
+    - kind: Rule
+      match: Host(`repair.tellmey.fyi`)
+      middlewares:
+        - name: demo-limits
+      services:
+        - name: werepair
+          port: 4000
+  tls:
+    certResolver: letsencrypt
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: werepair-redirect
+spec:
+  entryPoints: [web]
+  routes:
+    - kind: Rule
+      match: Host(`repair.tellmey.fyi`)
+      middlewares:
+        - name: redirect-to-https
+          namespace: traefik-system
+      services:
+        - name: werepair
+          port: 4000

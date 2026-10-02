@@ -1,0 +1,22 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: isolate-demo
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+  egress: []
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: traefik-system
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: traefik
+        # Traefik currently uses hostNetwork on kenobi. Host-network traffic
+        # is represented by its node IP, rather than a pod namespace identity.
+        - ipBlock:
+            cidr: 100.73.101.89/32
+      ports:
+        - {protocol: TCP, port: 4000}

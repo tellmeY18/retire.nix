@@ -1,0 +1,141 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: werepair
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: werepair
+  template:
+    metadata:
+      labels:
+        app: werepair
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      tolerations:
+        - key: node-role.glug.infra/storage
+          operator: Equal
+          value: "true"
+          effect: NoSchedule
+      nodeSelector:
+        kubernetes.io/arch: amd64
+        node-role.glug.infra/storage: "true"
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        # k3s disables NetworkPolicy enforcement. This applies only inside this
+        # pod network namespace; it never touches host iptables. Rules survive
+        # init exit and the unprivileged app cannot change them.
+        - name: network-isolation
+          image: docker.io/nicolaka/netshoot@sha256:7f08c4aff13ff61a35d30e30c5c1ea8396eac6ab4ce19fd02d5a4b3b5d0d09a2
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              for tool in iptables ip6tables; do
+                "$tool" -w -P OUTPUT DROP
+                "$tool" -w -A OUTPUT -o lo -j ACCEPT
+                "$tool" -w -A OUTPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+                "$tool" -w -P INPUT DROP
+                "$tool" -w -A INPUT -i lo -j ACCEPT
+                "$tool" -w -A INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+              done
+              # Permit the app port for ingress and kubelet probes across CNI
+              # source NAT. No other inbound port or new outbound connection.
+              iptables -w -A INPUT -p tcp --dport 4000 -j ACCEPT
+              iptables -w -S
+              ip6tables -w -S
+          securityContext:
+            runAsNonRoot: false
+            runAsUser: 0
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+              add: [NET_ADMIN]
+          resources:
+            requests: {cpu: 10m, memory: 16Mi}
+            limits: {cpu: 100m, memory: 64Mi, ephemeral-storage: 16Mi}
+          volumeMounts:
+            - {name: tmp, mountPath: /tmp}
+            - {name: firewall-run, mountPath: /run}
+        - name: initialize-demo
+          image: ghcr.io/tellmey18/werepair.fyi@sha256:3ca1d57a9097c9bb3888d13cb4da2ea2c47778fa68fc5523f78f14693ddcd9d8
+          command: ["/app/bin/werepair", "eval", "Werepair.Release.seed_demo()"]
+          envFrom:
+            - secretRef:
+                name: werepair-runtime
+          env:
+            - {name: PHX_SERVER, value: "false"}
+            - {name: PHX_HOST, value: repair.tellmey.fyi}
+            - {name: DATABASE_PATH, value: /data/werepair.db}
+            - {name: DEMO, value: "true"}
+            - {name: ALLOW_DEMO_SEED, value: "true"}
+            - {name: ERL_FLAGS, value: "+S 2:2 +SDcpu 1 +SDio 1"}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          resources:
+            requests: {cpu: 100m, memory: 128Mi}
+            limits: {cpu: "1", memory: 512Mi, ephemeral-storage: 128Mi}
+          volumeMounts:
+            - {name: data, mountPath: /data}
+            - {name: tmp, mountPath: /tmp}
+      containers:
+        - name: app
+          image: ghcr.io/tellmey18/werepair.fyi@sha256:3ca1d57a9097c9bb3888d13cb4da2ea2c47778fa68fc5523f78f14693ddcd9d8
+          ports:
+            - {name: http, containerPort: 4000}
+          envFrom:
+            - secretRef:
+                name: werepair-runtime
+          env:
+            - {name: PHX_SERVER, value: "true"}
+            - {name: PHX_HOST, value: repair.tellmey.fyi}
+            - {name: DATABASE_PATH, value: /data/werepair.db}
+            - {name: DEMO, value: "true"}
+            - {name: ERL_FLAGS, value: "+S 2:2 +SDcpu 1 +SDio 1"}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          resources:
+            requests: {cpu: 100m, memory: 128Mi}
+            limits: {cpu: "1", memory: 512Mi, ephemeral-storage: 128Mi}
+          startupProbe:
+            httpGet: {path: /health, port: http}
+            periodSeconds: 5
+            failureThreshold: 30
+          readinessProbe:
+            httpGet: {path: /health, port: http}
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: {path: /health, port: http}
+            periodSeconds: 20
+            failureThreshold: 3
+          volumeMounts:
+            - {name: data, mountPath: /data}
+            - {name: tmp, mountPath: /tmp}
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: werepair-data
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi
+        - name: firewall-run
+          emptyDir:
+            sizeLimit: 1Mi

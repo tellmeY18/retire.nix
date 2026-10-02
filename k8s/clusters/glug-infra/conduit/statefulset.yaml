@@ -87,6 +87,13 @@ spec:
             - name: CONDUIT_TRUSTED_SERVERS
               value: '["matrix.org"]'
 
+            # QR-code sign-in (MSC4108/MSC4388 rendezvous) needs the
+            # built-in OIDC provider to authenticate local accounts
+            # directly, not just broker to a third-party IdP.
+            # rendezvous_enabled already defaults to true.
+            - name: TUWUNEL_OIDC_NATIVE_AUTH
+              value: "true"
+
             # Performance
             - name: CONDUIT_MAX_REQUEST_SIZE
               value: "20000000"
