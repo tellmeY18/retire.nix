@@ -2,11 +2,12 @@
 #
 #   boot    : UEFI + systemd-boot, root-on-ZFS
 #   network : DHCP on enp6s0 (Realtek r8169), Tailscale, firewall
-#   users   : vysakh + root SSH keys
+#   users   : vysakh + root SSH keys, plus a guest account (serene)
 #   nvidia  : proprietary driver + CUDA, headless
 #   ai      : Ollama, CUDA-accelerated, tailnet-only
+#   gnome   : GDM + GNOME + Chrome, for serene's guest desktop login
 #
-# Deliberately absent: desktop, podman. Container workloads run as k3s
+# Deliberately absent: k3s, podman. Container workloads run as k3s
 # pods on containerd — a second runtime would only duplicate it.
 { lib, ... }:
 {
@@ -19,6 +20,9 @@
     ./parts/nvidia.nix
     ./parts/ai.nix
     ../../profiles/zram.nix
+    ../../profiles/gnome-desktop.nix
+    ../../profiles/hyprland-minimal.nix
+    ./parts/home.nix
   ];
 
   # ZRAM swap. With 8 GB of RAM and workloads that allocate in multi-GB
@@ -49,6 +53,11 @@
   # Don't pin the nixpkgs flake source (~196 MB) into the system closure.
   nixpkgs.flake.setFlakeRegistry = false;
   nixpkgs.flake.setNixPath = false;
+  # ...but `<nixpkgs>` must still resolve, or comma (`,`) and nix-shell -p
+  # die with "file 'nixpkgs' was not found in the Nix search path" (NixOS's
+  # fallback is a root channel that doesn't exist here). `flake:nixpkgs` is
+  # looked up in the registry on demand, so it adds nothing to the closure.
+  nix.nixPath = [ "nixpkgs=flake:nixpkgs" ];
 
   programs.command-not-found.enable = false;
 

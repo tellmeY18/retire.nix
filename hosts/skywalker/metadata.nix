@@ -9,7 +9,7 @@
   # stateVersion is an install-time marker, not a thing to keep current.
   stateVersion = "26.11";
   type = "nixos";
-  users = [ "vysakh" ];
+  users = [ "vysakh" "serene" ];
 
   # GPU workstation/compute node — deliberately NOT a k3s member (yet).
   roles = [ "gpu" ];

@@ -212,6 +212,7 @@
           skywalker = [
             ./hosts/skywalker/disko-config.nix
             disko.nixosModules.disko
+            inputs.home-manager.nixosModules.home-manager
           ];
         };
       };

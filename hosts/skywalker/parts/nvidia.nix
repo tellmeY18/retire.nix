@@ -9,8 +9,21 @@
 #
 # Only nvidia-smi is installed. nvtop / CUDA toolkit / container toolkit are
 # deliberately absent — add them when a workload actually needs them.
-{ config, ... }:
+{ config, lib, ... }:
 {
+  # GDM login screen: never blank. On this GTX 1060 + 580 legacy driver, the
+  # greeter's idle screen-blank (DPMS off -> wake) makes nvidia-drm's atomic
+  # commit stall: "Flip event timeout on head 0" within ~3s, then repeating
+  # "Failed to apply atomic modeset" and Xid 13 (same shader, class c197,
+  # offset 34a4) from gnome-shell until the greeter is restarted. Reproduced
+  # on demand by toggling mutter's PowerSaveMode. GDM's default idle-delay is
+  # 300s. Scoped to the greeter ONLY: user sessions keep their own blank/lock
+  # behaviour (serene's GNOME auto-lock rides on idle-delay, so don't touch it
+  # globally). mkBefore: first dconf database wins.
+  programs.dconf.profiles.gdm.databases = lib.mkBefore [
+    { settings."org/gnome/desktop/session".idle-delay = lib.gvariant.mkUint32 0; }
+  ];
+
   services.xserver.videoDrivers = [ "nvidia" ];
 
   # Userspace GL/CUDA libraries (formerly hardware.opengl).

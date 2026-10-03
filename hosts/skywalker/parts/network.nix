@@ -13,10 +13,13 @@
 # secrets/skywalker/ file, and sops-nix in the module list — none of which buy
 # anything here. Add them only if this box starts being reinstalled from
 # scratch regularly and needs to come back on the tailnet with no human.
-{ ... }:
+{ lib, ... }:
 {
   networking = {
-    useDHCP = true;
+    # mkForce: GNOME (via profiles/gnome-desktop.nix) pulls in
+    # NetworkManager, which sets useDHCP = false. This box has no desktop
+    # until the guest profile is added, so keep plain DHCP as configured.
+    useDHCP = lib.mkForce true;
 
     firewall = {
       enable = true;

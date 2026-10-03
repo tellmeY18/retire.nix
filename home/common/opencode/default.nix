@@ -217,6 +217,30 @@ in
     - `ROADMAP.md` — milestone plan
     - `Justfile` — task definitions for builds, deploys, and day-2 ops
     - `lib/default.nix` — host factories and auto-discovery helpers
+
+    # Global shell rule (all projects, all agents on this machine)
+
+    Any command that is slow, long-running, or whose duration is uncertain
+    (large codesign/signing operations, big file transfers/downloads, `nix
+    build`, CI polling loops, VM boots, package manager installs, etc.) **must**
+    be started detached so a tool-call timeout cannot leave it half-finished or
+    orphaned:
+
+    - Prefer `nohup <command> > /path/to/log 2>&1 & disown` and then poll the
+      log file / process table in separate, short calls.
+    - Or use `setsid <command> > /path/to/log 2>&1 &` where session detachment
+      matters (e.g. the parent shell itself may be torn down).
+    - Always redirect stdout/stderr to a real log file — never leave them
+      attached to a pipe that nothing is draining, and never rely on the
+      foreground call's own output when the command might outlive that call.
+    - After starting a detached command, check progress with short, separate
+      commands (`tail -n 50 logfile`, `pgrep -lf name`, `ls -la`) instead of one
+      long blocking call. Do not re-run the same slow command repeatedly to
+      "check if it's done" — inspect its log/output instead.
+    - Never `kill -9` a process you suspect is mid-write to a large file (disk
+      copies, codesign, archive extraction) just because a wrapper call timed
+      out — the process is very likely still making real progress. Check its
+      log or the growing file size first; only kill if it's truly stuck.
   '';
 
   # Custom agents for common workflows

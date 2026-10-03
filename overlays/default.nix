@@ -15,6 +15,12 @@
     # plugins locally and flakes on a libuv/kqueue assertion on macOS).
     super-productivity = final.callPackage ../packages/super-productivity-bin.nix { };
 
+    # No nixpkgs derivation exists for Kannu; ship the signed/notarized release .app.
+    # Lives in its own flake (packages/kannu/) so it's installable standalone too:
+    #   nix profile install "git+file:///Users/mathew/.config/nix?dir=packages/kannu"
+    #   nix run "git+file:///Users/mathew/.config/nix?dir=packages/kannu"
+    kannu = final.callPackage ../packages/kannu/default.nix { };
+
     # Pull signal-cli from nixpkgs-signal (pinned to a master commit with 0.14.5)
     # instead of nixpkgs-unstable (which still ships 0.14.3 as of July 2026).
     # 0.14.5 fixes NPE on inbound messages caused by the server omitting

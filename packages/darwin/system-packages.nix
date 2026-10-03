@@ -90,6 +90,7 @@
     # Data Processing
     pkgs.grex
     pkgs.super-productivity
+    pkgs.kannu
     pkgs.rPackages.saws
     pkgs.sshuttle
   ];

@@ -4,4 +4,16 @@
 # keys for nixos-anywhere (install) and deploy-rs (updates).
 #
 # Identical across the VM hosts, so it lives in one place.
-import ../../../profiles/admin-user.nix
+{ pkgs, ... }:
+{
+  imports = [ ../../../profiles/admin-user.nix ];
+
+  # Temporary guest account for Serene — office GNOME desktop use only.
+  # No SSH keys, no wheel/networkmanager. Remove when no longer needed.
+  users.users.serene = {
+    isNormalUser = true;
+    description = "Serene (guest)";
+    shell = pkgs.bash;
+    initialPassword = "changeme";
+  };
+}
