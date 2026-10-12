@@ -13,7 +13,7 @@ metadata:
     app.kubernetes.io/component: blog
     app.kubernetes.io/part-of: ghost
 spec:
-  replicas: 4
+  replicas: 1
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -119,8 +119,10 @@ spec:
               port: 2368
               httpHeaders:
                 - name: X-Forwarded-Proto
-                  valinitialDelaySeconds: 30
+                  value: https
+            initialDelaySeconds: 30
             periodSeconds: 30
+            failureThreshold: 20
 
           readinessProbe:
             tcpSocket:

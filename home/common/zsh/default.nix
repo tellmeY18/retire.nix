@@ -225,6 +225,11 @@
     # ~/.ssh/config and ~/.ssh/known_hosts. compalias tells the completion
     # system to keep using _ssh for the word `ssh`.
     initContent = ''
+      # Keep oh-my-zsh's anchored matchers (partial-word completion) globally, but
+      # kitty's completer aborts when _matcher is anchored, so scope a
+      # non-anchored matcher to kitty-handled commands only.
+      zstyle ':completion:*:*:(kitten|kitty|clone-in-kitty):*' matcher-list 'm:{[:lower:][:upper:]}={[:upper:][:lower:]}'
+
       if [[ -n "$KITTY_WINDOW_ID" ]] && (( $+commands[kitten] )); then
         alias ssh='kitten ssh'
         compalias ssh 'kitten ssh'

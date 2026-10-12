@@ -157,6 +157,21 @@ in
           };
         }
         {
+          name = "glug/whitelist-ghost-public";
+          description = "Ghost public site + image bucket are chatty by design";
+          whitelist = {
+            reason = "Ghost public pages/assets and S3 image host (many unique paths, bursty)";
+            # Ghost's frontend pulls many assets per page and the image host
+            # (s3.tellmey.fyi) is read-only public; both tripped crawl/probing
+            # scenarios for normal readers. The admin and API surface
+            # (/ghost/) is deliberately NOT exempt, so login brute-forcing
+            # still feeds the scenarios and stays bannable.
+            expression = [
+              "evt.Meta.target_fqdn == 's3.tellmey.fyi' || (evt.Meta.target_fqdn == 'tellmey.fyi' && !(evt.Parsed.request startsWith '/ghost/'))"
+            ];
+          };
+        }
+        {
           name = "glug/whitelist-matrix-client-api";
           description = "Matrix client API 404s and unique-path polling are normal";
           whitelist = {
