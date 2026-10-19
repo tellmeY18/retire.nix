@@ -51,6 +51,11 @@
     # Pinned nixpkgs commit that ships signal-cli 0.14.5 (fixes NPE on inbound
     # messages where server omits serverGuid from sealed-sender envelopes).
     # Used only for pkgs.signal-cli via the custom-packages overlay.
+    # Module lives on this branch; main is empty upstream.
+    care-nix = {
+      url = "github:tellmeY18/care-nix/tellmey18-healthcareos-nixos-module";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
     nixpkgs-signal.url = "github:NixOS/nixpkgs/c6e1d1e0eebf3a5338abc4bde24e4e88d58a6f01";
     # Pinned nixpkgs commit that ships entire 0.9.0 (0.8.42 -> 0.9.0 bump).
     # Used only for pkgs.entire via the custom-packages overlay.
@@ -213,6 +218,7 @@
             ./hosts/skywalker/disko-config.nix
             disko.nixosModules.disko
             inputs.home-manager.nixosModules.home-manager
+            inputs.care-nix.nixosModules.default
           ];
         };
       };

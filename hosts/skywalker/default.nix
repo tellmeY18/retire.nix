@@ -7,8 +7,10 @@
 #   ai      : Ollama, CUDA-accelerated, tailnet-only
 #   gnome   : GDM + GNOME + Chrome, for serene's guest desktop login
 #
-# Deliberately absent: k3s, podman. Container workloads run as k3s
-# pods on containerd — a second runtime would only duplicate it.
+#   care    : care-nix Healthcare OS profile (single-node k3s + CNCM)
+#
+# Deliberately absent: podman. Container workloads run as k3s pods on
+# containerd — a second runtime would only duplicate it.
 { lib, ... }:
 {
   system.stateVersion = "26.11";
@@ -19,6 +21,7 @@
     ./parts/users.nix
     ./parts/nvidia.nix
     ./parts/ai.nix
+    ./parts/care.nix
     ../../profiles/zram.nix
     ../../profiles/gnome-desktop.nix
     ../../profiles/hyprland-minimal.nix

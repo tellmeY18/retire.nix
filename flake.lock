@@ -17,6 +17,27 @@
         "type": "github"
       }
     },
+    "care-nix": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1792428177,
+        "narHash": "sha256-YZ0J+/YwPH6bfrkCY4gz7mRdB3zg/ea7tkzDDYWJGZg=",
+        "owner": "tellmeY18",
+        "repo": "care-nix",
+        "rev": "5b37f9b4409d6d7e18fe6e801150a50005cda21a",
+        "type": "github"
+      },
+      "original": {
+        "owner": "tellmeY18",
+        "ref": "tellmey18-healthcareos-nixos-module",
+        "repo": "care-nix",
+        "type": "github"
+      }
+    },
     "deploy-rs": {
       "inputs": {
         "flake-compat": "flake-compat",
@@ -472,6 +493,7 @@
     },
     "root": {
       "inputs": {
+        "care-nix": "care-nix",
         "deploy-rs": "deploy-rs",
         "disko": "disko",
         "emacs-overlay": "emacs-overlay",
