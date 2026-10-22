@@ -34,6 +34,11 @@ RUN apk add --no-cache git lua5.1 unzip curl nginx supervisor \
     && docker-php-ext-enable redis \
     && apk del autoconf gcc g++ make php83-dev
 
+# WMF's CDN 403s the default `git/x.y` User-Agent from cloud/CI IPs; the
+# Wikimedia User-Agent policy requires an identifying tool + contact.
+RUN git config --global http.userAgent \
+    "fosscell-mediawiki-image-build/1.0 (vysakhpr218@gmail.com)"
+
 # ─── Extensions: Content & Navigation ────────────────────────────────────────
 RUN cd /var/www/html/extensions && \
     # Cargo — structured data storage & querying (master — no REL1_45 branch)
