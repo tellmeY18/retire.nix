@@ -32,7 +32,7 @@ spec:
             node-role.glug.infra/compute: "true"
           containers:
             - name: warmer
-              image: ghcr.io/tellmey18/mediawiki:build-24
+              image: ghcr.io/tellmey18/mediawiki:build-69
               command:
                 - php
                 - /var/www/html/maintenance-jobs/warm-cache.php
@@ -96,7 +96,7 @@ spec:
             node-role.glug.infra/compute: "true"
           containers:
             - name: indexer
-              image: ghcr.io/tellmey18/mediawiki:build-24
+              image: ghcr.io/tellmey18/mediawiki:build-69
               command:
                 - sh
                 - -c

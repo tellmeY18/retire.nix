@@ -34,7 +34,7 @@ spec:
         kubernetes.io/hostname: kenobi
       containers:
         - name: update
-          image: ghcr.io/tellmey18/mediawiki:build-55
+          image: ghcr.io/tellmey18/mediawiki:build-69
           command:
             - sh
             - -c
