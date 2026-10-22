@@ -21,7 +21,11 @@
 # Build:
 #   docker build -t ghcr.io/tellmey18/mediawiki:latest .
 
-FROM mediawiki:stable-fpm-alpine
+# Pin to the 1.45 line on purpose: `stable` moved to 1.46, which dropped
+# includes/http/MWCallbackStream.php and breaks the PHP 8.3 patches below.
+# 1.45-fpm-alpine is rebuilt on php:8.3-fpm-alpine and currently tracks
+# MediaWiki 1.45.6 + PHP 8.3.36 (CVE-2026-109618 / CVE-2026-109619 fixed).
+FROM mediawiki:1.45-fpm-alpine
 
 # Install dependencies + nginx + PHP Redis extension
 RUN apk add --no-cache git lua5.1 unzip curl nginx supervisor \
