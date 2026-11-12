@@ -10,7 +10,6 @@
 
     # Communication
     pkgs.profanity
-    pkgs.gurk-rs
 
     # Static Site Generation
     pkgs.hugo
