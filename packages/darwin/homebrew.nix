@@ -32,7 +32,6 @@
     casks = [
       "cyberduck"
       "caffeine"
-      "simplex"
       "protonvpn"
       "openvpn-connect"
       "gimp"
@@ -56,7 +55,6 @@
       "localsend"
       "onlyoffice"
       "vlc"
-      "libreoffice"
       "pika"
       "thunderbird"
     ];
