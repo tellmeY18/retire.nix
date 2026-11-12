@@ -117,9 +117,7 @@ spec:
             httpGet:
               path: /favicon.ico
               port: 2368
-              httpHeaders:
-                - name: X-Forwarded-Proto
-                  valinitialDelaySeconds: 30
+            initialDelaySeconds: 30
             periodSeconds: 30
 
           readinessProbe:

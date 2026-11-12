@@ -21,7 +21,6 @@
     pkgs.doctl
     pkgs.supabase-cli
     pkgs.s3cmd
-    pkgs.minio-client
     pkgs.nh
     pkgs.podman
     pkgs.podman-compose

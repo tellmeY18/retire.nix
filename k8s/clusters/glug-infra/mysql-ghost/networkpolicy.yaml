@@ -4,7 +4,7 @@
 # Contains the 3-member MGR group (app=mysql-ghost) and the dedicated
 # ProxySQL (app=proxysql-ghost). Default-deny ingress, then:
 #   - MGR members accept 3306 (SQL) + 33061 (XCom) from each other and from
-#     ProxySQL; 3306 also from monitoring.
+#     ProxySQL; 9104 from monitoring.
 #   - ProxySQL accepts 3306 from the ghost namespace (the app) + monitoring.
 # Egress is left open (backup CronJob → RustFS S3, DNS).
 apiVersion: networking.k8s.io/v1
@@ -33,10 +33,46 @@ spec:
     - from:
         # Group Replication peers + ProxySQL + intra-namespace tooling.
         - podSelector: {}
-        # Monitoring scrapes exporter metrics.
+        # Monitoring scrapes the mysqld-exporter sidecar.
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: monitoring
       ports:
+        - protocol: TCP
+          port: 3306
+        - protocol: TCP
+          port: 33061
+        - protocol: TCP
+          port: 9104
+---
+# ProxySQL: application SQL + admin + metrics.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-proxysql-ghost-ingress
+  namespace: mysql-ghost
+spec:
+  podSelector:
+    matchLabels:
+      app: proxysql-ghost
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        # Ghost app pods.
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ghost
+        # Intra-namespace tooling.
+        - podSelector: {}
+        # Monitoring scrapes the ProxySQL exporter.
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+      ports:
+        - protocol: TCP
+          port: 3306
+        - protocol: TCP
+          port: 6032
         - protocol: TCP
           port: 6070
