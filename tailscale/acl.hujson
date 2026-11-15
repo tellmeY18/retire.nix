@@ -36,6 +36,16 @@
 		},
 	],
 
+	// ─── Auto-approved routes ─────────────────────────────────────────
+	// k3s pod CIDRs (flannel host-gw over tailscale). Without this a node
+	// re-auth needs a manual route approval, and until then cross-node pod
+	// traffic (CNPG operator → instances, etc.) silently drops.
+	"autoApprovers": {
+		"routes": {
+			"10.42.0.0/16": ["autogroup:admin"],
+		},
+	},
+
 	// ─── SSH Policy ───────────────────────────────────────────────────
 	// Allow admin users to SSH into any device on the tailnet.
 	"ssh": [

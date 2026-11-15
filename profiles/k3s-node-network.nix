@@ -17,8 +17,13 @@
 #
 # Deliberately NOT gated behind services.k3s-cluster.enable: yoda declares
 # this networking while its k3s enablement is still off.
-{ pkgs, ... }:
+{ config, pkgs, ... }:
 {
+  # extraUpFlags only apply on first auth (tailscaled-autoconnect); a
+  # re-login silently drops --advertise-routes and breaks cross-node pod
+  # traffic. `tailscale set` re-applies them on every tailscaled start.
+  services.tailscale.extraSetFlags = config.services.tailscale.extraUpFlags;
+
   # systemd-resolved for split-DNS — Tailscale configures the tailscale0
   # link to route .ts.net queries through 100.100.100.100 (MagicDNS),
   # while everything else goes through upstream DNS.
@@ -74,9 +79,12 @@
     # forever (stderr swallowed), wedging switch-to-configuration and every
     # subsequent deploy.
     path = [ pkgs.iproute2 ];
+    # Routes vanish whenever tailscale0 goes down (logout, re-auth, restart)
+    # without any unit noticing; `ip route replace` is idempotent, so just
+    # re-apply every minute.
+    startAt = "minutely";
     serviceConfig = {
       Type = "oneshot";
-      RemainAfterExit = true;
       ExecStartPre = ''/bin/sh -c "until ip link show tailscale0 2>/dev/null | grep -q UP; do sleep 2; done"'';
     };
   };

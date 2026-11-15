@@ -35,7 +35,11 @@ spec:
   #
   # Do NOT reintroduce an HPA — it pinned itself to max under any push
   # load and starved the node without fixing the actual (DB-pool) bottleneck.
-  replicas: 6
+  #
+  # 6->3 (2026-11): chopper is offline, so all replicas land on c3po
+  # (8 GiB) and six of them starved the c3po-pinned Postgres instance out
+  # of memory. 3->0 (2026-11-16): turned off until chopper is back.
+  replicas: 0
   strategy:
     type: RollingUpdate
     rollingUpdate:

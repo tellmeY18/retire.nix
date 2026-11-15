@@ -28,15 +28,6 @@
   ...
 }:
 let
-  # Same generate call as the nixpkgs crowdsec module — produces the identical
-  # store path the crowdsec service itself runs with.
-  crowdsecConfigFile =
-    (pkgs.formats.yaml { }).generate "crowdsec.yaml"
-      config.services.crowdsec.settings.general;
-  # Constants from the nixpkgs crowdsec-firewall-bouncer module (not exported).
-  apiKeyFile = "/var/lib/crowdsec-firewall-bouncer-register/api-key.cred";
-  bouncerName = config.services.crowdsec-firewall-bouncer.registerBouncer.bouncerName;
-
   # Permanent ban list — ranges/IPs that are blocked forever at the firewall.
   # Add entries here; the crowdsec-permanent-bans oneshot ensures they are
   # always present after every boot (idempotent).
@@ -60,19 +51,19 @@ in
     enable = true;
     autoUpdateService = true; # daily `cscli hub update`
 
-    settings = {
-      general = {
-        prometheus.listen_addr = "0.0.0.0";
-        api.server = {
-          enable = true;
-          listen_uri = "127.0.0.1:8082";
-        };
+    settings.config = {
+      # Pinned: the existing DB, hub and credentials live here. The module
+      # default (/var/lib/crowdsec/data) would silently start an empty DB
+      # and drop every ban, allowlist and the CAPI registration.
+      config_paths.data_dir = "/var/lib/crowdsec/state";
+      prometheus.listen_addr = "0.0.0.0";
+      api.server = {
+        enable = true;
+        listen_uri = "127.0.0.1:8082";
+        # MUST be set for the community blocklist to be pulled at all —
+        # with the default (null) CAPI is disabled.
+        online_client.credentials_path = "/var/lib/crowdsec/state/online_api_credentials.yaml";
       };
-      # Runtime-writable credential paths, populated automatically on first
-      # start. capi credentials MUST be set for the community blocklist to
-      # be pulled at all — with the default (null) CAPI is disabled.
-      lapi.credentialsFile = "/var/lib/crowdsec/state/local_api_credentials.yaml";
-      capi.credentialsFile = "/var/lib/crowdsec/state/online_api_credentials.yaml";
     };
 
     hub = {
@@ -85,7 +76,7 @@ in
       ];
     };
 
-    localConfig = {
+    settings = {
       acquisitions = [
         {
           source = "file";
@@ -193,6 +184,7 @@ in
               "10.43.0.0/16" # k3s service CIDR
               "127.0.0.0/8"
               "27.63.223.218/32" # admin home IP (dynamic — update if it changes)
+              "103.184.239.103/32" # mathew (2026-11-16, dynamic — update if it changes)
             ];
           };
         }
@@ -236,7 +228,7 @@ in
   # restart it so the ban set is always re-applied.
   services.crowdsec-firewall-bouncer.enable = true;
 
-  # Upstream module bug #0: localConfig (parsers, scenarios, whitelists) is
+  # Upstream module bug #0: rules (parsers, scenarios, whitelists) are
   # rendered into /etc/crowdsec/, but nothing makes systemd restart the
   # daemon when those files change. A deploy therefore updates the rules on
   # disk while the RUNNING crowdsec keeps enforcing whatever it loaded at
@@ -248,9 +240,9 @@ in
   # event — while the live daemon, last started 15 days earlier, went on
   # banning the exact traffic it was written to permit.
   #
-  # Hashing localConfig means any rule change forces a restart.
+  # Hashing settings means any rule change forces a restart.
   systemd.services.crowdsec.restartTriggers = [
-    (builtins.toJSON config.services.crowdsec.localConfig)
+    (builtins.toJSON config.services.crowdsec.settings)
   ];
 
   # Chicken-and-egg wart in the nixpkgs module: `cscli machines add` (run in
@@ -266,43 +258,13 @@ in
     };
   };
 
-  # Upstream module bug #1: the register unit invokes the RAW cscli binary,
-  # which expects /etc/crowdsec/config.yaml — a file the NixOS crowdsec module
-  # never creates (its config lives in the Nix store). Override the script to
-  # pass the generated config explicitly. Same logic as upstream otherwise.
-  systemd.services.crowdsec-firewall-bouncer-register.script = lib.mkForce ''
-    cscli() {
-      ${lib.getExe' config.services.crowdsec.package "cscli"} -c=${crowdsecConfigFile} "$@"
-    }
-    if cscli bouncers list --output json | ${lib.getExe pkgs.jq} -e -- 'any(.[]; .name == "${bouncerName}")' >/dev/null; then
-      # Bouncer already registered. Verify the API key is still present
-      if [ ! -f ${apiKeyFile} ]; then
-        echo "Bouncer registered but API key is not present"
-        exit 1
-      fi
-    else
-      rm -f '${apiKeyFile}'
-      if ! cscli bouncers add --output raw -- '${bouncerName}' >${apiKeyFile}; then
-        rm ${apiKeyFile}
-        exit 1
-      fi
-    fi
-  '';
-
-  # Upstream module bug #2: the bouncer `requires` the register service but
-  # has no `after` ordering on it, so both start concurrently and the
-  # bouncer's LoadCredential races the API key file into existence.
-  systemd.services.crowdsec-firewall-bouncer.after = [ "crowdsec-firewall-bouncer-register.service" ];
-
   # Upstream module bug #3: the register unit sets DynamicUser=true together
-  # with User=crowdsec and StateDirectory="... crowdsec", which makes systemd
-  # MIGRATE /var/lib/crowdsec into /var/lib/private/ and chown it away from
-  # the static crowdsec user — corrupting the agent's state dir. Run it as
-  # the plain static user and keep only its own state directory.
-  systemd.services.crowdsec-firewall-bouncer-register.serviceConfig = {
-    DynamicUser = lib.mkForce false;
-    StateDirectory = lib.mkForce "crowdsec-firewall-bouncer-register";
-  };
+  # with User=crowdsec. Under DynamicUser systemd once migrated
+  # /var/lib/crowdsec into /var/lib/private/ and chowned it away from the
+  # static crowdsec user — corrupting the agent's state dir. Run it as the
+  # plain static user. (Bugs #1 raw-cscli and #2 missing `after` are fixed
+  # upstream since the 2026-11 module rewrite.)
+  systemd.services.crowdsec-firewall-bouncer-register.serviceConfig.DynamicUser = lib.mkForce false;
 
   # Declarative permanent bans — applied on every boot after CrowdSec starts.
   # Uses 87600h (10 years) as "forever" since cscli doesn't support infinite.
@@ -319,7 +281,7 @@ in
     path = [ config.services.crowdsec.package pkgs.jq ];
     script =
       let
-        cscli = "${lib.getExe' config.services.crowdsec.package "cscli"} -c=${crowdsecConfigFile}";
+        cscli = lib.getExe' config.services.crowdsec.package "cscli";
         banCmds = lib.concatMapStringsSep "\n" (entry: ''
           if ! ${cscli} decisions list -r ${entry.range} --output json | jq -e 'length > 0' >/dev/null 2>&1; then
             echo "Adding permanent ban: ${entry.range} (${entry.reason})"
