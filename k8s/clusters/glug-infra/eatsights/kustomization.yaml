@@ -1,0 +1,57 @@
+---
+# kustomization.yaml — Eatsights (open food data API).
+#
+# Upstream: https://github.com/tellmeY18/eatsights (deploy/ — plain kustomize).
+# Uses upstream's manifests pinned to a commit; only cluster glue lives here.
+#
+#   kubectl apply -k k8s/clusters/glug-infra/eatsights          (app)
+#   kubectl apply -k k8s/clusters/glug-infra/eatsights/migrate  (run BEFORE app on upgrades)
+#
+# Upgrade: bump `ref=` below, in migrate/, and the image tag (both places),
+# then migrate first, app second (upstream deploy/README.md §6).
+#
+# Applied separately (not a plain manifest):
+#   - Secrets `eatsights` + `eatsights-migrate` (sops) — `just k8s::eatsights-apply-secret`
+#   - DB + roles were created once from upstream deploy/postgres-roles.sql
+#     in postgres.postgres.svc (passwords live only in the sops secret).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: eatsights
+
+resources:
+  - https://github.com/tellmeY18/eatsights//deploy/app?ref=45b72541d7ab123622e7e3fe272f0615151d6d9c
+  - ingress-traefik.yaml
+
+images:
+  - name: ghcr.io/tellmey18/eatsights
+    newTag: sha-45b7254
+
+patches:
+  # Traefik IngressRoute replaces upstream's ingress-nginx Ingress.
+  - target: { kind: Ingress, name: eatsights }
+    patch: |
+      $patch: delete
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: eatsights
+  # Run next to Postgres on c3po (kenobi's CPU requests are full); tolerate
+  # c3po's storage taint like postgres/rustfs do.
+  - target: { kind: Deployment, name: eatsights }
+    patch: |
+      - op: add
+        path: /spec/template/spec/nodeSelector
+        value: { kubernetes.io/hostname: c3po }
+      - op: add
+        path: /spec/template/spec/tolerations
+        value:
+          - { key: node-role.glug.infra/storage, operator: Exists, effect: NoSchedule }
+  # Traefik runs hostNetwork on kenobi and reaches c3po pods over Tailscale,
+  # so requests arrive from kenobi's tailnet IP (or a pod IP). Only these may
+  # set X-Forwarded-For.
+  - target: { kind: ConfigMap, name: eatsights }
+    patch: |
+      - op: replace
+        path: /data/EATSIGHTS_TRUSTED_PROXIES
+        value: "10.42.0.0/16,100.73.101.89/32"

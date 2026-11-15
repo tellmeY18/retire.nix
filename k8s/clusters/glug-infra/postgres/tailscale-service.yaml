@@ -1,0 +1,24 @@
+---
+# Exposes Postgres on the tailnet as `pg-rw.<tailnet>.ts.net:5432`
+# (same name the CNPG pooler used, so tailnet clients — changala — keep working).
+apiVersion: v1
+kind: Service
+metadata:
+  name: pg-rw-tailscale
+  namespace: postgres
+  labels:
+    app.kubernetes.io/name: postgres
+    app.kubernetes.io/component: tailnet-frontend
+  annotations:
+    tailscale.com/hostname: "pg-rw"
+    tailscale.com/tags: "tag:k8s"
+spec:
+  type: LoadBalancer
+  loadBalancerClass: tailscale
+  selector:
+    app.kubernetes.io/name: postgres
+  ports:
+    - name: postgres
+      protocol: TCP
+      port: 5432
+      targetPort: 5432

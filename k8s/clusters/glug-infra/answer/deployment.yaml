@@ -52,7 +52,7 @@ spec:
           args:
             - |
               echo "Waiting for PostgreSQL..."
-              until pg_isready -h postgres-cluster-rw.cnpg-clusters.svc -p 5432 -U answer; do
+              until pg_isready -h postgres.postgres.svc -p 5432 -U answer; do
                 echo "  ...not ready, retrying in 2s"
                 sleep 2
               done

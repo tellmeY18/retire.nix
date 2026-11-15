@@ -11,8 +11,7 @@ metadata:
 data:
   nginx.conf: |
     upstream rustfs {
-        server rustfs-chopper.rustfs-clusters.svc:9000 max_fails=2 fail_timeout=10s;
-        server rustfs-c3po.rustfs-clusters.svc:9000     backup;
+        server rustfs-c3po.rustfs-clusters.svc:9000;
     }
     server {
         listen 9000;

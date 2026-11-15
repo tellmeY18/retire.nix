@@ -1,0 +1,26 @@
+---
+# Migration Job — apply BEFORE the app on every upgrade (forward-only, idempotent):
+#   kubectl -n eatsights delete job eatsights-migrate --ignore-not-found
+#   kubectl apply -k k8s/clusters/glug-infra/eatsights/migrate
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: eatsights
+
+resources:
+  - https://github.com/tellmeY18/eatsights//deploy/migrate?ref=45b72541d7ab123622e7e3fe272f0615151d6d9c
+
+images:
+  - name: ghcr.io/tellmey18/eatsights
+    newTag: sha-45b7254
+
+patches:
+  - target: { kind: Job, name: eatsights-migrate }
+    patch: |
+      - op: add
+        path: /spec/template/spec/nodeSelector
+        value: { kubernetes.io/hostname: c3po }
+      - op: add
+        path: /spec/template/spec/tolerations
+        value:
+          - { key: node-role.glug.infra/storage, operator: Exists, effect: NoSchedule }

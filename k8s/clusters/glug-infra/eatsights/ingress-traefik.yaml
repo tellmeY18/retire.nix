@@ -1,0 +1,48 @@
+---
+# Public HTTPS via Traefik (Let's Encrypt HTTP-01). DNS: A eatsights.letsimpl.fyi
+# -> kenobi's public IP. Body limit 1m mirrors upstream's nginx annotation.
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: eatsights-body-limit
+  namespace: eatsights
+spec:
+  buffering:
+    maxRequestBodyBytes: 1048576
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: eatsights-traefik
+  namespace: eatsights
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`eatsights.letsimpl.fyi`)
+      kind: Rule
+      middlewares:
+        - name: eatsights-body-limit
+      services:
+        - name: eatsights
+          port: 80
+  tls:
+    certResolver: letsencrypt
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: eatsights-traefik-redirect
+  namespace: eatsights
+spec:
+  entryPoints:
+    - web
+  routes:
+    - match: Host(`eatsights.letsimpl.fyi`)
+      kind: Rule
+      middlewares:
+        - name: redirect-to-https
+          namespace: traefik-system
+      services:
+        - name: eatsights
+          port: 80

@@ -327,35 +327,35 @@ mgr-routing:
 # ---------------------------------------------------------------------------
 # RustFS (S3-compatible object storage) day-2 helpers
 #
-# Standalone, operator-free: a single StatefulSet pod `rustfs-0`, one
+# Standalone, operator-free: a single StatefulSet pod `rustfs-c3po-0` on c3po, one
 # ZFS-backed PVC, no erasure coding. Stable endpoint: rustfs-storage-io:9000.
 # ---------------------------------------------------------------------------
 
 # Show the RustFS StatefulSet + pod status.
 [doc('Show RustFS StatefulSet + pod status')]
 rustfs-status:
-    kubectl get statefulset rustfs -n rustfs-clusters -o wide
-    kubectl get pods -n rustfs-clusters -l app.kubernetes.io/name=rustfs -o wide
+    kubectl get statefulset rustfs-c3po -n rustfs-clusters -o wide
+    kubectl get pods -n rustfs-clusters -l app.kubernetes.io/name=rustfs-c3po -o wide
 
 # Describe the RustFS pod (events, scheduling, probes).
 [doc('Describe the RustFS pod')]
 rustfs-describe:
-    kubectl describe pod rustfs-0 -n rustfs-clusters
+    kubectl describe pod rustfs-c3po-0 -n rustfs-clusters
 
 # Tail logs from the RustFS pod.
 [doc('Tail RustFS pod logs')]
 rustfs-pod-logs:
-    kubectl logs -n rustfs-clusters rustfs-0 -f --tail=200
+    kubectl logs -n rustfs-clusters rustfs-c3po-0 -f --tail=200
 
 # Show the RustFS pod and its status.
 [doc('List the RustFS pod')]
 rustfs-pods:
-    kubectl -n rustfs-clusters get pods -l app.kubernetes.io/name=rustfs -o wide
+    kubectl -n rustfs-clusters get pods -l app.kubernetes.io/name=rustfs-c3po -o wide
 
 # Show the RustFS PVC and its capacity.
 [doc('List the RustFS PVC')]
 rustfs-pvcs:
-    kubectl -n rustfs-clusters get pvc -l app.kubernetes.io/name=rustfs \
+    kubectl -n rustfs-clusters get pvc -l app.kubernetes.io/name=rustfs-c3po \
       -o custom-columns=NAME:.metadata.name,STATUS:.status.phase,CAPACITY:.status.capacity.storage,STORAGECLASS:.spec.storageClassName
 
 # Port-forward the RustFS S3 API to localhost:9000.
@@ -367,7 +367,7 @@ rustfs-port-forward:
 [doc('Check RustFS readiness + endpoint')]
 rustfs-health:
     @echo "Pod ready:"
-    kubectl get pod rustfs-0 -n rustfs-clusters -o jsonpath='{.status.containerStatuses[0].ready}{"\n"}'
+    kubectl get pod rustfs-c3po-0 -n rustfs-clusters -o jsonpath='{.status.containerStatuses[0].ready}{"\n"}'
     @echo "Service endpoints:"
     kubectl get endpoints rustfs-storage-io -n rustfs-clusters
 
@@ -613,6 +613,18 @@ caldiy-port-forward:
 caldiy-apply-secret:
     @echo "Decrypting and applying Cal.diy credentials..."
     sops --decrypt clusters/glug-infra/caldiy/credentials-secret.enc.yaml | kubectl apply -f -
+
+# Apply the Postgres credentials Secret (superuser + R2 backup creds).
+[doc('Apply Postgres credentials from sops')]
+postgres-apply-secret:
+    @echo "Decrypting and applying Postgres credentials..."
+    sops --decrypt clusters/glug-infra/postgres/credentials-secret.enc.yaml | kubectl apply -f -
+
+# Apply the Eatsights Secrets (app + migrate DB URLs, salt, root public key).
+[doc('Apply Eatsights credentials from sops')]
+eatsights-apply-secret:
+    @echo "Decrypting and applying Eatsights credentials..."
+    sops --decrypt clusters/glug-infra/eatsights/credentials-secret.enc.yaml | kubectl apply -f -
 
 # ---------------------------------------------------------------------------
 # Tuwunel (Matrix homeserver) day-2 helpers

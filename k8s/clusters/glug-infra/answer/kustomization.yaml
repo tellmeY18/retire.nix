@@ -2,7 +2,7 @@
 # kustomization.yaml — Apache Answer (stateless, S3 + PostgreSQL)
 #
 # Deploys Apache Answer with:
-#   - PostgreSQL via CNPG (postgres-cluster-rw.cnpg-clusters)
+#   - PostgreSQL (postgres.postgres.svc)
 #   - S3 uploads via RustFS (rustfs.<tailnet>.ts.net)
 #   - Tailscale ingress for access
 #

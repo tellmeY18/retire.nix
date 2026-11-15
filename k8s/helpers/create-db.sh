@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# helpers/create-db.sh — Create a PostgreSQL database + user in the CNPG cluster.
+# helpers/create-db.sh — Create a PostgreSQL database + user in the glug-infra Postgres.
 #
 # Usage:
 #   ./helpers/create-db.sh <db_name> [password]
@@ -7,9 +7,8 @@
 # If password is omitted, a random 48-char hex password is generated.
 #
 # How it works:
-#   Execs psql directly inside a running CNPG pod (bypasses NetworkPolicy
-#   and avoids Job/container escaping hell). The superuser URI is extracted
-#   from the postgres-cluster-superuser Secret.
+#   Execs psql directly inside the postgres-0 pod (local socket, no
+#   password needed; avoids Job/container escaping hell).
 #
 # Example:
 #   ./helpers/create-db.sh answer
@@ -19,15 +18,13 @@ set -euo pipefail
 
 DB_NAME="${1:?Usage: create-db.sh <db_name> [password]}"
 DB_PASSWORD="${2:-$(openssl rand -hex 24)}"
-NAMESPACE="cnpg-clusters"
-# The primary's pod name changes across failovers/switchovers (e.g.
-# postgres-cluster-4) — look it up instead of hardcoding an instance number.
-POD="$(kubectl get pods -n "${NAMESPACE}" -l cnpg.io/cluster=postgres-cluster,role=primary -o jsonpath='{.items[0].metadata.name}')"
+NAMESPACE="postgres"
+POD="postgres-0"
 
-echo "━━━ Creating database '${DB_NAME}' in CNPG cluster ━━━"
+echo "━━━ Creating database '${DB_NAME}' in Postgres ━━━"
 echo "  User:     ${DB_NAME}"
 echo "  Password: ${DB_PASSWORD}"
-echo "  Host:     postgres-cluster-rw.${NAMESPACE}.svc:5432"
+echo "  Host:     postgres.${NAMESPACE}.svc:5432"
 echo ""
 
 # Build the SQL.
@@ -59,10 +56,10 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo "✓ Database '${DB_NAME}' ready!"
 echo ""
 echo "  Connection string:"
-echo "    postgresql://${DB_NAME}:${DB_PASSWORD}@postgres-cluster-rw.${NAMESPACE}.svc:5432/${DB_NAME}"
+echo "    postgresql://${DB_NAME}:${DB_PASSWORD}@postgres.${NAMESPACE}.svc:5432/${DB_NAME}"
 echo ""
 echo "  For use in a Kubernetes Secret:"
-echo "    DB_HOST: postgres-cluster-rw.${NAMESPACE}.svc"
+echo "    DB_HOST: postgres.${NAMESPACE}.svc"
 echo "    DB_PORT: \"5432\""
 echo "    DB_USER: ${DB_NAME}"
 echo "    DB_PASSWORD: ${DB_PASSWORD}"

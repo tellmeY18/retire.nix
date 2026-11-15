@@ -1,0 +1,116 @@
+---
+# Nightly logical backup: pg_dumpall | gzip → Cloudflare R2 (off-site).
+# Same bucket/credentials the CNPG barman backups used, under `dumps/`.
+# Restore: gunzip -c <file> | psql -U postgres -h postgres.postgres.svc
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: postgres-backup
+  namespace: postgres
+  labels:
+    app.kubernetes.io/name: postgres-backup
+spec:
+  schedule: "30 2 * * *"
+  timeZone: Asia/Kolkata
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      ttlSecondsAfterFinished: 86400
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: postgres-backup
+        spec:
+          restartPolicy: OnFailure
+          nodeSelector:
+            kubernetes.io/hostname: c3po
+          tolerations:
+            - key: node-role.glug.infra/storage
+              operator: Exists
+              effect: NoSchedule
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 999
+            runAsGroup: 999
+            fsGroup: 999
+            seccompProfile:
+              type: RuntimeDefault
+          initContainers:
+            - name: dump
+              image: docker.io/library/postgres:18.1-bookworm
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: ["ALL"]
+              command:
+                - bash
+                - -c
+                - |
+                  set -euo pipefail
+                  pg_dumpall -h postgres.postgres.svc -U postgres | gzip > /backup/postgres-$(date +%Y%m%d-%H%M%S).sql.gz
+                  ls -la /backup
+              env:
+                - name: PGPASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: postgres-credentials
+                      key: POSTGRES_PASSWORD
+              volumeMounts:
+                - name: backup
+                  mountPath: /backup
+          containers:
+            - name: upload
+              image: docker.io/rclone/rclone:1.71
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: ["ALL"]
+              command:
+                - sh
+                - -c
+                - |
+                  set -eu
+                  rclone copy /backup "r2:${R2_BUCKET}/dumps" -v
+                  rclone delete "r2:${R2_BUCKET}/dumps" --min-age 30d -v
+              env:
+                - name: R2_BUCKET
+                  valueFrom:
+                    secretKeyRef:
+                      name: postgres-credentials
+                      key: R2_BUCKET
+                - name: RCLONE_CONFIG_R2_TYPE
+                  value: s3
+                - name: RCLONE_CONFIG_R2_PROVIDER
+                  value: Cloudflare
+                - name: RCLONE_CONFIG_R2_NO_CHECK_BUCKET
+                  value: "true"
+                - name: RCLONE_CONFIG_R2_ENDPOINT
+                  valueFrom:
+                    secretKeyRef:
+                      name: postgres-credentials
+                      key: R2_ENDPOINT
+                - name: RCLONE_CONFIG_R2_ACCESS_KEY_ID
+                  valueFrom:
+                    secretKeyRef:
+                      name: postgres-credentials
+                      key: R2_ACCESS_KEY_ID
+                - name: RCLONE_CONFIG_R2_SECRET_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: postgres-credentials
+                      key: R2_SECRET_ACCESS_KEY
+                - name: HOME
+                  value: /tmp
+              volumeMounts:
+                - name: backup
+                  mountPath: /backup
+                - name: tmp
+                  mountPath: /tmp
+          volumes:
+            - name: backup
+              emptyDir: {}
+            - name: tmp
+              emptyDir: {}

@@ -1,0 +1,33 @@
+---
+# kustomization.yaml — plain PostgreSQL 18 for the glug-infra apps.
+#
+# `kubectl apply -k k8s/clusters/glug-infra/postgres`
+#
+# Replaces CloudNativePG (2026-11): one StatefulSet on c3po, one Service,
+# a nightly pg_dumpall → Cloudflare R2 CronJob, and the `pg-rw` tailnet
+# Service. No operator, no pooler, no WAL archiving (worst case: lose up to
+# one day of writes — fine at this size).
+#
+# Apps connect to: postgres.postgres.svc:5432
+# Tailnet clients:  pg-rw.<tailnet>.ts.net:5432
+#
+# Applied separately (not a plain manifest):
+#   - credentials Secret (sops-encrypted) — `just k8s::postgres-apply-secret`.
+#     The StatefulSet and backup need it, so apply the secret first.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: postgres
+
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: postgres
+      app.kubernetes.io/managed-by: kustomize
+    includeSelectors: false
+
+resources:
+  - namespace.yaml
+  - networkpolicy.yaml
+  - statefulset.yaml
+  - backup-cronjob.yaml
+  - tailscale-service.yaml

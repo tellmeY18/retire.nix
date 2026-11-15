@@ -46,7 +46,7 @@ spec:
           protocol: UDP
         - port: 53
           protocol: TCP
-    # PostgreSQL (CNPG in cnpg-clusters namespace)
+    # PostgreSQL (postgres.postgres.svc)
     - ports:
         - port: 5432
           protocol: TCP

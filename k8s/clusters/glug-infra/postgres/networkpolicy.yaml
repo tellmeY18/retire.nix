@@ -1,0 +1,25 @@
+---
+# Documentary until a NetworkPolicy-aware CNI is in place (flannel does not
+# enforce), same as the rest of the cluster.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-postgres-ingress
+  namespace: postgres
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: postgres
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector: {} # backup job
+        - namespaceSelector:
+            matchExpressions:
+              - key: kubernetes.io/metadata.name
+                operator: In
+                values: [tailscale, monitoring, answer, attic, caldiy, eatsights]
+      ports:
+        - protocol: TCP
+          port: 5432

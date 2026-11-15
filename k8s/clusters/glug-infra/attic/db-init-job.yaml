@@ -1,12 +1,11 @@
 # NOTE: This Job references a "postgres-superuser" secret which must exist in
 # the attic namespace. Since Kubernetes does not allow cross-namespace secret
-# references, copy it from cnpg-clusters before running the Job:
+# references, copy it from the postgres namespace before running the Job:
 #
-#   kubectl get secret postgres-cluster-superuser -n cnpg-clusters -o json \
-#     | jq 'del(.metadata.namespace, .metadata.resourceVersion, .metadata.uid, .metadata.creationTimestamp)' \
-#     | jq '.metadata.namespace = "attic"' \
-#     | jq '.metadata.name = "postgres-superuser"' \
-#     | kubectl apply -f -
+#   kubectl -n attic create secret generic postgres-superuser \
+#     --from-literal=username=postgres \
+#     --from-literal=password="$(kubectl -n postgres get secret postgres-credentials \
+#         -o jsonpath='{.data.POSTGRES_PASSWORD}' | base64 -d)"
 #
 # Alternatively, create a sops-encrypted copy of the superuser credentials
 # in this directory and reference that instead.
@@ -47,7 +46,7 @@ spec:
               echo "Initializing Attic database and user..."
 
               # Connect as superuser to the default 'postgres' database
-              export PGHOST="postgres-cluster-rw.cnpg-clusters.svc"
+              export PGHOST="postgres.postgres.svc"
               export PGPORT="5432"
               export PGDATABASE="postgres"
 

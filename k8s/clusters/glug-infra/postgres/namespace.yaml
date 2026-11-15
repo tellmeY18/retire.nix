@@ -1,0 +1,11 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: postgres
+  labels:
+    kubernetes.io/metadata.name: postgres
+    app.kubernetes.io/name: postgres
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted

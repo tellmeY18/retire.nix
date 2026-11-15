@@ -1,15 +1,16 @@
 ---
-# nginx-s3-proxy-deployment.yaml — S3 failover proxy for RustFS active-passive HA.
+# nginx-s3-proxy-deployment.yaml — S3 front proxy for RustFS (CORS + stable endpoint).
 #
-# This is the SINGLE stable S3 endpoint apps point at. It selects between two
-# standalone RustFS instances (chopper primary, c3po backup) and fails over
-# when the primary is unreachable.
+# This is the SINGLE stable S3 endpoint apps point at. Since 2026-11 there is
+# only one RustFS instance (c3po); the chopper primary and mc-mirror were
+# retired with chopper's server role. Kept so every endpoint name, label
+# (s3-failover) and NetworkPolicy stays unchanged.
 #
 # Traffic path:
 #   apps / tailscale-lb / funnel
 #     → rustfs-storage-io / s3-tailscale / rustfs-s3-internal  (select s3-failover)
 #     → nginx-s3-proxy pods (this Deployment, label: s3-failover)
-#     → rustfs-chopper:9000  (primary) or rustfs-c3po:9000 (backup)
+#     → rustfs-c3po:9000
 #
 # Scheduled on kenobi (reliable cloud node with good uplink).
 apiVersion: apps/v1
@@ -23,7 +24,7 @@ metadata:
     app.kubernetes.io/part-of: rustfs
     app.kubernetes.io/managed-by: kustomize
 spec:
-  replicas: 2
+  replicas: 1 # kenobi CPU requests are full; 2 would sit Pending
   strategy:
     type: RollingUpdate
     rollingUpdate:

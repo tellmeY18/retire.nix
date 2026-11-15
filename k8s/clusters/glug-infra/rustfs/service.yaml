@@ -1,33 +1,3 @@
----
-# service.yaml — Services for the RustFS active-passive HA setup.
-#
-# Three services:
-#   - rustfs-hl        : headless, required by the chopper StatefulSet for stable
-#                        pod DNS (rustfs-0.rustfs-hl...). Not used by apps.
-#   - rustfs-chopper   : ClusterIP pointing directly at the chopper RustFS pod.
-#                        Used by the nginx proxy and mc-mirror as upstream.
-#   - rustfs-storage-io: the stable S3 endpoint apps already point at. Routes to
-#                        the nginx failover proxy (label s3-failover), which
-#                        selects between chopper (primary) and c3po (backup).
-#                        (Apps use: http://rustfs-storage-io.rustfs-clusters.svc:9000)
-apiVersion: v1
-kind: Service
-metadata:
-  name: rustfs-hl
-  namespace: rustfs-clusters
-  labels:
-    app.kubernetes.io/name: rustfs
-    app.kubernetes.io/part-of: rustfs
-    app.kubernetes.io/managed-by: kustomize
-spec:
-  clusterIP: None
-  selector:
-    app.kubernetes.io/name: rustfs
-  ports:
-    - name: s3
-      port: 9000
-      targetPort: 9000
----
 apiVersion: v1
 kind: Service
 metadata:
@@ -49,17 +19,17 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: rustfs-chopper
+  name: rustfs-c3po
   namespace: rustfs-clusters
   labels:
-    app.kubernetes.io/name: rustfs
+    app.kubernetes.io/name: rustfs-c3po
     app.kubernetes.io/component: object-storage
     app.kubernetes.io/part-of: rustfs
     app.kubernetes.io/managed-by: kustomize
 spec:
   type: ClusterIP
   selector:
-    app.kubernetes.io/name: rustfs
+    app.kubernetes.io/name: rustfs-c3po
   ports:
     - name: s3
       protocol: TCP

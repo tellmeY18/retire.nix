@@ -7,7 +7,7 @@
 #
 # Rules:
 #   1. Default-deny ingress for the namespace.
-#   2. Allow ingress to either RustFS pod (chopper + c3po) on port 9000 from
+#   2. Allow ingress to the RustFS pod (c3po) on port 9000 from
 #      tailscale, monitoring, consuming apps, and the nginx proxy (same ns).
 #   3. Allow ingress to the nginx proxy pod (s3-failover) on port 9000 from
 #      the tailscale operator, funnel ingress, and consuming app namespaces.

@@ -3,16 +3,16 @@
 #
 # `kubectl apply -k k8s/clusters/glug-infra/rustfs`
 #
-# Active-passive HA object storage: two standalone RustFS instances (chopper as
-# primary, c3po as warm replica), async mirrored via mc mirror, fronted by an
-# nginx failover proxy on kenobi. No erasure coding, no operator, no Tenant CRD.
+# Single standalone RustFS instance on c3po, fronted by an nginx proxy on
+# kenobi (CORS + stable endpoint). The chopper primary and the mc-mirror
+# replication were retired in 2026-11 with chopper's server role.
+# No erasure coding, no operator, no Tenant CRD.
 #
 # What lives here (all core Kubernetes types — NO CRDs, NO operator):
 #   - The `rustfs-clusters` Namespace (with PodSecurity labels).
 #   - NetworkPolicies guarding the namespace.
-#   - Two standalone RustFS StatefulSets (chopper + c3po) + their Services.
-#   - nginx failover proxy Deployment + ConfigMap (selects s3-failover label).
-#   - mc mirror Deployment for async primary→replica replication.
+#   - The c3po RustFS StatefulSet + its Services.
+#   - nginx proxy Deployment + ConfigMap (selects s3-failover label).
 #   - The Tailscale LoadBalancer Service exposing S3 as `s3.<tailnet>.ts.net:9000`.
 #   - The Tailscale Funnel Ingress for public internet access to S3.
 #
@@ -33,10 +33,8 @@ labels:
 resources:
   - namespace.yaml
   - networkpolicy.yaml
-  - statefulset.yaml
   - statefulset-c3po.yaml
   - service.yaml
-  - mc-mirror-deployment.yaml
   - nginx-s3-proxy-configmap.yaml
   - nginx-s3-proxy-deployment.yaml
   - tailscale-s3-service.yaml

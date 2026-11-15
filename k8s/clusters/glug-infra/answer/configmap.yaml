@@ -19,7 +19,7 @@ data:
     data:
       database:
         driver: postgres
-        connection: host=postgres-cluster-rw.cnpg-clusters.svc port=5432 user=answer password=afa14b2df6f9aabe7e10e057b3d81dcb5d5200d14b02557f dbname=answer sslmode=disable
+        connection: host=postgres.postgres.svc port=5432 user=answer password=afa14b2df6f9aabe7e10e057b3d81dcb5d5200d14b02557f dbname=answer sslmode=disable
       cache:
         file_path: /data/cache/cache.db
     i18n:
