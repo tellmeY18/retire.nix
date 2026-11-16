@@ -6,6 +6,7 @@
   imports = [
     ../desktop/hyprland.nix
     ../admin.nix
+    ../common/firefox
   ];
 
   home.stateVersion = "26.11";

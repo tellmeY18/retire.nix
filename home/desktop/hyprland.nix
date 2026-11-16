@@ -13,6 +13,8 @@ let
   font = "sans-serif";
   state = "${config.home.homeDirectory}/.local/state/theme";
 
+  # GTK/libadwaita apps (Firefox, portals, ...) follow the freedesktop
+  # color-scheme preference, which `theme` flips alongside everything else.
   palettes = {
     light = { bg = "ffffff"; fg = "161616"; rule = "cccccc"; frame = "888888"; mute = "555555"; tint = "f5f5f5"; };
     dark = { bg = "111111"; fg = "f5f5f5"; rule = "444444"; frame = "777777"; mute = "a3a3a3"; tint = "1f1f1f"; };
@@ -48,6 +50,17 @@ let
           hl.config({
             general = { col = { active_border = "rgb(${c.fg})", inactive_border = "rgb(${c.rule})" } },
             misc = { background_color = "rgb(${c.bg})" },
+            group = { col = {
+              border_active = "rgb(${c.fg})", border_inactive = "rgb(${c.rule})",
+              border_locked_active = "rgb(${c.fg})", border_locked_inactive = "rgb(${c.rule})",
+            } },
+            groupbar = {
+              text_color = "rgb(${c.bg})", text_color_inactive = "rgb(${c.fg})",
+              col = {
+                active = "rgb(${c.fg})", inactive = "rgb(${c.tint})",
+                locked_active = "rgb(${c.fg})", locked_inactive = "rgb(${c.tint})",
+              },
+            },
           })
         '';
       }
@@ -104,6 +117,8 @@ let
     esac
     cp -fL --no-preserve=mode,ownership "$src"/* "$d"/
     echo "$new" > "$d/name"
+    if [ "$new" = dark ]; then scheme=prefer-dark; else scheme=prefer-light; fi
+    ${pkgs.dconf}/bin/dconf write /org/gnome/desktop/interface/color-scheme "'$scheme'" 2>/dev/null || true
     # Reload; harmless if an app isn't running (e.g. during activation).
     hyprctl reload >/dev/null 2>&1 || true
     pkill -USR2 waybar 2>/dev/null || true
@@ -116,6 +131,8 @@ let
   '';
 in
 {
+  imports = [ ./full.nix ];
+
   home.packages = [ theme ] ++ (with pkgs; [
     brightnessctl
     grim

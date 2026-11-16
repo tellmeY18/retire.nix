@@ -1,7 +1,7 @@
 # hosts/chopper/parts/desktop.nix — Hyprland daily-driver desktop.
 #
 # Theme and user apps: home/vysakh (paper/ink monochrome, from skywalker).
-{ config, pkgs, ... }:
+{ config, lib, pkgs, ... }:
 {
   imports = [ ../../../profiles/hyprland-minimal.nix ];
 
@@ -24,6 +24,26 @@
 
   # hyprlock needs a PAM service to unlock.
   security.pam.services.hyprlock = { };
+
+  # Bluetooth (+ blueman applet/manager in the session).
+  hardware.bluetooth = {
+    enable = true;
+    powerOnBoot = true;
+  };
+  services.blueman.enable = true;
+
+  # Removable media (udiskie in the session), GTK settings store (the
+  # light/dark color-scheme), power profiles for the bar.
+  services.udisks2.enable = true;
+  programs.dconf.enable = true;
+
+  # Workstation, not a server: suspend on lid close (hypridle locks first).
+  # Overrides profiles/server-laptop-power.nix, which ignores the lid.
+  services.logind.settings.Login = {
+    HandleLidSwitch = lib.mkForce "suspend";
+    HandleLidSwitchExternalPower = lib.mkForce "suspend";
+    HandleLidSwitchDocked = "ignore";
+  };
 
   # Brightness keys (brightnessctl) without sudo.
   users.users.vysakh.extraGroups = [ "video" ];
