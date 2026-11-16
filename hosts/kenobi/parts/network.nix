@@ -34,7 +34,6 @@
 
     # k3s flannel host-gw: route other nodes' pod CIDRs via their Tailscale IPs.
     localCommands = ''
-      ip route replace 10.42.0.0/24 via 100.107.213.17 dev tailscale0 onlink 2>/dev/null || true
       ip route replace 10.42.2.0/24 via 100.109.132.76 dev tailscale0 onlink 2>/dev/null || true
     '';
   };
@@ -42,9 +41,9 @@
   # kenobi-only: tie the route unit's lifecycle to k3s.
   systemd.services.k3s-pod-routes = {
     bindsTo = [ "k3s.service" ];
-    # Routes to chopper (10.42.0.0/24) and c3po (10.42.2.0/24).
+    # Route to c3po (10.42.2.0/24).
     serviceConfig.ExecStart =
-      ''/bin/sh -c "ip route replace 10.42.0.0/24 via 100.107.213.17 dev tailscale0 onlink; ip route replace 10.42.2.0/24 via 100.109.132.76 dev tailscale0 onlink"'';
+      ''/bin/sh -c "ip route replace 10.42.2.0/24 via 100.109.132.76 dev tailscale0 onlink"'';
   };
 
   # Tailscale for cluster connectivity

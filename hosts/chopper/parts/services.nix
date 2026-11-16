@@ -29,9 +29,11 @@
       "--accept-routes"
       "--advertise-exit-node"
       "--accept-dns"
-      # Advertise this node's pod CIDR so other nodes can route to our pods
-      "--advertise-routes=10.42.0.0/24"
+      # Explicitly withdraw the old k3s pod CIDR (10.42.0.0/24) advertisement.
+      "--advertise-routes="
     ];
+    # extraUpFlags only apply on first auth; re-apply on every tailscaled start.
+    extraSetFlags = config.services.tailscale.extraUpFlags;
     openFirewall = true;
   };
 

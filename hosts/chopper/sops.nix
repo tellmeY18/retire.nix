@@ -31,24 +31,6 @@
         group = "root";
         mode = "0400";
       };
-
-      # -----------------------------------------------------------------------
-      # k3s cluster secrets
-      # -----------------------------------------------------------------------
-
-      # Shared cluster join token — same value used on all nodes.
-      # Key in secrets/chopper/secrets.yaml: k3s-token
-      # Generate: openssl rand -hex 32
-      "k3s-token" = { };
-
-      # Tailscale Kubernetes Operator OAuth credentials — two separate keys.
-      # Keys in secrets/chopper/secrets.yaml:
-      #   tailscale-operator-client-id
-      #   tailscale-operator-client-secret
-      # Create the OAuth client at https://login.tailscale.com/admin/settings/oauth
-      # Scopes: devices:write, auth_keys:write   Tag: tag:k8s
-      "tailscale-operator-client-id" = { };
-      "tailscale-operator-client-secret" = { };
     };
   };
 }

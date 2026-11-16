@@ -9,8 +9,6 @@
 
     ../../modules/services/cloudflared-bootstrap.nix
     ../../modules/services/cloudflared-dns.nix
-    ../../profiles/k3s-storage-node.nix
-    ../../profiles/zfs-openebs-datasets.nix
     ./default.nix
   ];
 

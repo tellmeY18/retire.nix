@@ -8,11 +8,11 @@
   stateVersion = "24.11";
   type = "nixos"; # "nixos" or "darwin"
   users = [ "vysakh" ];
+  # Daily-driver workstation; left the k3s cluster 2026-11-16.
   roles = [
     "laptop"
-    "server"
     "zfs"
-    "k3s"
+    "workstation"
   ];
 
   # deploy-rs configuration — see docs/deploy.md

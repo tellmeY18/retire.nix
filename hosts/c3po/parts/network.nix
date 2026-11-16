@@ -27,8 +27,7 @@
     ];
   };
 
-  # c3po gets podCIDR 10.42.2.0/24; route to chopper (10.42.0.0/24) and
-  # kenobi (10.42.1.0/24).
+  # c3po gets podCIDR 10.42.2.0/24; route to kenobi (10.42.1.0/24).
   systemd.services.k3s-pod-routes.serviceConfig.ExecStart =
-    ''/bin/sh -c "ip route replace 10.42.0.0/24 via 100.107.213.17 dev tailscale0 onlink; ip route replace 10.42.1.0/24 via 100.73.101.89 dev tailscale0 onlink"'';
+    ''/bin/sh -c "ip route replace 10.42.1.0/24 via 100.73.101.89 dev tailscale0 onlink"'';
 }

@@ -10,7 +10,6 @@
 # doing so would create an MTU blackhole. Tailscale sets its own tunnel MTU.
 #
 # Cluster peers (Tailscale IP → pod CIDR):
-#   chopper  100.107.213.17 → 10.42.0.0/24
 #   kenobi   100.73.101.89  → 10.42.1.0/24   (sole control plane)
 #   c3po     100.109.132.76 → 10.42.2.0/24
 #   yoda     (this node)    → 10.42.3.0/24
@@ -49,5 +48,5 @@
   # yoda gets podCIDR 10.42.3.0/24; it needs routes to every OTHER node's
   # pod CIDR via that node's Tailscale IP (host-gw).
   systemd.services.k3s-pod-routes.serviceConfig.ExecStart =
-    ''/bin/sh -c "ip route replace 10.42.0.0/24 via 100.107.213.17 dev tailscale0 onlink; ip route replace 10.42.1.0/24 via 100.73.101.89 dev tailscale0 onlink; ip route replace 10.42.2.0/24 via 100.109.132.76 dev tailscale0 onlink"'';
+    ''/bin/sh -c "ip route replace 10.42.1.0/24 via 100.73.101.89 dev tailscale0 onlink; ip route replace 10.42.2.0/24 via 100.109.132.76 dev tailscale0 onlink"'';
 }

@@ -65,3 +65,45 @@ post-deploy checks are pending.
 Runtime assistant state and encrypted credential entries are retained for
 recovery. Provider credential revocation and Signal unlinking require checking
 whether those credentials/devices are shared with other uses.
+
+## Follow-up: Chopper leaves the cluster (same day)
+
+Deployment status update: the earlier `nh os switch` on Chopper completed
+(k3s 1.36.5; Hermes, Signal and OpenClaw stopped). Chopper was then removed
+from k3s entirely.
+
+Removed (user decision):
+
+- **Cal.diy** and **Attic**: namespaces, Postgres databases and roles, and the
+  `attic` bucket (1,343 objects, 297 MB). Encrypted `pg_dump` archives of both
+  databases are under `~/.local/share/nix-recovery/2026-11-16/` on the Mac.
+  Attic is also gone from CI and from every host's substituters.
+- **Monitoring stack**: VictoriaMetrics, Grafana, VMAlert/Alertmanager,
+  VictoriaLogs, the Vector log collector, node-exporter, kube-state-metrics,
+  cloudprober, their CRDs, webhook and cluster RBAC.
+
+Ghost MySQL: Group Replication was dissolved. Member B (C3po) is a standalone
+writable server with `group_replication_start_on_boot` persisted OFF; it was
+restarted to prove this. Ghost connects to it directly. Members A (Chopper)
+and C (Kenobi), ProxySQL and their secrets are deleted. The hourly backup had
+not succeeded since 2026-09-11; it is now a nightly dump to R2
+(`mysql-ghost/`, 30 days), verified with a manual run.
+
+Old RustFS volumes on Chopper were checked before deletion:
+
+- The standalone primary (`data-rustfs-0`) matched C3po object-for-object by
+  key, size and ETag in every bucket (Attic aside).
+- The eight older volumes were one complete 8-drive erasure set from the
+  operator era. Reassembled read-only from ZFS clones, it held **400 Penpot
+  objects (9.5 MB) that existed nowhere else**; they were copied to C3po's
+  `penpot` bucket and verified byte-for-byte. Everything else was already on
+  C3po (old `mysql-backups` dumps were expired and not kept).
+
+Then all of those volumes, the Ghost member A volume and the monitoring
+volumes were deleted, Chopper was drained and deleted from the cluster, and
+k3s was stopped on it. Routes to Chopper's old pod CIDR were removed from the
+repo for every node and live on Kenobi and C3po (via a runtime-only systemd
+drop-in until those hosts are redeployed). R2D2 now points at Kenobi.
+
+Public buckets: `ghost` is anonymous-read for objects; `activitypub` for
+`images/*` only. Both were set live and are not yet in the repo.
