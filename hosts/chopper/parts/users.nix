@@ -4,6 +4,7 @@
 
 let
   vysakhMeta = import ../../../users/vysakh.nix;
+  satanMeta = import ../../../users/satan.nix;
 in
 {
   users.users = {
@@ -12,6 +13,16 @@ in
       isNormalUser = vysakhMeta.isNormalUser;
       extraGroups = vysakhMeta.extraGroups;
       openssh.authorizedKeys.keys = vysakhMeta.sshKeys;
+    };
+
+    # Primary personal + admin account. No password in the repo: set it with
+    # `sudo passwd satan` (mutable users).
+    satan = {
+      shell = pkgs.zsh;
+      isNormalUser = satanMeta.isNormalUser;
+      description = satanMeta.fullName;
+      extraGroups = satanMeta.extraGroups;
+      openssh.authorizedKeys.keys = satanMeta.sshKeys;
     };
 
     root = {
@@ -23,7 +34,7 @@ in
   security.sudo.extraRules = [
     {
       users = [ "vysakh" ];
-      commands = [ { command = "ALL"; options = [ "NOPASSWD" ]; } ];
+      commands = [{ command = "ALL"; options = [ "NOPASSWD" ]; }];
     }
   ];
 }

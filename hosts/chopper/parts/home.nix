@@ -7,5 +7,6 @@
     # Pre-existing dotfiles (old standalone HM, ~/.zshrc) are moved aside, not clobbered.
     backupFileExtension = "hm-bak";
     users.vysakh = import ../../../home/vysakh;
+    users.satan = import ../../../home/satan;
   };
 }

@@ -40,7 +40,7 @@
       # This sets NH_OS_FLAKE so `nh os switch` works from anywhere
       # without needing sudo to read the flake.
       # See: https://github.com/nix-community/nh#nixos
-      flake = "/home/vysakh/nix-config";
+      flake = "/home/satan/nix-config";
     };
 
   };
