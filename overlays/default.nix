@@ -15,12 +15,6 @@
     # plugins locally and flakes on a libuv/kqueue assertion on macOS).
     super-productivity = final.callPackage ../packages/super-productivity-bin.nix { };
 
-    # Pull signal-cli from nixpkgs-signal (pinned to a master commit with 0.14.5)
-    # instead of nixpkgs-unstable (which still ships 0.14.3 as of July 2026).
-    # 0.14.5 fixes NPE on inbound messages caused by the server omitting
-    # serverGuid from sealed-sender envelopes.
-    signal-cli = inputs.nixpkgs-signal.legacyPackages.${final.stdenv.hostPlatform.system}.signal-cli;
-
     # Pull entire from nixpkgs-entire (pinned to a master commit with 0.9.0)
     # instead of nixpkgs-unstable (which still ships 0.8.42).
     entire = inputs.nixpkgs-entire.legacyPackages.${final.stdenv.hostPlatform.system}.entire;

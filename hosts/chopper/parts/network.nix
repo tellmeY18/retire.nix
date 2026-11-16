@@ -11,11 +11,7 @@
     firewall = {
       allowedUDPPorts = [
         config.services.tailscale.port
-        5353 # mDNS — needed for Android TV device discovery (zeroconf)
       ];
-      # OpenClaw gateway is exposed via Tailscale Serve (port 443, HTTPS);
-      # all legacy web services (Nextcloud, conduwuit, care) bind to
-      # localhost and are exposed via Cloudflare Tunnel.
       allowedTCPPorts = [ 22 ];
     };
 
