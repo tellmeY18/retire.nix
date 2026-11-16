@@ -1,7 +1,6 @@
 {
   pkgs,
   config,
-  self,
   ...
 }:
 
@@ -291,10 +290,9 @@ in
     '';
   };
 
-  # Reference existing skill directories from the flake source tree.
-  # `self` is the flake output, passed via _module.args in flake.nix.
+  # Skill directories from the flake source tree.
   programs.opencode.skills = {
-    deploy-k3s-nodes = "${self.outPath}/.agents/skills/deploy-k3s-nodes";
-    nix-rebuild = "${self.outPath}/.agents/skills/nix-rebuild";
+    deploy-k3s-nodes = ../../../.agents/skills/deploy-k3s-nodes;
+    nix-rebuild = ../../../.agents/skills/nix-rebuild;
   };
 }

@@ -7,6 +7,7 @@
     ../desktop/hyprland.nix
     ../admin.nix
     ../common/firefox
+    ../common/opencode
   ];
 
   home.stateVersion = "26.11";

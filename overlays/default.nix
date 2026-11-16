@@ -9,7 +9,6 @@
 { inputs }: {
   # Custom packages overlay — adds our own derivations to nixpkgs
   custom-packages = final: _prev: {
-    gomuks = final.callPackage ../packages/gomuks/default.nix { };
 
     # Prebuilt release .app instead of the source build (which compiles 15 npm
     # plugins locally and flakes on a libuv/kqueue assertion on macOS).

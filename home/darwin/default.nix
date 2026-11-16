@@ -10,7 +10,6 @@
     ./packages/default.nix
     ./zsh/default.nix
     ./emacs/default.nix
-    ./gomuks/default.nix
     ./skhd/default.nix
     ../common/packages/dev-k8s.nix
   ];

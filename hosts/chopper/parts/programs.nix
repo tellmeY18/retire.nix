@@ -27,7 +27,9 @@
         theme = "jonathan";
       };
       enableLsColors = true;
-      enableGlobalCompInit = true;
+      # oh-my-zsh runs compinit itself; a second global one with a different
+      # fpath invalidated the dump every start (~4s shells).
+      enableGlobalCompInit = false;
     };
 
     nh = {

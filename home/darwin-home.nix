@@ -18,8 +18,6 @@
   # Let Home Manager install and manage itself
   programs.home-manager.enable = true;
 
-  # gomuks Matrix client (Darwin-only)
-  programs.gomuks.enable = true;
 
   # Ghostty terminal (darwin-only)
   # Package is null because Ghostty is installed via Homebrew cask.
