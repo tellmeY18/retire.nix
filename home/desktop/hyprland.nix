@@ -407,6 +407,13 @@ in
     platformTheme.name = "gtk3";
   };
 
+  # Firefox: drop the shared Dracula theme so the built-in "System theme"
+  # renders with the ink gtk.css (no-op where Firefox isn't enabled).
+  programs.firefox.policies.ExtensionSettings."{b743f56d-1cc1-4048-8ba6-f9c2ab7aa54d}" =
+    lib.mkForce { installation_mode = "blocked"; };
+  programs.firefox.profiles.default.settings."extensions.activeThemeID" =
+    "default-theme@mozilla.org";
+
   # OpenCode: same ink/paper palette; it picks dark or light by the
   # terminal background, so the toggle needs no reload.
   programs.opencode.cli.theme = lib.mkForce "ink";
