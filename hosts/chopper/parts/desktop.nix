@@ -45,6 +45,14 @@
     HandleLidSwitchDocked = "ignore";
   };
 
+  # 1Password GUI + CLI; satan may unlock via system auth (polkit) and
+  # the CLI integrates with the desktop app.
+  programs._1password.enable = true;
+  programs._1password-gui = {
+    enable = true;
+    polkitPolicyOwners = [ "satan" ];
+  };
+
   # Brightness keys (brightnessctl) without sudo.
   users.users.vysakh.extraGroups = [ "video" ];
 }
