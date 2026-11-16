@@ -85,7 +85,7 @@ in
       };
     };
 
-    tui = {
+    cli = {
       theme = "nord";
       keybinds = {
         leader = "alt+b";

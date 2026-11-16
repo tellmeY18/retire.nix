@@ -92,6 +92,45 @@ let
         '';
       }
       {
+        # GTK 3 (adw-gtk3) and GTK 4 / libadwaita named colours; both
+        # ~/.config/gtk-{3,4}.0/gtk.css link here. Firefox, 1Password and the
+        # portals render through GTK, Qt follows via the gtk3 platform theme.
+        name = "gtk.css";
+        path = f "gtk.css" ''
+          @define-color accent_color #${c.fg};
+          @define-color accent_bg_color #${c.fg};
+          @define-color accent_fg_color #${c.bg};
+          @define-color destructive_color #${c.fg};
+          @define-color destructive_bg_color #${c.fg};
+          @define-color destructive_fg_color #${c.bg};
+          @define-color success_color #${c.fg};
+          @define-color warning_color #${c.fg};
+          @define-color error_color #${c.fg};
+          @define-color window_bg_color #${c.bg};
+          @define-color window_fg_color #${c.fg};
+          @define-color view_bg_color #${c.bg};
+          @define-color view_fg_color #${c.fg};
+          @define-color headerbar_bg_color #${c.bg};
+          @define-color headerbar_fg_color #${c.fg};
+          @define-color headerbar_border_color #${c.rule};
+          @define-color headerbar_backdrop_color #${c.bg};
+          @define-color headerbar_shade_color #${c.rule};
+          @define-color sidebar_bg_color #${c.tint};
+          @define-color sidebar_fg_color #${c.fg};
+          @define-color sidebar_backdrop_color #${c.tint};
+          @define-color sidebar_border_color #${c.rule};
+          @define-color card_bg_color #${c.tint};
+          @define-color card_fg_color #${c.fg};
+          @define-color card_shade_color #${c.rule};
+          @define-color dialog_bg_color #${c.bg};
+          @define-color dialog_fg_color #${c.fg};
+          @define-color popover_bg_color #${c.bg};
+          @define-color popover_fg_color #${c.fg};
+          @define-color shade_color #${c.rule};
+          @define-color borders #${c.rule};
+        '';
+      }
+      {
         # hyprtoolkit theme (hyprlauncher et al.); ~/.config/hypr links here.
         name = "hyprtoolkit.conf";
         path = f "hyprtoolkit.conf" ''
@@ -133,6 +172,8 @@ let
     echo "$new" > "$d/name"
     if [ "$new" = dark ]; then scheme=prefer-dark; else scheme=prefer-light; fi
     ${pkgs.dconf}/bin/dconf write /org/gnome/desktop/interface/color-scheme "'$scheme'" 2>/dev/null || true
+    if [ "$new" = dark ]; then gtk=adw-gtk3-dark; else gtk=adw-gtk3; fi
+    ${pkgs.dconf}/bin/dconf write /org/gnome/desktop/interface/gtk-theme "'$gtk'" 2>/dev/null || true
     # Reload; harmless if an app isn't running (e.g. during activation).
     hyprctl reload >/dev/null 2>&1 || true
     pkill -USR2 waybar 2>/dev/null || true
@@ -351,6 +392,89 @@ in
   # App launcher + picker (desktop apps with icons, `=` math, `.` unicode,
   # `'` fonts; dmenu mode for the menus in full.nix). Daemonised at session
   # start for instant opening; themed by the live hyprtoolkit.conf.
+  # GTK 3/4 + Qt use the live palette (gtk.css above; theme name flipped
+  # by `theme`). Running GTK apps pick up the switch on restart.
+  gtk.theme = {
+    package = pkgs.adw-gtk3;
+    name = "adw-gtk3";
+  };
+  xdg.configFile."gtk-3.0/gtk.css".source = lib.mkForce
+    (config.lib.file.mkOutOfStoreSymlink "${state}/gtk.css");
+  xdg.configFile."gtk-4.0/gtk.css".source = lib.mkForce
+    (config.lib.file.mkOutOfStoreSymlink "${state}/gtk.css");
+  qt = {
+    enable = true;
+    platformTheme.name = "gtk3";
+  };
+
+  # OpenCode: same ink/paper palette; it picks dark or light by the
+  # terminal background, so the toggle needs no reload.
+  programs.opencode.cli.theme = lib.mkForce "ink";
+  programs.opencode.themes.ink = {
+    theme =
+      let
+        c = role: { dark = "#${palettes.dark.${role}}"; light = "#${palettes.light.${role}}"; };
+        fg = c "fg";
+        bg = c "bg";
+        mute = c "mute";
+        rule = c "rule";
+        tint = c "tint";
+        frame = c "frame";
+      in
+      {
+        primary = fg;
+        secondary = mute;
+        accent = fg;
+        error = fg;
+        warning = fg;
+        success = fg;
+        info = mute;
+        text = fg;
+        textMuted = mute;
+        background = bg;
+        backgroundPanel = tint;
+        backgroundElement = tint;
+        border = rule;
+        borderActive = fg;
+        borderSubtle = rule;
+        diffAdded = fg;
+        diffRemoved = mute;
+        diffContext = mute;
+        diffHunkHeader = mute;
+        diffHighlightAdded = fg;
+        diffHighlightRemoved = mute;
+        diffAddedBg = tint;
+        diffRemovedBg = bg;
+        diffContextBg = bg;
+        diffLineNumber = frame;
+        diffAddedLineNumberBg = tint;
+        diffRemovedLineNumberBg = bg;
+        markdownText = fg;
+        markdownHeading = fg;
+        markdownLink = fg;
+        markdownLinkText = fg;
+        markdownCode = fg;
+        markdownBlockQuote = mute;
+        markdownEmph = fg;
+        markdownStrong = fg;
+        markdownHorizontalRule = rule;
+        markdownListItem = fg;
+        markdownListEnumeration = mute;
+        markdownImage = fg;
+        markdownImageText = mute;
+        markdownCodeBlock = fg;
+        syntaxComment = mute;
+        syntaxKeyword = fg;
+        syntaxFunction = fg;
+        syntaxVariable = fg;
+        syntaxString = mute;
+        syntaxNumber = fg;
+        syntaxType = fg;
+        syntaxOperator = mute;
+        syntaxPunctuation = mute;
+      };
+  };
+
   xdg.configFile."hypr/hyprtoolkit.conf".source =
     config.lib.file.mkOutOfStoreSymlink "${state}/hyprtoolkit.conf";
   xdg.configFile."hypr/hyprlauncher.conf".text = ''
