@@ -1,8 +1,11 @@
 # home/satan/default.nix — satan, the primary personal + admin profile.
 #
 # Deliberately minimal for now; grows piece by piece.
-{ ... }:
+{ pkgs, ... }:
 {
+  # ProxyCommand for the Cloudflare Access hosts in ~/.ssh/config.
+  home.packages = [ pkgs.cloudflared ];
+
   imports = [
     ../desktop/hyprland.nix
     ../admin.nix
