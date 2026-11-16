@@ -36,14 +36,11 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      # No Magic Nix Cache: it conflicts with our Attic substituter setup and
-      # has broken evaluation before (FlakeHub auth + invalid store paths).
+      # No Magic Nix Cache: it has broken evaluation before (FlakeHub auth + invalid store paths).
       - uses: DeterminateSystems/nix-installer-action@ef8a148080ab6020fd15196c2084a2eea5ff2d25 # v22
         with:
           flakehub: false
           extra-conf: |
-            extra-substituters = https://cache.tellmey.fyi/system
-            extra-trusted-public-keys = system:mvnfTi6w7gvX6oksJ4JhHLL4wVUa576bgtLJ6lh9C2Y=
             fallback = true
             connect-timeout = 5
 

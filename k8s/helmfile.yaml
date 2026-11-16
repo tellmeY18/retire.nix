@@ -10,12 +10,9 @@
 #   dev-k8s.nix. No manual `helm plugin install` step needed.
 #
 # Layered model:
-#   1. vm/victoria-metrics-k8s-stack → the monitoring stack (VMSingle,
-#                                       VMAgent, VMAlert, VMAlertmanager,
-#                                       Grafana, node-exporter, kube-state-metrics,
-#                                       VictoriaMetrics Operator + CRDs).
-#   2. cnpg/cloudnative-pg → the operator (CRDs + controller + webhooks).
-#   3. cnpg/cluster        → one release per Postgres cluster.
+#   1. cnpg/cloudnative-pg → the operator (CRDs + controller + webhooks).
+#   2. cnpg/cluster        → one release per Postgres cluster.
+#   3. traefik/traefik     → public ingress.
 #
 # Adding a second Postgres cluster (e.g. for analytics):
 #   - Create k8s/apps/analytics/{values,secrets}.yaml.
@@ -27,8 +24,6 @@
 #   - When bumping, read the chart CHANGELOG for breaking changes.
 
 repositories:
-  - name: vm
-    url: https://victoriametrics.github.io/helm-charts
   - name: cnpg
     url: https://cloudnative-pg.github.io/charts
   - name: traefik
@@ -45,25 +40,6 @@ helmDefaults:
 
 releases:
   # ---------------------------------------------------------------------------
-  # 1. victoria-metrics-k8s-stack (VMSingle, VMAgent, VMAlert, VMAlertmanager,
-  #    Grafana, node-exporter, kube-state-metrics, VM Operator + CRDs).
-  # ---------------------------------------------------------------------------
-  # Must be installed BEFORE any release that creates VMPodScrape, VMRule,
-  # VMServiceScrape CRs. Without the CRDs in place, `helm install` fails.
-  #
-  # The namespace `monitoring` is created by kustomize (with PSA labels)
-  # before helmfile runs — hence `createNamespace: false`.
-  - name: victoria-metrics-k8s-stack
-    namespace: monitoring
-    createNamespace: false
-    chart: vm/victoria-metrics-k8s-stack
-    version: "0.78.0"
-    values:
-      - apps/victoria-metrics-k8s-stack/values.yaml
-    secrets:
-      - apps/victoria-metrics-k8s-stack/secrets.yaml
-
-  # ---------------------------------------------------------------------------
   # 2. CNPG operator (CRDs + controller + admission webhooks).
   # ---------------------------------------------------------------------------
   # Chart 0.28.0 ships CNPG operator 1.28.x. The operator runs in
@@ -73,10 +49,6 @@ releases:
     createNamespace: true
     chart: cnpg/cloudnative-pg
     version: "0.28.2"
-    # VM Operator CRDs must exist before the operator chart tries to create
-    # any monitoring resources (though we've disabled PodMonitor creation).
-    needs:
-      - monitoring/victoria-metrics-k8s-stack
     values:
       - apps/cnpg-operator/values.yaml
     secrets:
@@ -95,7 +67,6 @@ releases:
     # Apply only after the operator + CRDs are in place.
     needs:
       - cnpg-system/cloudnative-pg
-      - monitoring/victoria-metrics-k8s-stack
     values:
       - apps/postgres/values.yaml
     secrets:

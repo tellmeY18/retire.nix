@@ -4,10 +4,10 @@
 # ----------------------------------------
 # The usual objection to building a CUDA stack natively is that it means
 # compiling ~3 GB of uncached, unfree dependencies on a 4-core desktop. That
-# does not apply here: this repo's CI builds every host in .#ciMatrix on a
-# GitHub runner and pushes the closure to Attic, and skywalker has
-# cache.tellmey.fyi/system as a substituter. So CI pays the build cost once
-# and this box downloads the result.
+# does not apply here: most of the CUDA stack is substituted from
+# cache.nixos.org / nix-community.cachix.org. (The self-hosted Attic cache
+# that CI used to push full closures to has been decommissioned, so anything
+# not in those caches is now built locally.)
 #
 # k3s was the other candidate and was rejected on measurements: a kubelet +
 # containerd baseline is ~600 MB-1 GB on a 7.7 GB machine (12%+ of the

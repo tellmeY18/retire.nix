@@ -19,7 +19,7 @@ spec:
             matchExpressions:
               - key: kubernetes.io/metadata.name
                 operator: In
-                values: [tailscale, monitoring, answer, attic, caldiy, eatsights]
+                values: [tailscale, answer, eatsights, penpot]
       ports:
         - protocol: TCP
           port: 5432

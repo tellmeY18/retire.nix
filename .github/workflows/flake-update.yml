@@ -4,7 +4,7 @@
 #   1. Weekly (Mon 02:37 UTC — non-round time to dodge GitHub's cron congestion)
 #      or on manual trigger, run `nix flake update`.
 #   2. Open or update ONE PR on branch automation/flake-update.
-#   3. Nothing else. Builds, Attic pushes, and verification happen in the
+#   3. Nothing else. Builds happen in the
 #      ordinary pull_request CI (.github/workflows/build.yml), attached to
 #      the PR's immutable head SHA. Merging is manual.
 #
@@ -108,7 +108,7 @@ jobs:
             {{ env.GIT_COMMIT_MESSAGE }}
             ```
 
-            Builds + Attic push + substitution verification run as ordinary
+            Builds run as ordinary
             PR checks (`Build & Cache`) against this PR's head SHA.
 
             - ✅ Merge manually once **all hosts built and cached** is green.

@@ -7,8 +7,7 @@
 # branch update can never mix results across candidates.
 #
 # Modes:
-#   full — native builds of every config + Attic push (with retries) +
-#          fresh-store substitution verification. Runs on:
+#   full — native builds of every config. Runs on:
 #            • pull_request from automation/flake-update (the weekly updater)
 #            • a `/build` comment on any other PR (write-access users)
 #            • workflow_dispatch
@@ -19,19 +18,17 @@
 # takes an optional `host` input to build exactly one target; such a run
 # deliberately does NOT publish the aggregate gate status.
 #
-# Cache-first: Attic is configured as a substituter BEFORE any build, so CI
-# itself never recompiles what a previous run already pushed. Magic Nix
-# Cache is intentionally absent (it conflicts with Attic and broke evals).
+# Cache-first: the production substituter set is configured BEFORE any
+# build. Magic Nix Cache is intentionally absent (it broke evals).
 #
 # The `all hosts built and cached` gate only exists in full mode, fails on
-# any non-success (including skipped pushes), and posts a commit status on
+# any non-success, and posts a commit status on
 # the exact tested SHA. Merging is manual — merge the flake-update PR when
 # that status is green. While it is green, the weekly updater won't touch
 # the candidate.
 #
 # Invariant: `develop` always contains a flake.lock that builds for every
-# host AND is fully substitutable from the production cache set — no host
-# should ever compile anything locally.
+# host.
 name: Build & Cache
 
 on:
@@ -70,18 +67,12 @@ permissions:
   statuses: write
 
 env:
-  ATTIC_SERVER: https://cache.tellmey.fyi
-  ATTIC_CACHE: system
-  # Production substituter set (mirrors modules/binary-cache.nix, minus the
-  # tailnet URL that runners can't reach). Used both for builds and for the
-  # fresh-store verification that proves hosts will never compile.
+  # Substituter set used for builds (subset of modules/binary-cache.nix).
   NIX_SUBSTITUTERS: >-
     https://cache.nixos.org
-    https://cache.tellmey.fyi/system
     https://nix-community.cachix.org
   NIX_TRUSTED_KEYS: >-
     cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY=
-    system:mvnfTi6w7gvX6oksJ4JhHLL4wVUa576bgtLJ6lh9C2Y=
     nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs=
   GATE_CONTEXT: all hosts built and cached
 
@@ -188,7 +179,7 @@ jobs:
           echo "matrix=$flat" >> "$GITHUB_OUTPUT"
 
   # ---------------------------------------------------------------------------
-  # 2. Build (+ push + verify in full mode) — one job per TARGET
+  # 2. Build — one job per TARGET
   # ---------------------------------------------------------------------------
   build:
     needs: plan
@@ -223,8 +214,7 @@ jobs:
         with:
           ref: ${{ needs.plan.outputs.sha }}
 
-      # Attic (and the rest of the production substituter set) is configured
-      # BEFORE any build so previous CI pushes accelerate this run.
+      # The production substituter set is configured BEFORE any build.
       - uses: DeterminateSystems/nix-installer-action@ef8a148080ab6020fd15196c2084a2eea5ff2d25 # v22
         with:
           flakehub: false
@@ -240,65 +230,11 @@ jobs:
           MODE: ${{ needs.plan.outputs.mode }}
         run: |
           set -euo pipefail
-          : > "$RUNNER_TEMP/roots.txt"
           if [[ "$MODE" == "eval" ]]; then
             nix build ".#$ATTR" --dry-run
           else
-            nix build ".#$ATTR" --no-link --print-out-paths --print-build-logs \
-              | tee -a "$RUNNER_TEMP/roots.txt"
+            nix build ".#$ATTR" --no-link --print-out-paths --print-build-logs
           fi
-
-      - name: Setup Attic
-        if: needs.plan.outputs.mode == 'full'
-        uses: ./.github/actions/attic-setup
-        with:
-          sops-age-key: ${{ secrets.SOPS_AGE_KEY }}
-
-      - name: Push to Attic (${{ matrix.name }})
-        if: needs.plan.outputs.mode == 'full'
-        timeout-minutes: 45
-        run: |
-          set -euo pipefail
-          # Store paths never contain whitespace, so word-splitting is safe
-          # (macOS runners ship bash 3.2 — no mapfile).
-          roots=$(sort -u "$RUNNER_TEMP/roots.txt")
-          [[ -n "$roots" ]] || { echo "::error::no build roots collected"; exit 1; }
-          echo "Pushing to $ATTIC_CACHE:"; echo "$roots"
-          ok=""
-          for attempt in 1 2 3 4; do
-            # shellcheck disable=SC2086 # store paths contain no whitespace
-            if attic push -j 4 "$ATTIC_CACHE" $roots; then
-              ok=1; break
-            fi
-            echo "::warning::attic push attempt $attempt failed; retrying"
-            sleep $((attempt * 20))
-          done
-          # Never `|| true` — a failed push must fail the job and block merge.
-          [[ -n "$ok" ]]
-
-      # Prove the "never compile on a host again" promise: realize every root
-      # into a fresh store from the production substituter set only, with
-      # local builds disabled. If this passes, deployment hosts can too.
-      - name: Verify substitutability (fresh store, no builds)
-        if: needs.plan.outputs.mode == 'full'
-        timeout-minutes: 60
-        run: |
-          set -euo pipefail
-          roots=$(sort -u "$RUNNER_TEMP/roots.txt")
-          [[ -n "$roots" ]] || { echo "::error::no build roots collected"; exit 1; }
-          # Free the local store first — the roots are in Attic now, and the
-          # fresh-store realization below re-downloads the closures. Without
-          # this the runner would hold two copies of every closure.
-          nix store gc --quiet || true
-          df -h "$RUNNER_TEMP" | tail -1
-          # shellcheck disable=SC2086 # store paths contain no whitespace
-          nix build $roots \
-            --no-link \
-            --max-jobs 0 \
-            --store "$RUNNER_TEMP/verify-store" \
-            --substituters "$NIX_SUBSTITUTERS" \
-            --trusted-public-keys "$NIX_TRUSTED_KEYS"
-          echo "All roots substitutable from the production cache set."
 
   # ---------------------------------------------------------------------------
   # 3. Stable aggregate gate — the ONE check that means "safe to merge/deploy"
@@ -345,7 +281,7 @@ jobs:
           gh api "repos/$GITHUB_REPOSITORY/statuses/$SHA" \
             -f state="$STATE" \
             -f context="$GATE_CONTEXT" \
-            -f description="Build & Cache: every host built, pushed to Attic, and verified substitutable" \
+            -f description="Build & Cache: every host built" \
             -f target_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
 
       - name: Fail gate on any non-success
