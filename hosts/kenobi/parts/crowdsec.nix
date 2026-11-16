@@ -185,6 +185,7 @@ in
               "127.0.0.0/8"
               "27.63.223.218/32" # admin home IP (dynamic — update if it changes)
               "103.184.239.103/32" # mathew (2026-11-16, dynamic — update if it changes)
+              "103.141.57.36/32" # mathew, second uplink (2026-11-16, dynamic)
             ];
           };
         }
