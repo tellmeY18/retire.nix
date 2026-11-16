@@ -52,6 +52,15 @@
     enable = true;
     polkitPolicyOwners = [ "satan" ];
   };
+  # Let the desktop app talk to Firefox's 1Password extension; nixpkgs'
+  # firefox-bin runs under names 1Password doesn't trust by default.
+  environment.etc."1password/custom_allowed_browsers" = {
+    text = ''
+      firefox-bin
+      .firefox-wrapped
+    '';
+    mode = "0755";
+  };
 
   # Brightness keys (brightnessctl) without sudo.
   users.users.vysakh.extraGroups = [ "video" ];
