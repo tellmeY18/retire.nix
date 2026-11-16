@@ -57,6 +57,7 @@
     "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGk3YWoVOSFBLrr3ir00EJRcFbVMBn35DrlRaFPjBmh+ vysakh@chopper"
     "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMgedb3cJt6ID0W2c8Fzgb+58tz/qWvuoAR3xmp1WHQZ mathewalex@Vysakhs-MacBook-Pro"
     "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOoUJulOP9ZLy8Ny2LgS6HT7WSg93a4eHwbA412LbOR5"
+    (import ../../users/satan.nix).deployKey
   ];
 
   # Tailscale config is in parts/network.nix

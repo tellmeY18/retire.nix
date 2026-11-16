@@ -26,7 +26,7 @@ in
     # Root needs SSH keys for:
     #   - nixos-anywhere installation
     #   - deploy-rs pushes
-    root.openssh.authorizedKeys.keys = vysakhMeta.sshKeys;
+    root.openssh.authorizedKeys.keys = vysakhMeta.sshKeys ++ [ (import ../users/satan.nix).deployKey ];
   };
 
   # Enable SSH — critical for remote management of a cloud VM.
