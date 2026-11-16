@@ -167,6 +167,7 @@
             ./hosts/chopper/disko-config.nix
             sops-nix.nixosModules.sops
             disko.nixosModules.disko
+            inputs.home-manager.nixosModules.home-manager
           ];
           kenobi = [
             ./hosts/kenobi/disko-config.nix

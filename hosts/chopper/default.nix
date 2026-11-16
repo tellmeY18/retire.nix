@@ -11,6 +11,8 @@
     ./parts/programs.nix
     ./parts/users.nix
     ./parts/services.nix
+    ./parts/desktop.nix
+    ./parts/home.nix
     ../../profiles/zram.nix
   ];
 
