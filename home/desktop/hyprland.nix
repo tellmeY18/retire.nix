@@ -50,15 +50,17 @@ let
           hl.config({
             general = { col = { active_border = "rgb(${c.fg})", inactive_border = "rgb(${c.rule})" } },
             misc = { background_color = "rgb(${c.bg})" },
-            group = { col = {
-              border_active = "rgb(${c.fg})", border_inactive = "rgb(${c.rule})",
-              border_locked_active = "rgb(${c.fg})", border_locked_inactive = "rgb(${c.rule})",
-            } },
-            groupbar = {
-              text_color = "rgb(${c.bg})", text_color_inactive = "rgb(${c.fg})",
+            group = {
               col = {
-                active = "rgb(${c.fg})", inactive = "rgb(${c.tint})",
-                locked_active = "rgb(${c.fg})", locked_inactive = "rgb(${c.tint})",
+                border_active = "rgb(${c.fg})", border_inactive = "rgb(${c.rule})",
+                border_locked_active = "rgb(${c.fg})", border_locked_inactive = "rgb(${c.rule})",
+              },
+              groupbar = {
+                text_color = "rgb(${c.bg})", text_color_inactive = "rgb(${c.fg})",
+                col = {
+                  active = "rgb(${c.fg})", inactive = "rgb(${c.tint})",
+                  locked_active = "rgb(${c.fg})", locked_inactive = "rgb(${c.tint})",
+                },
               },
             },
           })
@@ -90,10 +92,22 @@ let
         '';
       }
       {
-        # tofi has no include; the launcher splices these in as CLI flags.
-        name = "tofi.args";
-        path = f "tofi.args" ''
-          --background-color=#${c.bg} --text-color=#${c.fg} --border-color=#${c.fg} --selection-color=#${c.bg} --selection-background=#${c.fg}
+        # hyprtoolkit theme (hyprlauncher et al.); ~/.config/hypr links here.
+        name = "hyprtoolkit.conf";
+        path = f "hyprtoolkit.conf" ''
+          background = 0xff${c.bg}
+          base = 0xff${c.bg}
+          alternate_base = 0xff${c.tint}
+          text = 0xff${c.fg}
+          bright_text = 0xff${c.fg}
+          accent = 0xff${c.fg}
+          accent_secondary = 0xff${c.mute}
+          font_family = ${font}
+          font_size = 12
+          small_font_size = 10
+          icon_theme = Papirus
+          rounding_large = 3
+          rounding_small = 3
         '';
       }
     ];
@@ -123,17 +137,21 @@ let
     hyprctl reload >/dev/null 2>&1 || true
     pkill -USR2 waybar 2>/dev/null || true
     pkill -USR1 kitty 2>/dev/null || true
+    # hyprlauncher reads the toolkit theme at start; restart its daemon.
+    if pkill -x hyprlauncher 2>/dev/null; then
+      (setsid ${pkgs.hyprlauncher}/bin/hyprlauncher -d --quiet >/dev/null 2>&1 &)
+    fi
     dunstctl reload >/dev/null 2>&1 || true
   '';
 
   launcher = pkgs.writeShellScript "launcher" ''
-    tofi-drun $(cat ${state}/tofi.args) | xargs hyprctl dispatch exec --
+    exec ${pkgs.hyprlauncher}/bin/hyprlauncher -t
   '';
 in
 {
   imports = [ ./full.nix ];
 
-  home.packages = [ theme ] ++ (with pkgs; [
+  home.packages = [ theme pkgs.hyprlauncher ] ++ (with pkgs; [
     brightnessctl
     grim
     slurp
@@ -330,28 +348,19 @@ in
     };
   };
 
-  # Colours are passed as flags by the launcher script.
-  programs.tofi = {
-    enable = true;
-    settings = {
-      width = 520;
-      height = 360;
-      border-width = 1;
-      outline-width = 0;
-      corner-radius = 3;
-      padding-left = 16;
-      padding-right = 16;
-      padding-top = 12;
-      padding-bottom = 12;
-      result-spacing = 6;
-      selection-background-padding = 4;
-      selection-background-corner-radius = 3;
-      inherit font;
-      font-size = 12;
-      hide-cursor = true;
-      prompt-text = "run ";
-    };
-  };
+  # App launcher + picker (desktop apps with icons, `=` math, `.` unicode,
+  # `'` fonts; dmenu mode for the menus in full.nix). Daemonised at session
+  # start for instant opening; themed by the live hyprtoolkit.conf.
+  xdg.configFile."hypr/hyprtoolkit.conf".source =
+    config.lib.file.mkOutOfStoreSymlink "${state}/hyprtoolkit.conf";
+  xdg.configFile."hypr/hyprlauncher.conf".text = ''
+    finders {
+      desktop_icons = true
+    }
+    ui {
+      window_size = 560 380
+    }
+  '';
 
   programs.hyprlock = {
     enable = true;

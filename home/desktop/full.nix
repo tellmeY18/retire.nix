@@ -4,8 +4,8 @@
 # (idle/lock, polkit, clipboard, notifications history, media, removable
 # media, network/bluetooth applets, night light, screenshots, recording).
 #
-# Look stays paper/ink: no blur, shadows or animations. Menus reuse tofi
-# with the live theme's colours (~/.local/state/theme/tofi.args).
+# Look stays paper/ink: no blur, shadows or animations. Menus reuse
+# hyprlauncher (dmenu mode), themed by the live hyprtoolkit.conf.
 { config, lib, pkgs, ... }:
 
 let
@@ -13,9 +13,12 @@ let
   shots = "${config.xdg.userDirs.pictures}/Screenshots";
   videos = "${config.xdg.userDirs.videos}/Recordings";
 
-  # tofi in dmenu mode, themed: menu "prompt" < choices
+  # hyprlauncher in dmenu mode: menu < choices; prints the pick (nothing
+  # on cancel — hyprlauncher reports that as "Exited without selection").
   menu = pkgs.writeShellScriptBin "menu" ''
-    exec ${pkgs.tofi}/bin/tofi $(cat ${state}/tofi.args) --prompt-text "''${1:-select} " --require-match true
+    out=$(${pkgs.hyprlauncher}/bin/hyprlauncher --dmenu --quiet) || exit 1
+    [ "$out" = "Exited without selection" ] && exit 1
+    printf '%s\n' "$out"
   '';
 
   power = pkgs.writeShellScriptBin "power-menu" ''
@@ -149,7 +152,7 @@ in
     };
     gestures.workspace_swipe_distance = 300;
     dwindle.preserve_split = true;
-    groupbar = {
+    group.groupbar = {
       font_family = "sans-serif";
       font_size = 10;
       height = 16;
@@ -174,6 +177,11 @@ in
   };
 
   wayland.windowManager.hyprland.extraConfig = lib.mkAfter ''
+    -- launcher daemon (instant open; restarted by `theme` on toggle)
+    hl.on("hyprland.start", function()
+      hl.exec_cmd("hyprlauncher -d --quiet")
+    end)
+
     -- ── navigation: focus / move / swap (hjkl + arrows) ──────────────────
     local dirs = { left = { "H", "Left" }, right = { "L", "Right" }, up = { "K", "Up" }, down = { "J", "Down" } }
     for dir, keys in pairs(dirs) do
