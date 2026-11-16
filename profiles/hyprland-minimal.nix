@@ -5,7 +5,12 @@
 # The login manager is chosen per host.
 { ... }:
 {
-  programs.hyprland.enable = true;
+  programs.hyprland = {
+    enable = true;
+    # Matches the stock package, so it comes from cache.nixos.org instead of
+    # being recompiled (withUWSM = false rebuilds Hyprland with -DNO_UWSM).
+    withUWSM = true;
+  };
 
   services.gnome.gnome-keyring.enable = true;
   security.polkit.enable = true;
