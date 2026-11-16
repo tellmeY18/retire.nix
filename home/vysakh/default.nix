@@ -247,7 +247,10 @@ in
   programs.waybar = {
     enable = true;
     # shortcut: waybar 0.16.0's utils test can't exec /bin/sh in the build sandbox; drop when nixpkgs fixes it.
-    package = pkgs.waybar.overrideAttrs { doCheck = false; };
+    package = pkgs.waybar.overrideAttrs (old: {
+      doCheck = false;
+      mesonFlags = map (f: if f == "-Dtests=enabled" then "-Dtests=disabled" else f) old.mesonFlags;
+    });
     systemd.enable = true;
     settings.mainBar = {
       layer = "top";
