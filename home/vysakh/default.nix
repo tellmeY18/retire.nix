@@ -116,11 +116,23 @@ let
   '';
 in
 {
+  # Cluster administration (kubectl, wrapped helm/helmfile, sops, k9s, ...).
+  imports = [ ../common/packages/dev-k8s.nix ];
+
   home.stateVersion = "26.11";
 
+  # sops reads the master age key from ~/.config/sops/age/keys.txt (installed
+  # out-of-band — never in the Nix store). kubectl talks to the HA endpoint.
+  home.sessionVariables.KUBECONFIG = "${config.home.homeDirectory}/.kube/glug-infra.yaml";
+
   home.packages = [ theme ] ++ (with pkgs; [
+    age
     brightnessctl
+    deploy-rs
+    git
     grim
+    jujutsu
+    just
     slurp
     wl-clipboard
   ]);
