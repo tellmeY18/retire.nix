@@ -64,11 +64,11 @@ spec:
             - name: server__trustProxy
               value: "true"
 
-            # Database (Ghost MGR cluster via dedicated ProxySQL)
+            # Database (single MySQL on c3po; ProxySQL/MGR retired 2026-11-16)
             - name: database__client
               value: "mysql"
             - name: database__connection__host
-              value: "proxysql-ghost.mysql-ghost.svc.cluster.local"
+              value: "mysql-ghost-b.mysql-ghost.svc.cluster.local"
             - name: database__connection__port
               value: "3306"
             - name: database__connection__database

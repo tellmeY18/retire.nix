@@ -17,10 +17,6 @@
 # resolve relative paths against `k8s/` regardless of where `just` is run.
 set working-directory := '.'
 
-# VMSingle is the query endpoint for every metrics recipe below; the exec
-# prefix is identical for all of them, only the query URL differs.
-vm_exec := "kubectl -n monitoring exec -it deploy/vmks-victoria-metrics-k8s-stack-vmsingle -- wget -qO-"
-
 # List available commands
 default:
     @just --list
@@ -99,14 +95,8 @@ fetch-kubeconfig:
 #      and Tailscale LoadBalancer Services. These contain NO CRD-dependent
 #      resources — only core Kubernetes types (Namespace, NetworkPolicy,
 #      Service). Changala (Deployment + ConfigMap) is also pure kustomize.
-#   2. helmfile installs the victoria-metrics-k8s-stack (CRDs + operator +
-#      VMSingle + VMAgent + Grafana), then CNPG operator, then Postgres
-#      cluster, then PXC operator + MySQL cluster, then RustFS operator.
-#   3. AFTER helmfile (CRDs are now in place), apply CRD-dependent resources:
-#      - RustFS credentials Secret (sops-decrypted, must exist BEFORE Tenant)
-#      - RustFS Tenant CR (requires rustfs.com/v1alpha1 Tenant CRD)
-#      - Changala credentials Secret (sops-decrypted)
-#      - Monitoring custom resources (VMRule, VMServiceScrape, dashboards)
+#   2. helmfile installs the CNPG operator + (hibernated) cluster and Traefik.
+#   3. Then the sops-decrypted Secrets + kustomize dirs for each app.
 [doc('Apply kustomize + helmfile to the cluster')]
 apply:
     kubectl apply -k clusters/glug-infra
@@ -114,14 +104,10 @@ apply:
     @echo "Applying RustFS credentials (sops-decrypt) before the StatefulSet..."
     sops --decrypt clusters/glug-infra/rustfs/credentials-secret.enc.yaml | kubectl apply -f -
     kubectl apply -k clusters/glug-infra/rustfs
-    kubectl apply -k clusters/glug-infra/attic
-    kubectl apply -f clusters/glug-infra/monitoring/namespace.yaml
     helmfile sync
-    @echo "Applying Attic credentials (sops-decrypt)..."
-    sops --decrypt clusters/glug-infra/attic/credentials-secret.enc.yaml | kubectl apply -f -
-    @echo "Applying Ghost MGR DB secrets (sops-decrypt), then the cluster..."
+    @echo "Applying Ghost MySQL secrets (sops-decrypt), then the server..."
+    sops --decrypt clusters/glug-infra/mysql-ghost/backup-r2-secret.enc.yaml | kubectl apply -f -
     sops --decrypt clusters/glug-infra/mysql-ghost/credentials-secret.enc.yaml | kubectl apply -f -
-    sops --decrypt clusters/glug-infra/mysql-ghost/proxysql-ghost-config-secret.enc.yaml | kubectl apply -f -
     kubectl apply -k clusters/glug-infra/mysql-ghost
     @echo "Applying MediaWiki standalone MySQL secrets (sops-decrypt), then the cluster..."
     sops --decrypt clusters/glug-infra/mysql-mediawiki/credentials-secret.enc.yaml | kubectl apply -f -
@@ -133,16 +119,12 @@ apply:
     kubectl apply -k clusters/glug-infra/mobileapps
     @echo "Applying wikifeeds..."
     kubectl apply -k clusters/glug-infra/wikifeeds
-    @echo "Applying Cal.diy (sops-decrypt credentials first)..."
-    kubectl apply -k clusters/glug-infra/caldiy
-    sops --decrypt clusters/glug-infra/caldiy/credentials-secret.enc.yaml | kubectl apply -f -
-    kubectl apply -k clusters/glug-infra/monitoring
 
 # Preview k8s changes without applying.
 [doc('Preview kustomize + helmfile changes (no apply)')]
 diff:
     for d in "" /rustfs /mysql-ghost /mysql-mediawiki /conduit /mobileapps \
-             /wikifeeds /mediawiki /caldiy /monitoring; do \
+             /wikifeeds /mediawiki; do \
       kubectl diff -k "clusters/glug-infra$d" || true; \
     done
     helmfile diff
@@ -245,7 +227,6 @@ template:
 # Edit a sops-encrypted secret file (path is relative to k8s/).
 # Examples:
 #   just k8s::edit-secret apps/postgres/secrets.yaml
-#   just k8s::edit-secret apps/victoria-metrics-k8s-stack/secrets.yaml
 [doc('Open a sops-encrypted file in $EDITOR')]
 edit-secret path:
     sops {{ path }}
@@ -253,7 +234,7 @@ edit-secret path:
 # Encrypt a plaintext values file in place (first-time setup only).
 # After this runs, use `edit-secret` for subsequent edits.
 # Example:
-#   just k8s::encrypt-secret apps/victoria-metrics-k8s-stack/secrets.yaml
+#   just k8s::encrypt-secret apps/<app>/secrets.yaml
 [doc('Encrypt a plaintext values file in place (first-time)')]
 encrypt-secret path:
     sops --encrypt --in-place {{ path }}
@@ -307,22 +288,14 @@ cnpg-backup-list:
       -o custom-columns=NAME:.metadata.name,PHASE:.status.phase,STARTED:.status.startedAt,STOPPED:.status.stoppedAt
 
 # ---------------------------------------------------------------------------
-# mysql-ghost (MySQL Group Replication) day-2 helpers
+# mysql-ghost (single MySQL on c3po) day-2 helpers
 # ---------------------------------------------------------------------------
 
-# Show MGR group membership (primary + secondaries).
-[doc('Show mysql-ghost MGR group members')]
-mgr-status:
-    kubectl exec -n mysql-ghost mysql-ghost-a-0 -c mysql -- sh -c \
-      'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" -e "SELECT member_host,member_state,member_role FROM performance_schema.replication_group_members;"' 2>/dev/null \
-      || kubectl exec -n mysql-ghost mysql-ghost-b-0 -c mysql -- sh -c 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" -e "SELECT member_host,member_state,member_role FROM performance_schema.replication_group_members;"'
-
-# Show ProxySQL backend routing (writer HG10 / reader HG20).
-[doc('Show proxysql-ghost backend routing')]
-mgr-routing:
-    kubectl exec -n mysql-ghost deploy/proxysql-ghost -- \
-      mysql -uradmin -p"$(kubectl get secret -n mysql-ghost mysql-ghost-gr -o jsonpath='{.data.radmin_password}' | base64 -d)" \
-      -h127.0.0.1 -P6032 -e "SELECT hostgroup_id,hostname,status FROM runtime_mysql_servers ORDER BY hostgroup_id;"
+# Show Ghost's MySQL pod + a quick liveness query.
+[doc('Show mysql-ghost status')]
+ghost-mysql-status:
+    kubectl get pods,pvc -n mysql-ghost -o wide
+    kubectl exec -n mysql-ghost mysql-ghost-b-0 -c mysql -- sh -c 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql -uroot -e "SELECT @@hostname, @@read_only, NOW();"'
 
 # ---------------------------------------------------------------------------
 # RustFS (S3-compatible object storage) day-2 helpers
@@ -378,21 +351,6 @@ rustfs-apply-secret:
     @echo "Decrypting and applying RustFS credentials..."
     sops --decrypt clusters/glug-infra/rustfs/credentials-secret.enc.yaml | kubectl apply -f -
 
-# Show RustFS cluster capacity from VMSingle.
-[doc('Query RustFS cluster capacity from VMSingle')]
-rustfs-capacity:
-    {{vm_exec}} "http://localhost:8428/api/v1/query?query=%7B__name__%3D~%22minio_cluster_capacity_(total|used|free)_bytes%22%7D" | jq '.data.result[]'
-
-# Show RustFS node/drive online status from VMSingle.
-[doc('Query RustFS node/drive status from VMSingle')]
-rustfs-node-status:
-    {{vm_exec}} "http://localhost:8428/api/v1/query?query=%7B__name__%3D~%22minio_cluster_(nodes|drive)_(online|offline)_total%22%7D" | jq '.data.result[]'
-
-# Show RustFS S3 request error rate (5m) from VMSingle.
-[doc('Query RustFS S3 error rate from VMSingle')]
-rustfs-error-rate:
-    {{vm_exec}} "http://localhost:8428/api/v1/query?query=rate(minio_s3_requests_errors_total%5B5m%5D)" | jq '.data.result[]'
-
 # ---------------------------------------------------------------------------
 # Changala day-2 helpers (Ring + Aggregator)
 # ---------------------------------------------------------------------------
@@ -415,133 +373,6 @@ mw:
 mw-restart:
     kubectl rollout restart deployment/mediawiki -n mediawiki
     kubectl rollout status deployment/mediawiki -n mediawiki --timeout=90s
-
-# ---------------------------------------------------------------------------
-# Endpoint monitoring (Cloudprober)
-# ---------------------------------------------------------------------------
-
-# Regenerate Cloudprober ConfigMap from endpoints.yaml and restart the pod.
-# Run this after editing endpoints.yaml.
-[doc('Sync endpoints.yaml → Cloudprober ConfigMap + restart')]
-endpoints-sync:
-    @echo "Generating Cloudprober config from endpoints.yaml..."
-    python3 gen-cloudprober-config.py endpoints.yaml | kubectl apply -f -
-    kubectl -n monitoring rollout restart deploy/cloudprober
-    @echo "Done. New endpoints will be probed within ~30s."
-
-# Add a new endpoint to monitor.
-# Usage: just k8s::endpoints-add myapp https://myapp.example.com myteam frontend
-[doc('Add endpoint: <name> <url> <team> <tier>')]
-endpoints-add name url team="ops" tier="backend":
-    @echo "\n  - name: {{ name }}" >> endpoints.yaml
-    @echo "    url: {{ url }}" >> endpoints.yaml
-    @echo "    team: {{ team }}" >> endpoints.yaml
-    @echo "    tier: {{ tier }}" >> endpoints.yaml
-    @echo "Added {{ name }} ({{ url }}). Run 'just k8s::endpoints-sync' to apply."
-
-# List currently configured endpoints.
-[doc('List all monitored endpoints')]
-endpoints-list:
-    @python3 -c "import yaml; d=yaml.safe_load(open('endpoints.yaml')); [print(f\"  {e['name']:30s} {e['url']}\") for e in d['endpoints']]"
-
-# ---------------------------------------------------------------------------
-# Monitoring helpers (VictoriaMetrics stack)
-# ---------------------------------------------------------------------------
-
-# Open Grafana in the default browser (requires tailnet access).
-[doc('Open Grafana dashboard in browser')]
-grafana-open:
-    open "http://grafana.$(tailscale status --json | jq -r '.MagicDNSSuffix'):3000"
-
-# Query VMSingle directly using curl (MetricsQL compatible).
-# Usage: just vm-query 'up'
-[doc('Query VMSingle with a MetricsQL expression')]
-vm-query expr:
-    {{vm_exec}} "http://localhost:8428/api/v1/query?query={{ expr }}" | jq .
-
-# Show all firing alerts from VMAlert.
-[doc('Show all firing alerts from VMAlert')]
-alerts:
-    {{vm_exec}} "http://localhost:8428/api/v1/query?query=ALERTS%7Balertstate%3D%22firing%22%7D" | jq '.data.result[]'
-
-# Port-forward VMSingle UI to localhost:8428 (for debugging).
-[doc('Port-forward VMSingle UI to localhost:8428')]
-vm-port-forward:
-    kubectl -n monitoring port-forward svc/vmks-victoria-metrics-k8s-stack-vmsingle 8428:8428
-
-# Port-forward Grafana to localhost:3000 (fallback if tailnet is down).
-[doc('Port-forward Grafana to localhost:3000')]
-grafana-port-forward:
-    kubectl -n monitoring port-forward svc/vmks-victoria-metrics-k8s-stack-grafana 3000:3000
-
-# Tail logs from the VictoriaMetrics operator.
-[doc('Tail VictoriaMetrics operator logs')]
-vm-operator-logs:
-    kubectl -n monitoring logs -l app.kubernetes.io/name=victoria-metrics-operator -f --tail=200
-
-# Tail logs from VMAgent.
-[doc('Tail VMAgent logs')]
-vmagent-logs:
-    kubectl -n monitoring logs -l app.kubernetes.io/name=vmagent -f --tail=200
-
-# Tail logs from VMAlert.
-[doc('Tail VMAlert logs')]
-vmalert-logs:
-    kubectl -n monitoring logs -l app.kubernetes.io/name=vmalert -f --tail=200
-
-# Show VMAgent scrape targets.
-[doc('Show VMAgent active scrape targets')]
-vmagent-targets:
-    kubectl -n monitoring exec -it deploy/vmks-victoria-metrics-k8s-stack-vmagent -- \
-      wget -qO- "http://localhost:8429/api/v1/targets" | jq '.data.activeTargets | length'
-
-# Check CNPG replication lag via VMSingle.
-[doc('Query CNPG replication lag from VMSingle')]
-cnpg-replication-lag:
-    {{vm_exec}} "http://localhost:8428/api/v1/query?query=cnpg_pg_replication_lag" | jq '.data.result[]'
-
-# ---------------------------------------------------------------------------
-# ZFS monitoring helpers
-# ---------------------------------------------------------------------------
-
-# Show ZFS pool state from VMSingle.
-[doc('Query ZFS pool state from VMSingle')]
-zfs-pool-state:
-    {{vm_exec}} "http://localhost:8428/api/v1/query?query=node_zfs_zpool_state%7Bstate%3D%22online%22%7D" | jq '.data.result[]'
-
-# Show ZFS ARC hit ratio (5m average).
-[doc('Query ZFS ARC hit ratio from VMSingle')]
-zfs-arc-hit-ratio:
-    {{vm_exec}} "http://localhost:8428/api/v1/query?query=rate(node_zfs_arc_hits%5B5m%5D)%20%2F%20(rate(node_zfs_arc_hits%5B5m%5D)%20%2B%20rate(node_zfs_arc_misses%5B5m%5D))" | jq '.data.result[]'
-
-# Show ZFS ARC size vs max.
-[doc('Query ZFS ARC size and target max from VMSingle')]
-zfs-arc-size:
-    {{vm_exec}} "http://localhost:8428/api/v1/query?query=%7B__name__%3D~%22node_zfs_arc_size%7Cnode_zfs_arc_c_max%22%7D" | jq '.data.result[]'
-
-# ---------------------------------------------------------------------------
-# Laptop battery monitoring helpers
-# ---------------------------------------------------------------------------
-
-# Show AC power status for all nodes (1 = on AC, 0 = on battery).
-[doc('Query AC power status for all nodes')]
-battery-ac-status:
-    {{vm_exec}} "http://localhost:8428/api/v1/query?query=node_power_supply_online%7Bpower_supply%3D%22AC0%22%7D" | jq '.data.result[]'
-
-# Show battery charge percentage for all nodes.
-[doc('Query battery charge level (%) for all nodes')]
-battery-level:
-    {{vm_exec}} "http://localhost:8428/api/v1/query?query=(node_power_supply_energy_watthour%7Bpower_supply%3D%22BAT0%22%7D%20%2F%20node_power_supply_energy_full%7Bpower_supply%3D%22BAT0%22%7D)%20*%20100" | jq '.data.result[]'
-
-# Show battery health (current full capacity vs design capacity).
-[doc('Query battery health (%) for all nodes')]
-battery-health:
-    {{vm_exec}} "http://localhost:8428/api/v1/query?query=(node_power_supply_energy_full%7Bpower_supply%3D%22BAT0%22%7D%20%2F%20node_power_supply_energy_full_design%7Bpower_supply%3D%22BAT0%22%7D)%20*%20100" | jq '.data.result[]'
-
-# Show remaining battery energy in watt-hours.
-[doc('Query remaining battery energy (Wh) for all nodes')]
-battery-energy:
-    {{vm_exec}} "http://localhost:8428/api/v1/query?query=node_power_supply_energy_watthour%7Bpower_supply%3D%22BAT0%22%7D" | jq '.data.result[]'
 
 # ---------------------------------------------------------------------------
 # Apache Answer helpers
@@ -583,36 +414,6 @@ answer-extract-config:
 answer-apply-secret:
     @echo "Decrypting and applying Answer credentials..."
     sops --decrypt clusters/glug-infra/answer/credentials-secret.enc.yaml | kubectl apply -f -
-
-# ---------------------------------------------------------------------------
-# Cal.diy day-2 helpers
-# ---------------------------------------------------------------------------
-
-# Show Cal.diy deployment status.
-[doc('Show Cal.diy deployment status')]
-caldiy-status:
-    kubectl get deploy,pods,svc,ingressroute -n caldiy -o wide
-
-# Tail Cal.diy logs.
-[doc('Tail Cal.diy logs')]
-caldiy-logs:
-    kubectl logs -n caldiy -l app.kubernetes.io/name=caldiy -f --tail=200
-
-# Restart Cal.diy (rolling).
-[doc('Restart Cal.diy (rolling)')]
-caldiy-restart:
-    kubectl rollout restart deploy/caldiy -n caldiy
-
-# Port-forward Cal.diy to localhost:3000.
-[doc('Port-forward Cal.diy to localhost:3000')]
-caldiy-port-forward:
-    kubectl -n caldiy port-forward svc/caldiy-svc 3000:3000
-
-# Apply Cal.diy credentials (sops-decrypt).
-[doc('Apply Cal.diy credentials Secret (sops-decrypt)')]
-caldiy-apply-secret:
-    @echo "Decrypting and applying Cal.diy credentials..."
-    sops --decrypt clusters/glug-infra/caldiy/credentials-secret.enc.yaml | kubectl apply -f -
 
 # Apply the Postgres credentials Secret (superuser + R2 backup creds).
 [doc('Apply Postgres credentials from sops')]

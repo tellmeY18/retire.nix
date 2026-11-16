@@ -1,9 +1,9 @@
 ---
-# mysql-ghost-b.yaml — MGR member B (c3po, ZFS PVC, secondary).
+# mysql-ghost-b.yaml — Ghost's single MySQL (c3po, ZFS PVC).
 #
-# Pinned to the c3po storage node; tolerates the storage taint. Datadir is a
-# zfs-localpv-16k volume. Weight 40 → eligible primary on failover, but
-# chopper (50) is preferred.
+# Former MGR member B; Group Replication was dissolved 2026-11-16 and
+# start_on_boot persisted OFF, so it runs standalone. Pinned to c3po;
+# tolerates the storage taint. Datadir is a zfs-localpv-16k volume.
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
