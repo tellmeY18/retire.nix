@@ -11,6 +11,13 @@ let
         '  {.udev_types = 0}' \
         '  {.udev_types = ELANSPI_UDEV_TYPES, .spi_acpi_id = "ELAN7001", .hid_id = {.vid = ELANSPI_TP_VID, .pid = 0x30ef}, .driver_data = ELANSPI_NO_ROTATE},
         {.udev_types = 0}'
+
+      # The sensor polls while waiting for a finger; the default thermal model
+      # (3 min hot) locks it out mid-enrollment. Other drivers opt out too.
+      substituteInPlace libfprint/drivers/elanspi.c --replace-fail \
+        'dev_class->scan_type = FP_SCAN_TYPE_SWIPE;' \
+        'dev_class->scan_type = FP_SCAN_TYPE_SWIPE;
+        dev_class->temp_hot_seconds = -1;'
     '';
   });
 in
