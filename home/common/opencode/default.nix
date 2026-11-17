@@ -203,6 +203,11 @@ in
     - Use `nh` (never nixos-rebuild/darwin-rebuild) — see the nix-rebuild skill.
     - For k3s cluster nodes, use `deploy-rs` via `just deploy <host>`.
     - `just` is the canonical task runner — run `just` to list available commands.
+    - Always tee build/switch/deploy output to a log file the user can follow
+      with `tail -f`: `<cmd> 2>&1 | tee /tmp/opencode/logs/<name>-$(date +%Y%m%d-%H%M%S).log`
+      (create the dir first). Applies to `nh`, `nix build`, `nix flake check`,
+      `just deploy`/deploy-rs and similar long-running operations. Tell the
+      user the log path before starting, and don't truncate the output.
 
     ## Code Standards
     - Run `treefmt` before committing (nix + shell + markdown formatting).

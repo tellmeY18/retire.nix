@@ -1,5 +1,7 @@
 { pkgs, lib, ... }:
 {
+  services.bootvine.enable = true;
+
   boot = {
     loader = {
       systemd-boot.enable = true;
