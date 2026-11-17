@@ -9,7 +9,7 @@ let
     postPatch = (old.postPatch or "") + ''
       substituteInPlace libfprint/drivers/elanspi.h --replace-fail \
         '  {.udev_types = 0}' \
-        '  {.udev_types = ELANSPI_UDEV_TYPES, .spi_acpi_id = "ELAN7001", .hid_id = {.vid = ELANSPI_TP_VID, .pid = 0x30ef}, .driver_data = ELANSPI_NO_ROTATE},
+        '  {.udev_types = ELANSPI_UDEV_TYPES, .spi_acpi_id = "ELAN7001", .hid_id = {.vid = ELANSPI_TP_VID, .pid = 0x30ef}, .driver_data = ELANSPI_90LEFT_ROTATE},
         {.udev_types = 0}'
 
       # The sensor polls while waiting for a finger; the default thermal model
