@@ -12,6 +12,7 @@
     ./parts/users.nix
     ./parts/services.nix
     ./parts/desktop.nix
+    ./parts/fingerprint.nix
     ./parts/home.nix
     ../../profiles/zram.nix
   ];
