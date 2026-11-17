@@ -2,23 +2,28 @@
 #
 # The sensor (ACPI ELAN7001, Intel LPSS SPI) has no kernel driver; libfprint's
 # elanspi driver talks to it through spidev and resets it via the touchpad's
-# hidraw node. Upstream's match table lacks this laptop's touchpad (04F3:30EF).
+# hidraw node. Upstream's match table lacks this laptop's touchpad (04F3:30EF),
+# and its NBIS matcher cannot tell fingers apart on the stitched swipe strips,
+# so this builds libfprint from a rebase of upstream that carries the SIGFM
+# matcher (OpenCV) and patches elanspi to use it.
 { pkgs, ... }:
 let
   libfprint = pkgs.libfprint.overrideAttrs (old: {
-    postPatch = (old.postPatch or "") + ''
-      substituteInPlace libfprint/drivers/elanspi.h --replace-fail \
-        '  {.udev_types = 0}' \
-        '  {.udev_types = ELANSPI_UDEV_TYPES, .spi_acpi_id = "ELAN7001", .hid_id = {.vid = ELANSPI_TP_VID, .pid = 0x30ef}, .driver_data = ELANSPI_90LEFT_ROTATE},
-        {.udev_types = 0}'
-
-      # The sensor polls while waiting for a finger; the default thermal model
-      # (3 min hot) locks it out mid-enrollment. Other drivers opt out too.
-      substituteInPlace libfprint/drivers/elanspi.c --replace-fail \
-        'dev_class->scan_type = FP_SCAN_TYPE_SWIPE;' \
-        'dev_class->scan_type = FP_SCAN_TYPE_SWIPE;
-        dev_class->temp_hot_seconds = -1;'
-    '';
+    pname = "libfprint-sigfm";
+    src = pkgs.fetchFromGitHub {
+      owner = "archeYR";
+      repo = "libfprint-CS9711";
+      rev = "3c93fc2da6347624fc9c2d2f36a38fec64f99835";
+      hash = "sha256-cZItBY2VEvuOimT8IP4SaZaNlzXtc+d+Fw3Tk3Lx5+s=";
+    };
+    patches = (old.patches or [ ]) ++ [ ./libfprint-elanspi-sigfm.patch ];
+    buildInputs = old.buildInputs ++ [ pkgs.opencv pkgs.doctest ];
+    # meson runs tests/unittest_inspector.py at configure time, which imports gi.
+    nativeBuildInputs = old.nativeBuildInputs ++ [
+      (pkgs.python3.withPackages (p: [ p.pygobject3 ]))
+    ];
+    # sigfm's own tests don't pass in the sandbox (see the CS9711 AUR notes).
+    doInstallCheck = false;
   });
 in
 {
