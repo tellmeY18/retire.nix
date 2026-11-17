@@ -71,6 +71,14 @@
     mode = "0755";
   };
 
+  # Graphical password prompt for `sudo -A`, so non-TTY callers (coding
+  # agents) can request root and the user approves via a dialog.
+  environment.etc."sudo.conf".text = ''
+    Path askpass ${pkgs.writeShellScript "sudo-askpass" ''
+      exec ${pkgs.zenity}/bin/zenity --password --title="sudo"
+    ''}
+  '';
+
   # Brightness keys (brightnessctl) without sudo.
   users.users.vysakh.extraGroups = [ "video" ];
 }
