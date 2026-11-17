@@ -37,6 +37,15 @@
   services.udisks2.enable = true;
   programs.dconf.enable = true;
 
+  # Thunar: themed via the shared GTK config (home/desktop); gvfs/tumbler
+  # give trash, mounts and thumbnails.
+  programs.thunar = {
+    enable = true;
+    plugins = with pkgs.xfce; [ thunar-archive-plugin thunar-volman ];
+  };
+  services.gvfs.enable = true;
+  services.tumbler.enable = true;
+
   # Workstation, not a server: suspend on lid close (hypridle locks first).
   # Overrides profiles/server-laptop-power.nix, which ignores the lid.
   services.logind.settings.Login = {

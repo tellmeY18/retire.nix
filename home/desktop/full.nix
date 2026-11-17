@@ -75,6 +75,8 @@ in
   home.packages = [ menu power clipboard shot record nightlight picker ] ++ (with pkgs; [
     hyprpicker
     hyprsunset
+    flare-signal
+    gurk-rs
     libnotify
     pavucontrol
     playerctl

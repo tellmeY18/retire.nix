@@ -95,6 +95,16 @@ eval-all:
       echo "  ✓ $host OK"
     done
 
+# Switch the local NixOS host to this flake.
+[doc('nh os switch for this host')]
+switch:
+    nh os switch .
+
+# Activate the local config without making it the boot default.
+[doc('nh os test for this host')]
+test:
+    nh os test .
+
 # Build chopper NixOS configuration (local eval, remote would build).
 [doc('Build chopper NixOS config')]
 build-chopper:
