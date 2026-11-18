@@ -1,7 +1,8 @@
 # home/desktop/hyprland.nix — Hyprland desktop shared by chopper's accounts (theme from skywalker).
 #
 # Aesthetic: werepair.fyi — paper white / ink #161616, 1px rules, 3px radius,
-# system sans, flat. No blur, shadows, transparency, animation or wallpaper.
+# system sans, flat. No shadows or transparency; short, quiet animations
+# (windows, workspaces, notifications) and a blurred-screenshot lockscreen.
 #
 # Light/dark toggle: both palettes are built by Nix; `theme toggle` (bar
 # button or $mod+T) copies the active one to ~/.local/state/theme/ and
@@ -72,6 +73,12 @@ let
           $bg = rgb(${c.bg})
           $fg = rgb(${c.fg})
           $mute = rgb(${c.mute})
+        '';
+      }
+      {
+        name = "qs.json";
+        path = f "qs.json" ''
+          {"bg":"#${c.bg}","fg":"#${c.fg}","rule":"#${c.rule}","mute":"#${c.mute}","tint":"#${c.tint}"}
         '';
       }
       {
@@ -190,7 +197,7 @@ let
   '';
 in
 {
-  imports = [ ./full.nix ];
+  imports = [ ./full.nix ./widgets.nix ];
 
   home.packages = [ theme pkgs.hyprlauncher ] ++ (with pkgs; [
     brightnessctl
@@ -286,7 +293,7 @@ in
             blur.enabled = false;
             shadow.enabled = false;
           };
-          animations.enabled = false;
+          animations.enabled = true;
           misc = {
             disable_hyprland_logo = true;
             disable_splash_rendering = true;
@@ -500,7 +507,42 @@ in
     extraConfig = "source = ${state}/hyprlock.conf";
     sourceFirst = true;
     settings = {
-      background = [{ color = "$bg"; }];
+      general.hide_cursor = true;
+
+      # hyprlock grabs a screenshot of the session itself and blurs it.
+      background = [{
+        path = "screenshot";
+        color = "$bg";
+        blur_passes = 3;
+        blur_size = 8;
+        noise = 0.02;
+        brightness = 0.8;
+      }];
+
+      animations = {
+        enabled = true;
+        bezier = "ease, 0.23, 1, 0.32, 1";
+        animation = [
+          "fadeIn, 1, 4, ease"
+          "fadeOut, 1, 3, ease"
+          "inputFieldColors, 1, 4, ease"
+          "inputFieldDots, 1, 2, ease"
+        ];
+      };
+
+      # Flat panel behind the clock keeps text readable on any screenshot
+      # and in both palettes.
+      shape = [{
+        size = "360, 190";
+        color = "$bg";
+        rounding = 3;
+        border_size = 1;
+        border_color = "$fg";
+        position = "0, 90";
+        halign = "center";
+        valign = "center";
+      }];
+
       input-field = [{
         size = "300, 44";
         outline_thickness = 1;
@@ -511,21 +553,52 @@ in
         fail_color = "$fg";
         fade_on_empty = false;
         placeholder_text = "password";
+        fail_text = "$FAIL ($ATTEMPTS)";
         dots_center = true;
         rounding = 3;
-        position = "0, -20";
+        position = "0, -60";
         halign = "center";
         valign = "center";
       }];
-      label = [{
-        text = "$TIME";
-        color = "$fg";
-        font_size = 48;
-        font_family = font;
-        position = "0, 80";
-        halign = "center";
-        valign = "center";
-      }];
+
+      label = [
+        {
+          text = "$TIME";
+          color = "$fg";
+          font_size = 64;
+          font_family = font;
+          position = "0, 120";
+          halign = "center";
+          valign = "center";
+        }
+        {
+          text = ''cmd[update:60000] date +"%A, %d %B"'';
+          color = "$mute";
+          font_size = 16;
+          font_family = font;
+          position = "0, 60";
+          halign = "center";
+          valign = "center";
+        }
+        {
+          text = "$USER";
+          color = "$fg";
+          font_size = 14;
+          font_family = font;
+          position = "0, 10";
+          halign = "center";
+          valign = "center";
+        }
+        {
+          text = ''cmd[update:10000] echo "battery $(cat /sys/class/power_supply/BAT0/capacity)% · $(cat /sys/class/power_supply/BAT0/status | tr A-Z a-z)"'';
+          color = "$fg";
+          font_size = 13;
+          font_family = font;
+          position = "0, 24";
+          halign = "center";
+          valign = "bottom";
+        }
+      ];
     };
   };
 }

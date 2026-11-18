@@ -70,6 +70,24 @@ let
   picker = pkgs.writeShellScriptBin "pick-colour" ''
     c=$(${pkgs.hyprpicker}/bin/hyprpicker -a -f hex) && ${pkgs.libnotify}/bin/notify-send "colour" "$c (copied)"
   '';
+
+  # Watches udev power_supply events and notifies when AC state changes.
+  battery-watch = pkgs.writeShellScriptBin "battery-watch" ''
+    ac=$(ls -d /sys/class/power_supply/A* 2>/dev/null | head -n1)
+    bat=$(ls -d /sys/class/power_supply/BAT* 2>/dev/null | head -n1)
+    [ -n "$ac" ] && [ -n "$bat" ] || exit 0
+    last=$(cat "$ac/online")
+    ${pkgs.systemd}/bin/udevadm monitor --udev --subsystem-match=power_supply | while read -r _; do
+      now=$(cat "$ac/online")
+      [ "$now" = "$last" ] && continue
+      last=$now
+      cap=$(cat "$bat/capacity")
+      if [ "$now" = 1 ]; then msg="plugged in"; body="charging · $cap%"
+      else msg="unplugged"; body="on battery · $cap%"; fi
+      ${pkgs.libnotify}/bin/notify-send -a battery -h string:x-dunst-stack-tag:battery \
+        -h "int:value:$cap" "$msg" "$body"
+    done
+  '';
 in
 {
   home.packages = [ menu power clipboard shot record nightlight picker ] ++ (with pkgs; [
@@ -285,7 +303,35 @@ in
     hl.window_rule({ match = { title = "^(Picture-in-Picture)$" }, float = true, pin = true })
     hl.window_rule({ match = { fullscreen = true }, idle_inhibit = "fullscreen" })
     hl.window_rule({ match = { class = ".*" }, suppress_event = "maximize" })
+
+    -- ── animations: short and quiet ──────────────────────────────────────
+    hl.curve("ease", { type = "bezier", points = { {0.23, 1}, {0.32, 1} } })
+    hl.animation({ leaf = "global",       enabled = true, speed = 4, bezier = "ease" })
+    hl.animation({ leaf = "windowsIn",    enabled = true, speed = 3, bezier = "ease", style = "popin 92%" })
+    hl.animation({ leaf = "windowsOut",   enabled = true, speed = 3, bezier = "ease", style = "popin 92%" })
+    hl.animation({ leaf = "workspaces",   enabled = true, speed = 3, bezier = "ease", style = "slide" })
+    hl.animation({ leaf = "layersIn",     enabled = true, speed = 3, bezier = "ease", style = "fade" })
+    hl.animation({ leaf = "layersOut",    enabled = true, speed = 3, bezier = "ease", style = "fade" })
+    hl.animation({ leaf = "border",       enabled = false })
+
+    -- dunst slides in from the right (battery plug/unplug, screenshots, ...)
+    hl.layer_rule({ match = { namespace = "^notifications$" }, animation = "slide right" })
   '';
+
+  # Tells you when the charger is plugged in or removed: a dunst popup with
+  # a charge bar, sliding in via the layer rule above.
+  systemd.user.services.battery-watch = {
+    Unit = {
+      Description = "Notify on AC plug / unplug";
+      PartOf = [ "graphical-session.target" ];
+      After = [ "graphical-session.target" ];
+    };
+    Install.WantedBy = [ "graphical-session.target" ];
+    Service = {
+      Restart = "on-failure";
+      ExecStart = "${battery-watch}/bin/battery-watch";
+    };
+  };
 
   # ── Waybar: richer modules, same flat style ───────────────────────────
   programs.waybar.settings.mainBar = {
