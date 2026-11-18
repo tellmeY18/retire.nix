@@ -3,6 +3,16 @@
   services.bootvine.enable = true;
 
   boot = {
+    # Quiet console: no kernel/initrd/systemd chatter before the greeter.
+    consoleLogLevel = 0;
+    kernelParams = [
+      "quiet"
+      "loglevel=3"
+      "systemd.show_status=auto"
+      "rd.systemd.show_status=auto"
+      "udev.log_level=3"
+      "rd.udev.log_level=3"
+    ];
     loader = {
       systemd-boot.enable = true;
       efi = {
