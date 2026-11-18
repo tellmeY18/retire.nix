@@ -12,7 +12,9 @@
     ./parts/users.nix
     ./parts/services.nix
     ./parts/desktop.nix
-    ./parts/fingerprint.nix
+    # Shelved: ELAN7001 fingerprint reader (swipe-only, unreliable matching).
+    # See docs/chopper-fingerprint-elan7001.md before re-enabling.
+    # ./parts/fingerprint.nix
     ./parts/home.nix
     ../../profiles/zram.nix
   ];
