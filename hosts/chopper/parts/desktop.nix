@@ -5,10 +5,12 @@
 {
   imports = [ ../../../profiles/hyprland-minimal.nix ];
 
+  # Hyprland's startup output goes to the journal (journalctl -t hyprland)
+  # instead of the console between the greeter and the desktop.
   services.greetd = {
     enable = true;
     settings.default_session = {
-      command = "${pkgs.tuigreet}/bin/tuigreet --time --remember --cmd ${config.programs.hyprland.package}/bin/start-hyprland";
+      command = "${pkgs.tuigreet}/bin/tuigreet --time --remember --cmd '${pkgs.systemd}/bin/systemd-cat -t hyprland ${config.programs.hyprland.package}/bin/start-hyprland'";
       user = "greeter";
     };
   };
@@ -41,7 +43,7 @@
   # give trash, mounts and thumbnails.
   programs.thunar = {
     enable = true;
-    plugins = with pkgs.xfce; [ thunar-archive-plugin thunar-volman ];
+    plugins = with pkgs; [ thunar-archive-plugin thunar-volman ];
   };
   services.gvfs.enable = true;
   services.tumbler.enable = true;
