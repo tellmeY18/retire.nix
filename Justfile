@@ -105,6 +105,21 @@ switch:
 test:
     nh os test .
 
+# Activate only the Home Manager part of this host for a user (default: you).
+# Packages come from the system profile (useUserPackages), so new packages
+# still need `just switch`; dotfiles, services and widgets update here.
+[doc('Activate Home Manager only (chopper user)')]
+switch-home user=`whoami`:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    out=$(nix build --no-link --print-out-paths ".#nixosConfigurations.chopper.config.home-manager.users.{{user}}.home.activationPackage")
+    "$out/activate"
+
+# Switch standalone Home Manager on the Mac.
+[doc('nh home switch for the Mac')]
+switch-home-mac:
+    nh home switch . -c "mathewalex@Vysakhs-MacBook-Pro"
+
 # Build chopper NixOS configuration (local eval, remote would build).
 [doc('Build chopper NixOS config')]
 build-chopper:
