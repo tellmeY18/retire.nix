@@ -81,7 +81,7 @@
           default = fenix.packages.${system}.minimal.toolchain;
           # Expose deploy-rs so `nix run .#deploy-rs` works outside the devshell.
           # Used by the Justfile `deploy` / `deploy-dry` recipes.
-          deploy-rs = deploy-rs.packages.${system}.default;
+          deploy-rs = pkgs.deploy-rs;
           # Tailscale-aware kexec tarball for nixos-anywhere.
           # Build: nix build .#packages.<system>.kexec-image
           kexec-image = pkgs.callPackage ./packages/kexec-image.nix { };
@@ -114,7 +114,7 @@
               pkgs.treefmt
               pkgs.presenterm
               pkgs.mermaid-cli # provides `mmdc` for presenterm mermaid rendering
-              deploy-rs.packages.${system}.default
+              pkgs.deploy-rs
             ]
             ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux [ pkgs.chromium ];
             shellHook = ''

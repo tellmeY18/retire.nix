@@ -20,10 +20,13 @@
     # peer connections. Without this, Tailscale falls back
     # to DERP relay and flannel host-gw can't initialize.
     authKeyFile = config.sops.secrets."tailscale-auth-key".path;
+    # Enables IP forwarding and UDP GRO tuning needed for an exit node.
+    useRoutingFeatures = "server";
     extraUpFlags = [
       "--accept-routes"
       "--accept-dns"
       "--advertise-routes=10.42.2.0/24"
+      "--advertise-exit-node"
     ];
   };
 
