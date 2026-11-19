@@ -76,6 +76,52 @@ let
         '';
       }
       {
+        # Qt (VLC, ...) via qt5ct/qt6ct: Fusion style + this palette, read at
+        # app start. Order: WindowText Button Light Midlight Dark Mid Text
+        # BrightText ButtonText Base Window Shadow Highlight HighlightedText
+        # Link LinkVisited AlternateBase NoRole ToolTipBase ToolTipText
+        # PlaceholderText.
+        name = "qt-colors.conf";
+        path =
+          let
+            col = h: "#ff${h}";
+            row = xs: lib.concatStringsSep ", " xs;
+            active = row (map col [
+              c.fg c.tint c.bg c.tint c.rule c.rule c.fg c.fg c.fg c.bg c.bg
+              c.frame c.fg c.bg c.fg c.mute c.tint c.bg c.bg c.fg
+            ] ++ [ "#80${c.mute}" ]);
+            disabled = row (map col [
+              c.mute c.tint c.bg c.tint c.rule c.rule c.mute c.mute c.mute c.bg c.bg
+              c.frame c.rule c.mute c.mute c.mute c.tint c.bg c.bg c.mute
+            ] ++ [ "#80${c.mute}" ]);
+          in
+          f "qt-colors.conf" ''
+            [ColorScheme]
+            active_colors=${active}
+            inactive_colors=${active}
+            disabled_colors=${disabled}
+          '';
+      }
+      {
+        # mpv: OSD + window colours (included from mpv.conf) ...
+        name = "mpv-theme.conf";
+        path = f "mpv-theme.conf" ''
+          osd-color=#${c.fg}
+          osd-border-color=#${c.bg}
+          osd-back-color=#${c.bg}
+          background=color
+          background-color=#${c.bg}
+        '';
+      }
+      {
+        # ... and uosc's colours (monochrome, like the rest of the desktop).
+        name = "uosc.conf";
+        path = f "uosc.conf" ''
+          color=foreground=${c.fg},foreground_text=${c.bg},background=${c.bg},background_text=${c.fg},curtain=${c.bg},success=${c.fg},error=${c.fg}
+          timeline_style=line
+        '';
+      }
+      {
         name = "qs.json";
         path = f "qs.json" ''
           {"bg":"#${c.bg}","fg":"#${c.fg}","rule":"#${c.rule}","mute":"#${c.mute}","tint":"#${c.tint}"}
@@ -160,6 +206,15 @@ let
 
   themes = lib.mapAttrs mkTheme palettes;
 
+  # qt5ct/qt6ct: built-in Fusion style with the live palette (qt-colors.conf).
+  qtctSettings.Appearance = {
+    style = "Fusion";
+    custom_palette = true;
+    color_scheme_path = "${state}/qt-colors.conf";
+    standard_dialogs = "default";
+    icon_theme = "Papirus";
+  };
+
   # theme [light|dark|toggle|init]  — init applies the saved theme (or light).
   theme = pkgs.writeShellScriptBin "theme" ''
     d=${state}
@@ -197,7 +252,7 @@ let
   '';
 in
 {
-  imports = [ ./full.nix ./widgets.nix ];
+  imports = [ ./full.nix ./widgets.nix ./mpv.nix ];
 
   home.packages = [ theme pkgs.hyprlauncher ] ++ (with pkgs; [
     brightnessctl
@@ -412,7 +467,9 @@ in
     (config.lib.file.mkOutOfStoreSymlink "${state}/gtk.css");
   qt = {
     enable = true;
-    platformTheme.name = "gtk3";
+    platformTheme.name = "qtct";
+    qt5ctSettings = qtctSettings;
+    qt6ctSettings = qtctSettings;
   };
 
   # Firefox: drop the shared Dracula theme so the built-in "System theme"
