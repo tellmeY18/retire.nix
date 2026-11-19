@@ -6,6 +6,10 @@
   # ProxyCommand for the Cloudflare Access hosts in ~/.ssh/config.
   home.packages = [ pkgs.cloudflared ];
 
+  # Tailscale GUI/tray (peers, exit nodes, Taildrop). Needs the tailscale
+  # operator set to this user — see hosts/chopper/parts/services.nix.
+  services.trayscale.enable = true;
+
   imports = [
     ../desktop/hyprland.nix
     ../admin.nix

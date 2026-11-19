@@ -33,7 +33,7 @@
       "--advertise-routes="
     ];
     # extraUpFlags only apply on first auth; re-apply on every tailscaled start.
-    extraSetFlags = config.services.tailscale.extraUpFlags;
+    extraSetFlags = config.services.tailscale.extraUpFlags ++ [ "--operator=satan" ];
     openFirewall = true;
   };
 
