@@ -14,6 +14,10 @@
     # plugins locally and flakes on a libuv/kqueue assertion on macOS).
     super-productivity = final.callPackage ../packages/super-productivity-bin.nix { };
 
+    # TMPlayer (unofficial Telegram media player), repackaged from the upstream
+    # release tarball until it has a proper nixpkgs package.
+    tmplayer-bin = final.callPackage ../packages/tmplayer-bin.nix { };
+
     # Pull entire from nixpkgs-entire (pinned to a master commit with 0.9.0)
     # instead of nixpkgs-unstable (which still ships 0.8.42).
     entire = inputs.nixpkgs-entire.legacyPackages.${final.stdenv.hostPlatform.system}.entire;

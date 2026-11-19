@@ -95,6 +95,7 @@ in
     hyprsunset
     flare-signal
     gurk-rs
+    tmplayer-bin
     vlc
     libnotify
     pavucontrol
