@@ -5,6 +5,8 @@
 # The login manager is chosen per host.
 { ... }:
 {
+  imports = [ ./indic.nix ];
+
   programs.hyprland = {
     enable = true;
     # Matches the stock package, so it comes from cache.nixos.org instead of

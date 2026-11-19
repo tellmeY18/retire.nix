@@ -70,6 +70,19 @@ in
     # 1Password
     "{d634138d-c276-4fc8-924b-40a0ea21d284}" =
       install "https://addons.mozilla.org/firefox/downloads/latest/1password-x-password-manager/latest.xpi";
+  } // builtins.mapAttrs (_: slug: install "https://addons.mozilla.org/firefox/downloads/latest/${slug}/latest.xpi") {
+    # Indic spell-check dictionaries (no Malayalam dictionary exists on AMO).
+    "hi-IN@dellalibera.sf.net" = "hindi-spell-checker";
+    "tamildic@ulagam.net" = "tamil-spell-checker-for-firefo";
+    "indlinux-telugu@lists.sourceforge.net" = "telugu-spell-checker";
+    "kn@dictionaries.addons.mozilla.org" = "kannada-spell-checker";
+    "bn-BD@dictionaries.addons.mozilla.org" = "bengali-bangladesh-dictionary";
+    "gu-IN@dellalibera.sf.net" = "gujarati-spell-checker-india";
+    "mr-IN@dictionaries.addons.mozilla.org" = "marathi-dictionary";
+    "pa_IN@dellalibera.sf.net" = "punjabi-spell-checker";
+    "or@sipun.org" = "odia-spelling-checker";
+    "ur@dictionaries.addons.mozilla.org" = "urdu-dictionary";
+    "ne-NP@dictionaries.addons.mozilla.org" = "nepali-dictionary";
   };
 
   FirefoxHome = {

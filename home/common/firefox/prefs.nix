@@ -48,6 +48,29 @@
   "startup.homepage_welcome_url.additional" = "";
   "toolkit.legacyUserProfileCustomizations.stylesheets" = true;
 
+  # Indic languages: Latin first so English sites stay English, then the
+  # scripts we read. Per-script default fonts (Noto ships all of them; see
+  # profiles/indic.nix for the system side).
+  "intl.accept_languages" = "en-IN, en-US, en, hi, ml, ta, te, kn, bn, gu, mr, pa";
+  "font.name.sans-serif.x-mlym" = "Noto Sans Malayalam";
+  "font.name.serif.x-mlym" = "Noto Serif Malayalam";
+  "font.name.sans-serif.x-deva" = "Noto Sans Devanagari";
+  "font.name.serif.x-deva" = "Noto Serif Devanagari";
+  "font.name.sans-serif.x-taml" = "Noto Sans Tamil";
+  "font.name.serif.x-taml" = "Noto Serif Tamil";
+  "font.name.sans-serif.x-telu" = "Noto Sans Telugu";
+  "font.name.serif.x-telu" = "Noto Serif Telugu";
+  "font.name.sans-serif.x-knda" = "Noto Sans Kannada";
+  "font.name.serif.x-knda" = "Noto Serif Kannada";
+  "font.name.sans-serif.x-beng" = "Noto Sans Bengali";
+  "font.name.serif.x-beng" = "Noto Serif Bengali";
+  "font.name.sans-serif.x-gujr" = "Noto Sans Gujarati";
+  "font.name.serif.x-gujr" = "Noto Serif Gujarati";
+  "font.name.sans-serif.x-guru" = "Noto Sans Gurmukhi";
+  "font.name.serif.x-guru" = "Noto Serif Gurmukhi";
+  "font.name.sans-serif.x-orya" = "Noto Sans Oriya";
+  "font.name.serif.x-orya" = "Noto Serif Oriya";
+
   # macOS-specific
   "widget.disable-swipe-tracker" = true;
 }

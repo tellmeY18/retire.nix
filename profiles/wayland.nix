@@ -8,6 +8,8 @@
 # belong in hosts/<name>/parts/display.nix.
 { pkgs, ... }:
 {
+  imports = [ ./indic.nix ];
+
   programs.sway.enable = true;
   programs.dconf.enable = true;
 

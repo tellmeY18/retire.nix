@@ -201,6 +201,7 @@ in
     -- launcher daemon (instant open; restarted by `theme` on toggle)
     hl.on("hyprland.start", function()
       hl.exec_cmd("hyprlauncher -d --quiet")
+      hl.exec_cmd("fcitx5 -d")
     end)
 
     -- ── navigation: focus / move / swap (hjkl + arrows) ──────────────────

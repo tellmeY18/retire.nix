@@ -22,6 +22,10 @@
     # which breaks the wrapper's `touch` command. Use stable firefox instead.
     package = pkgs.firefox-bin;
 
+    # UI language packs Mozilla ships for Indic languages (selectable in
+    # Settings > Language). There is no Malayalam, Odia or Assamese build.
+    languagePacks = [ "bn" "gu-IN" "hi-IN" "kn" "mr" "ne-NP" "pa-IN" "ta" "te" "ur" ];
+
     profiles.default = {
       id = 0;
       name = "Default";
